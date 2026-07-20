@@ -1,0 +1,10 @@
+*.DS_Store
+*.zip
+.venv
+.idea
+**/__pycache__
+target_scans
+scans
+scans1
+.vscode
+                  
