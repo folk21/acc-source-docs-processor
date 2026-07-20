@@ -25,6 +25,7 @@ class RunLogger:
     """Write run messages both to the console and to a report file."""
 
     def __init__(self, report_path: Path | None = None) -> None:
+        """Create the report file eagerly so later log writes can append safely."""
         self.report_path = report_path
         if self.report_path:
             self.report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -48,7 +49,13 @@ def _natural_sort_key(path: Path) -> list[object]:
 
 
 def _score_document(doc: ExtractedDocument) -> int:
-    """Score a recognition candidate so the best page orientation can be selected."""
+    """Score a recognition candidate so the best page orientation can be selected.
+
+    The score is not meant to be a statistical OCR confidence value. It is a
+    practical ranking heuristic that lets the pipeline choose between rotations:
+    a real first page must outrank noisy text, while a continuation page can
+    still win when no standalone document markers are found.
+    """
     score = doc.confidence
     if doc.is_upd_invoice_transfer:
         score += 1000
@@ -79,6 +86,8 @@ def _analyze_continuation_orientations(
     if not auto_rotate:
         angles = (0,)
     elif image.shape[0] > image.shape[1]:
+        # Continuation pages are often scanned sideways. Try the two most likely
+        # landscape corrections before the less common 0/180-degree cases.
         angles = (90, 270, 0, 180)
     else:
         angles = ROTATION_ANGLES
@@ -87,6 +96,10 @@ def _analyze_continuation_orientations(
     best_image: np.ndarray | None = None
     for angle in angles:
         rotated = rotate_image(image, angle)
+
+        # Continuation recognition deliberately reads only small marker regions.
+        # A full-page OCR pass is unnecessary here because page 2 has no document
+        # number/date header and is used only to inherit metadata from page 1.
         continuation_text = read_continuation_text_by_crop(rotated, lang=lang)
         ocr_result = OcrResult(
             text="",
@@ -119,7 +132,13 @@ def _analyze_image_orientations(
     auto_rotate: bool,
     debug_root: Path | None = None,
 ) -> tuple[ExtractedDocument, np.ndarray]:
-    """Run OCR for candidate rotations and return the strongest recognition result."""
+    """Run OCR for candidate rotations and return the strongest recognition result.
+
+    This function is the first-page recognizer. It may detect a continuation-like
+    signal, but the main workflow accepts that signal only after standalone UPD
+    recognition has failed, preventing normal first pages from being attached to
+    the previous document by mistake.
+    """
     if not auto_rotate:
         angles = (0,)
     elif image.shape[0] > image.shape[1]:
@@ -132,6 +151,9 @@ def _analyze_image_orientations(
 
     for angle in angles:
         rotated = rotate_image(image, angle)
+
+        # Save debug crops per rotation. This makes it possible to compare why a
+        # particular angle was selected or why a field was missed.
         debug_dir = None
         if debug_root:
             debug_dir = debug_root / safe_filename(image_path.stem) / f"rotation_{angle}"
@@ -139,6 +161,8 @@ def _analyze_image_orientations(
         doc = extract_document(image_path, ocr_result)
         doc.rotation_degrees = angle
 
+        # Keep the oriented image together with its extracted metadata. If this
+        # rotation wins, the copied output image will be saved in this orientation.
         if best_doc is None or _score_document(doc) > _score_document(best_doc):
             best_doc = doc
             best_image = rotated
@@ -188,6 +212,10 @@ def process_folder(
         raise ValueError(f"Source directory does not exist or is not a directory: {source_dir}")
 
     target_dir_name = _normalize_target_dir_name(target_dir_name)
+
+    # By default the target directory is created in the current working
+    # directory, not inside the scan archive. This avoids re-processing output
+    # files when the source archive is scanned repeatedly.
     target_root = (output_dir or Path.cwd()) / target_dir_name
     registry_name = f"{target_dir_name}{DEFAULT_REGISTRY_SUFFIX}"
     report_name = f"{target_dir_name}{DEFAULT_REPORT_SUFFIX}"
@@ -199,6 +227,8 @@ def process_folder(
     active_document: ExtractedDocument | None = None
     active_continuation_page = 1
 
+    # Natural ordering is important for continuation pages: page 2 must be seen
+    # immediately after page 1 so it can inherit the previous document metadata.
     files = sorted(iter_image_files(source_dir, exclude_dirs=[target_root]), key=_natural_sort_key)
     logger.log(f"Run started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.log(f"Source directory: {source_dir}")
@@ -234,6 +264,9 @@ def process_folder(
             )
 
             if active_document is not None and not doc.is_upd_invoice_transfer:
+                # Only now try the page-2 heuristic. A normal first page has many
+                # signature/stamp markers too, so running this before first-page
+                # recognition caused false continuation matches in earlier versions.
                 continuation_candidate = _analyze_continuation_orientations(
                     image_path=image_path,
                     image=image,
@@ -245,6 +278,8 @@ def process_folder(
                     if continuation_doc.is_continuation_page:
                         doc, oriented_image = continuation_doc, continuation_image
             if doc.is_upd_invoice_transfer:
+                # A newly recognized first page becomes the active document for a
+                # possible next-page continuation scan.
                 if not dry_run:
                     copy_found_document(doc, target_subdir, oriented_image=oriented_image)
                 found_docs.append(doc)
@@ -257,6 +292,8 @@ def process_folder(
                 if doc.destination_path:
                     logger.log(f"  copied as: {doc.destination_path}")
             elif doc.is_continuation_page and active_document is not None:
+                # Continuation pages inherit number/date/party metadata from the
+                # previous recognized document and get an explicit page suffix.
                 active_continuation_page += 1
                 doc.continuation_page_number = active_continuation_page
                 if not dry_run:
@@ -269,6 +306,8 @@ def process_folder(
                 if doc.destination_path:
                     logger.log(f"  copied as: {doc.destination_path}")
             else:
+                # An unrecognized scan breaks the continuation chain because the
+                # next file can no longer be safely attached to an older document.
                 if not dry_run:
                     copy_unrecognized_document(doc, target_subdir)
                 active_document = None
@@ -281,6 +320,8 @@ def process_folder(
                     logger.log(f"  copied as: {doc.destination_path}")
             all_docs.append(doc)
         except Exception as exc:
+            # Keep the run resilient: one corrupt image should not stop the whole
+            # archive. The problematic file is copied unchanged and recorded in CSV.
             doc = ExtractedDocument(source_path=image_path, error=str(exc))
             if not dry_run:
                 try:

@@ -105,6 +105,7 @@ def normalize_money(value: str | None) -> Optional[str]:
 
 
 def _month_from_token(token: str) -> Optional[str]:
+    """Map a Russian month token or noisy OCR fragment to a two-digit month."""
     cleaned = re.sub(r"[^а-яёa-z0-9]+", "", token.lower())
     if cleaned in MONTHS_RU:
         return MONTHS_RU[cleaned]
@@ -137,6 +138,8 @@ def normalize_date(raw: str | None) -> Optional[str]:
     value = value.replace(",", " ").replace("—", " ").replace("–", " ")
     value = re.sub(r"\s+", " ", value)
 
+    # Numeric dates are common in transport details and are easier to validate
+    # than textual dates, so handle them before Russian month names.
     numeric = re.search(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})", value)
     if numeric:
         day, month, year = numeric.groups()
@@ -149,6 +152,9 @@ def normalize_date(raw: str | None) -> Optional[str]:
             return None
         return f"{day_i:02d}-{month_i:02d}-{year_i}"
 
+    # Textual dates are used in the UPD header and shipment row, for example
+    # `21 марта 2023 г.`. Month tokens may be distorted by OCR, so the month is
+    # resolved through a tolerant alias table.
     textual = re.search(
         r"(\d{1,2})\s+([а-яёa-z0-9]{3,20})\s+(\d{4})",
         value,
@@ -169,6 +175,8 @@ def extract_date_from_mixed_ocr_text(raw: str | None) -> Optional[str]:
     """Recover a date from noisy OCR snippets produced by targeted date crops."""
     if not raw:
         return None
+    # First try normal date parsing. If the crop is too noisy, recover the date
+    # from separate day/month/year fragments below.
     direct = normalize_date(raw)
     if direct:
         return direct
@@ -239,11 +247,15 @@ def choose_more_reliable_document_date(
     """
     crop_date = extract_date_from_mixed_ocr_text(crop_date_text) if crop_date_text else None
 
+    # The shipment row is the safest source because it is located near the left
+    # form fields and does not contain the `2 April 2021` form-template date.
     if shipment_date:
         if current_date and current_date != shipment_date:
             return shipment_date, "document_date_replaced_by_shipment_row"
         return shipment_date, "document_date_from_shipment_row" if not current_date else None
 
+    # If OCR fell back to the service date from the standard UPD form, discard
+    # it or replace it with a targeted date crop when available.
     if current_date and is_form_template_date(current_date, combined_text):
         if crop_date and not is_form_template_date(crop_date, combined_text):
             return crop_date, "ignored_form_template_date_used_crop_date"
@@ -262,6 +274,8 @@ def _extract_invoice_number_and_date(text: str) -> tuple[Optional[str], Optional
     """Extract document number and date from full OCR text or shipment row text."""
     compact = re.sub(r"\s+", " ", text)
 
+    # Try explicit number+date patterns first. They provide the cleanest result
+    # because the number and date come from the same OCR context.
     patterns = [
         r"сч[её]т\s*[-–]?\s*фактура\s*(?:№|N|No)?\s*([0-9\s\-/]+)\s*от\s*(\d{1,2}\s+[А-Яа-яёЁ]+\s+\d{4}\s*г?\.?)",
         r"сч[её]т\s*[-–]?\s*фактура\s*(?:№|N|No)?\s*([0-9\s\-/]+)\s*от\s*(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})",
@@ -273,6 +287,8 @@ def _extract_invoice_number_and_date(text: str) -> tuple[Optional[str], Optional
         if match:
             return normalize_number(match.group(1)), normalize_date(match.group(2))
 
+    # If the full pair is not recognized, still return partial candidates.
+    # Later adjustment logic can combine them with targeted crops or shipment-row OCR.
     number_match = re.search(r"сч[её]т\s*[-–]?\s*фактура\s*(?:№|N|No)?\s*([0-9\s\-/]{1,20})", compact, flags=re.IGNORECASE)
     date_match = re.search(r"от\s*(\d{1,2}\s+[А-Яа-яёЁ]+\s+\d{4}\s*г?\.?)", compact, flags=re.IGNORECASE)
     if not date_match:
@@ -299,6 +315,8 @@ def _extract_number_date_from_shipment_document(text: str | None) -> tuple[Optio
         return None, None
     date_pattern = r"(\d{1,2}\s+[А-Яа-яёЁA-Za-z0-9]{3,20}\s+\d{4}\s*г?\.?|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})"
 
+    # The most stable case is an explicit row-number marker followed by the real
+    # document number and `от <date>`. Ignore the first `1`, which is just the row.
     explicit = re.search(
         rf"№\s*п\s*/?\s*п\s*1\s*(?:№|N|No)?\s*([0-9\s\-/]{{1,15}})\s*от\s*{date_pattern}",
         compact,
@@ -356,6 +374,7 @@ def _is_probable_continuation_page(text: str) -> bool:
     return _continuation_marker_score(text) >= 60
 
 def _extract_inn_kpp_after_label(text: str, label: str) -> tuple[Optional[str], Optional[str]]:
+    """Extract INN/KPP pair located after a tolerant OCR-aware label pattern."""
     # OCR often turns ИНН/КПП into VHH/KNN, so use a tolerant label pattern.
     label_pattern = label.replace(" ", r"\s+")
     regex = rf"{label_pattern}[^0-9]{{0,40}}(\d{{10}})\s*/\s*(\d{{9}})"
@@ -366,6 +385,7 @@ def _extract_inn_kpp_after_label(text: str, label: str) -> tuple[Optional[str], 
 
 
 def _extract_party_name(text: str, label: str) -> Optional[str]:
+    """Extract a seller or buyer legal name following the given field label."""
     compact = re.sub(r"\s+", " ", text)
     match = re.search(rf"{label}\s*[:：]?\s*(ООО\s*[\"“”']?[^\n\r;()]+)", compact, flags=re.IGNORECASE)
     if match:
@@ -387,6 +407,12 @@ def _extract_amounts(text: str) -> tuple[Optional[str], Optional[str], Optional[
 
 
 def _extract_service_text(text: str) -> Optional[str]:
+    """Extract the service description from the UPD table row.
+
+    The service row contains useful transport details, but it is densely printed
+    and often split across OCR lines. The regex therefore captures a bounded
+    window after the service marker instead of relying on exact table columns.
+    """
     compact = re.sub(r"\s+", " ", text)
     match = re.search(r"(Транспортно[-\s]экспедиционные услуги.{0,600}?)(?:Всего к оплате|Руководитель|Главный бухгалтер)", compact, flags=re.IGNORECASE)
     if match:
@@ -398,10 +424,13 @@ def _extract_service_text(text: str) -> Optional[str]:
 
 
 def _extract_transport_details(service_text: str | None) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Extract request, vehicle, loading, and unloading details from service text."""
     if not service_text:
         return None, None, None, None, None
     compact = re.sub(r"\s+", " ", service_text)
 
+    # Request number/date is useful for the transport registry but should not be
+    # confused with the primary document number/date used in output filenames.
     request_number = None
     request_date = None
     request_match = re.search(r"заявк[аеи]\s*(?:№|N|No)?\s*([0-9\s\-/]+)\s*от\s*(\d{1,2}\s+[А-Яа-яёЁ]+\s+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})", compact, flags=re.IGNORECASE)
@@ -409,6 +438,8 @@ def _extract_transport_details(service_text: str | None) -> tuple[Optional[str],
         request_number = normalize_number(request_match.group(1))
         request_date = normalize_date(request_match.group(2))
 
+    # Vehicle details are taken from the free-form service cell. Stop the match
+    # at `Погрузка` to avoid swallowing loading dates into the vehicle field.
     vehicle = None
     vehicle_match = re.search(r"(?:а/м|автомобиль|машина)\s*([A-Za-zА-Яа-я0-9\-\s]{3,40})\s+Погрузка", compact, flags=re.IGNORECASE)
     if vehicle_match:
@@ -427,6 +458,7 @@ def _extract_transport_details(service_text: str | None) -> tuple[Optional[str],
 
 
 def _is_upd_invoice_transfer(text: str, status: str | None) -> bool:
+    """Detect a UPD status 1 document using status and header markers."""
     compact = re.sub(r"\s+", " ", text.lower())
     has_invoice = bool(re.search(r"сч[её]т\s*[-–]?\s*фактур", compact))
     has_transfer_doc = "передаточ" in compact or "универсальн" in compact
@@ -442,6 +474,8 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
     combined = normalize_spaces(ocr.header_text + "\n" + ocr.text + "\n" + getattr(ocr, "targeted_text", ""))
     invoice_number, invoice_date = _extract_invoice_number_and_date(combined)
 
+    # The shipment row is handled as a first-class fallback source because it
+    # repeats the real document number and date in a cleaner area of the form.
     shipment_source = getattr(ocr, "shipment_document_text_from_crop", None)
     if not shipment_source and "документ" in combined.lower() and "отгруз" in combined.lower():
         shipment_source = combined
@@ -455,6 +489,8 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
         invoice_number = crop_number
     invoice_number, number_adjustment_warning = choose_more_reliable_document_number(invoice_number, shipment_number)
 
+    # Date selection is intentionally source-aware. It must avoid the static form
+    # template date from the top-right government-resolution note.
     invoice_date, date_adjustment_warning = choose_more_reliable_document_date(
         current_date=invoice_date,
         shipment_date=shipment_date,
@@ -462,6 +498,8 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
         combined_text=combined,
     )
 
+    # Secondary fields are best-effort metadata for the registry. They do not
+    # decide whether a file is copied, but they help manual verification.
     seller_inn, seller_kpp = _extract_inn_kpp_after_label(combined, r"(?:ИНН|VHH|ИHH)\s*/\s*(?:КПП|KNN|КNN)\s+продавца")
     buyer_inn, buyer_kpp = _extract_inn_kpp_after_label(combined, r"(?:ИНН|VHH|ИHH)\s*/\s*(?:КПП|KNN|КNN)\s+покупателя")
 
@@ -471,17 +509,24 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
     service_text = _extract_service_text(combined)
     request_number, request_date, vehicle, loading_datetime, unloading_datetime = _extract_transport_details(service_text)
 
+    # Classify the page after extracting key fields. Continuation pages are never
+    # allowed to override a successful first-page UPD classification.
     is_upd = _is_upd_invoice_transfer(combined, ocr.status_digit)
     is_continuation = False if is_upd else _is_probable_continuation_page(combined)
     status_warning = False
     compact_combined = re.sub(r"\s+", " ", combined.lower())
     if not is_upd and invoice_number and invoice_date:
+        # Some scans have an unreliable status crop but still expose strong UPD
+        # markers plus a valid number/date. Accept them with a warning instead
+        # of losing the document entirely.
         has_invoice_marker = bool(re.search(r"сч[её]т\s*[-–]?\s*фактур", compact_combined))
         has_transfer_marker = "универсальн" in compact_combined or "передаточ" in compact_combined
         has_shipment_row = bool(getattr(ocr, "shipment_document_text_from_crop", None))
         if has_invoice_marker and (has_transfer_marker or (ocr.status_digit == "1" and has_shipment_row)):
             is_upd = True
             status_warning = True
+    # Confidence is a practical score for sorting/diagnostics. It intentionally
+    # combines field presence rather than Tesseract's raw confidence values.
     confidence = 0
     if is_upd:
         confidence += 35

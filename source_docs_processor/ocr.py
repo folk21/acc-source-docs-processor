@@ -25,7 +25,12 @@ from .image_processing import (
 
 @dataclass
 class OcrResult:
-    """Raw OCR output plus targeted field-recognition results."""
+    """Raw OCR output plus targeted field-recognition results.
+
+    Full OCR text is intentionally separated from targeted crop results. Targeted
+    crops are often more reliable for document number/date than general page OCR,
+    while general OCR is useful for broad markers and registry metadata.
+    """
 
     text: str
     header_text: str
@@ -53,6 +58,11 @@ def _ocr_text(image: np.ndarray, lang: str, psm: int = 6, whitelist: str | None 
 
 
 def _mean_confidence(image: np.ndarray, lang: str) -> float:
+    """Compute average Tesseract confidence for diagnostic use.
+
+    The main pipeline usually uses cheaper proxy scores, but this helper is kept
+    for debugging and future quality checks where raw OCR confidence is useful.
+    """
     data = pytesseract.image_to_data(image, lang=lang, config="--psm 6", output_type=pytesseract.Output.DICT)
     values: list[float] = []
     for raw in data.get("conf", []):
@@ -83,6 +93,10 @@ def _choose_best_text(variants: list[np.ndarray], lang: str) -> tuple[str, float
     best_text = ""
     best_score = -1.0
     best_image = variants[0]
+
+    # Each variant is a different preprocessing attempt over the same crop. The
+    # first variant is usually cheap grayscale text; later variants can recover
+    # weak scans but may also slow down the run.
     for variant in variants:
         text = _ocr_text(variant, lang=lang, psm=6, timeout=4)
         # Use a lightweight score. Full confidence extraction is too slow for large archives.
@@ -157,6 +171,9 @@ def _prefer_shorter_prefix_candidate(candidates: list[str]) -> str | None:
 def _fast_target_variants(crop: np.ndarray, scale: int = 4) -> list[np.ndarray]:
     """Create high-contrast variants for small targeted OCR crops."""
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if len(crop.shape) == 3 else crop
+
+    # Small fields such as document number and status need enlargement before
+    # OCR; otherwise Tesseract often drops trailing digits or reads the frame.
     upscaled = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     normalized = cv2.normalize(upscaled, None, 0, 255, cv2.NORM_MINMAX)
     thresholded = cv2.threshold(normalized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
@@ -173,6 +190,8 @@ def read_invoice_number_by_crop(image: np.ndarray) -> str | None:
     all_candidates: list[str] = []
 
     for crop_index, crop in enumerate(crop_invoice_number_candidates(image)):
+        # Narrow crops are tried first because they reduce over-read, where OCR
+        # appends nearby date or form digits to the actual document number.
         crop_candidates: list[str] = []
         for variant in _fast_target_variants(crop, scale=4):
             text = _ocr_text(variant, lang="eng", psm=7, whitelist="0123456789 ", timeout=2)
@@ -188,7 +207,11 @@ def read_invoice_number_by_crop(image: np.ndarray) -> str | None:
     return _prefer_shorter_prefix_candidate(all_candidates)
 
 def read_invoice_date_text_by_crop(image: np.ndarray, lang: str) -> str | None:
-    """Read document date text from top and fallback transfer-date crops."""
+    """Read document date text from top and fallback transfer-date crops.
+
+    This helper returns raw text rather than a normalized date. Normalization is
+    done later together with source-priority checks that can reject template dates.
+    """
     candidates: list[str] = []
     date_crops = crop_invoice_date_candidates(image) + crop_transfer_date_candidates(image)
     for crop in date_crops:
@@ -215,6 +238,8 @@ def read_shipment_document_text_by_crop(image: np.ndarray, lang: str) -> str | N
     """
     candidates: list[str] = []
     for crop in crop_shipment_document_row_candidates(image):
+        # Use the normalized variant only. The crop is narrow and high-contrast
+        # enough, and using many variants here would be expensive for large runs.
         variant = _fast_target_variants(crop, scale=3)[0]
         text = _ocr_text(variant, lang=lang, psm=6, timeout=3).strip()
         if text and re.search(r"от|20\d{2}|№|N|п/п", text, re.IGNORECASE):
@@ -251,6 +276,9 @@ def read_status_digit(image: np.ndarray, lang: str = "eng+rus") -> str | None:
     present anywhere in the dedicated status area.
     """
     tight_candidates: list[str] = []
+
+    # First read only the framed digit area. This avoids the explanatory text
+    # where both `1` and `2` appear as legal status descriptions.
     for crop in crop_status_digit_candidates(image):
         gray_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if len(crop.shape) == 3 else crop
         for variant in _fast_target_variants(gray_crop, scale=6):
@@ -264,6 +292,8 @@ def read_status_digit(image: np.ndarray, lang: str = "eng+rus") -> str | None:
     # often come from the explanatory text below the framed status field. First
     # try the wider status area, which can recover the boxed `1`.
 
+    # If the tight crops are inconclusive, read a slightly wider status area.
+    # Return a value only when the crop contains a single unique status digit.
     status_area = crop_status_area(image)
     gray_area = cv2.cvtColor(status_area, cv2.COLOR_BGR2GRAY) if len(status_area.shape) == 3 else status_area
     for variant in _fast_target_variants(gray_area, scale=4):
@@ -272,6 +302,8 @@ def read_status_digit(image: np.ndarray, lang: str = "eng+rus") -> str | None:
         if len(unique_digits) == 1:
             return unique_digits[0]
 
+    # Last targeted attempt: detect the square frame and OCR only its inside.
+    # This helps when the digit is clear visually but general OCR misses it.
     status_area = crop_status_area(image)
     gray = cv2.cvtColor(status_area, cv2.COLOR_BGR2GRAY) if len(status_area.shape) == 3 else status_area
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -336,6 +368,8 @@ def run_ocr(
     debug_dir: Path | None = None,
 ) -> OcrResult:
     """Run header OCR and targeted UPD field OCR for one oriented image."""
+    # Full-page OCR is expensive and noisy, so the default path begins with the
+    # header area where document type, number, date, parties, and status live.
     header = crop_header(image)
     header_variants = create_ocr_variants(header)
     header_text, header_conf, _ = _choose_best_text(header_variants, lang=lang)
@@ -343,10 +377,14 @@ def run_ocr(
     text = ""
     conf = header_conf
     if deep:
+        # Deep OCR is optional because it can be slow on hundreds of scans. Use it
+        # when richer registry metadata is more important than processing speed.
         variants = create_ocr_variants(image)
         text, full_conf, _ = _choose_best_text(variants, lang=lang)
         conf = max(header_conf, full_conf)
 
+    # Targeted OCR reads fixed fields separately. These values are later merged
+    # with general OCR text by the extractor's adjustment rules.
     status_digit = read_status_digit(image)
     invoice_number_from_crop = read_invoice_number_by_crop(image)
     invoice_date_text_from_crop = read_invoice_date_text_by_crop(image, lang=lang)
@@ -358,6 +396,8 @@ def run_ocr(
     if not _text_has_invoice_and_transfer_markers(header_text) and not invoice_number_from_crop:
         continuation_text = read_continuation_text_by_crop(image, lang=lang)
 
+    # Feed targeted crop results back as labeled text so regex-based extraction
+    # can use them together with general OCR output.
     targeted_lines: list[str] = []
     if invoice_number_from_crop:
         targeted_lines.append(f"Счет-фактура № {invoice_number_from_crop}")
