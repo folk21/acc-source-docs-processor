@@ -363,9 +363,10 @@ def _continuation_marker_score(text: str) -> int:
             score += weight
 
     # Do not classify a normal first page as a continuation merely because it also
-    # contains signature blocks at the bottom.
+    # contains signature blocks at the bottom. A real continuation page should not
+    # contain the UPD/invoice header at all, so header markers are a hard veto.
     if re.search(r"сч[её]т\s*[-–]?\s*фактур", compact) or "универсальн" in compact:
-        score -= 80
+        return 0
     return max(score, 0)
 
 

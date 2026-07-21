@@ -15,6 +15,8 @@ acc-source-docs-processor/
 ├── README.md
 ├── AGENTS.md
 ├── requirements.txt
+├── requirements-dev.txt
+├── pytest.ini
 ├── main.py
 ├── run.sh
 ├── run_example.sh
@@ -23,6 +25,9 @@ acc-source-docs-processor/
 │   ├── ARCHITECTURE.md
 │   ├── CHANGELOG.md
 │   └── ROADMAP.md
+├── tests/
+│   ├── unit/
+│   └── integration/
 └── source_docs_processor/
     ├── __init__.py
     ├── cli.py
@@ -86,6 +91,16 @@ acc-source-docs-processor/
 - Continuation pages inherit the previous recognized document number/date.
 - Continuation output file names must use the previous document stem plus `_2_страница` or a later page suffix if implemented.
 
+## Testing rules
+
+- Use `pytest` for tests.
+- Put pure decision-logic tests under `tests/unit/`.
+- Put file-system or pipeline tests under `tests/integration/`.
+- Test methods must include English docstrings explaining the tested behavior and the fixed problem being guarded.
+- Prefer fake OCR text or fake processors for ordinary tests. Do not require Tesseract unless the test is explicitly marked with `@pytest.mark.ocr`.
+- Every OCR or extraction bug fix should add or update a regression test.
+- Use the `document_processor` injection point in `process_folder()` for high-level pipeline tests.
+
 ## Documentation rules
 
 - Keep `README.md` concise and user-oriented.
@@ -104,11 +119,17 @@ Before returning an updated project archive:
    python -m py_compile main.py source_docs_processor/*.py source_docs_processor/*/*.py
    ```
 
-2. Confirm the archive contains the project root folder, not only loose files.
-3. Confirm the internal package is named `source_docs_processor`.
-4. Confirm generated documentation is included in the archive.
-5. Confirm README examples still match the current CLI behavior.
-6. Confirm the default processor `upd_invoices_status_1` is still registered in `source_docs_processor/processors.py`.
+2. Run the test suite:
+
+   ```bash
+   python -m pytest
+   ```
+
+3. Confirm the archive contains the project root folder, not only loose files.
+4. Confirm the internal package is named `source_docs_processor`.
+5. Confirm generated documentation is included in the archive.
+6. Confirm README examples still match the current CLI behavior.
+7. Confirm the default processor `upd_invoices_status_1` is still registered in `source_docs_processor/processors.py`.
 
 ## Avoid
 

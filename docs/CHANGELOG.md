@@ -2,6 +2,24 @@
 
 This changelog describes the project evolution by functional milestones. The project is still pre-release and does not use strict semantic version tags yet.
 
+## Test suite and pipeline testability
+
+### Added
+
+- `pytest.ini` with test discovery and markers for future OCR/slow tests.
+- `requirements-dev.txt` for installing runtime plus test dependencies.
+- `tests/unit/` with regression tests for document-number adjustment, date selection, shipment-row parsing, continuation-page detection, filename generation, and processor factory selection.
+- `tests/integration/` with a fake-processor pipeline test that verifies copy/rename behavior, continuation pages, unrecognized files, output subfolders, and CSV registry rows.
+
+### Changed
+
+- `process_folder()` now accepts an optional injected document processor for tests and future embedded use. The CLI still uses the document processor factory by default.
+- Continuation scoring now treats UPD/invoice header markers as a hard veto for continuation-page classification.
+
+### Reason
+
+The project had several regressions where one OCR fix accidentally reintroduced an older issue. The new tests focus on already observed bugs so future changes can safely refactor OCR and extraction logic.
+
 ## Processor factory and first generalization refactor
 
 ### Added

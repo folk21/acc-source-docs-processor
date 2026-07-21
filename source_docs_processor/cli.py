@@ -10,7 +10,7 @@ from pathlib import Path
 from .file_ops import copy_continuation_document, copy_found_document, copy_unrecognized_document, write_registry
 from .image_processing import iter_image_files, read_image
 from .models import ExtractedDocument
-from .processors import DEFAULT_DOCUMENT_TYPE, SUPPORTED_DOCUMENT_TYPES, create_document_processor
+from .processors import DEFAULT_DOCUMENT_TYPE, SUPPORTED_DOCUMENT_TYPES, DocumentProcessor, create_document_processor
 
 
 DEFAULT_TARGET_FOLDER = "передаточные_документы"
@@ -73,13 +73,18 @@ def process_folder(
     auto_rotate: bool = True,
     debug_crops: bool = False,
     document_type: str = DEFAULT_DOCUMENT_TYPE,
+    document_processor: DocumentProcessor | None = None,
 ) -> tuple[list[ExtractedDocument], list[ExtractedDocument]]:
     """Process one source folder and write copied documents, registry, and report."""
     if not source_dir.exists() or not source_dir.is_dir():
         raise ValueError(f"Source directory does not exist or is not a directory: {source_dir}")
 
     target_dir_name = _normalize_target_dir_name(target_dir_name)
-    processor = create_document_processor(document_type)
+
+    # Allow tests and future embedding scenarios to inject a lightweight processor.
+    # The CLI path still uses the factory, but injection keeps the high-level
+    # file-processing pipeline testable without running real OCR.
+    processor = document_processor or create_document_processor(document_type)
 
     # By default the target directory is created in the current working
     # directory, not inside the scan archive. This avoids re-processing output

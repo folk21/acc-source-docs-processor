@@ -80,11 +80,14 @@ Status legend:
 - [x] Use English comments and docstrings in code.
 - [x] Keep the Python package name import-friendly: `source_docs_processor`.
 - [x] Compile-check the project after changes.
-- [ ] Add unit tests for number/date normalization.
-- [ ] Add tests for shipment-row parsing.
-- [ ] Add tests for template-date filtering.
-- [ ] Add tests for continuation-page decision logic.
-- [ ] Add regression fixtures for known problematic scans.
+- [x] Add unit tests for number/date normalization and selection.
+- [x] Add tests for shipment-row parsing.
+- [x] Add tests for template-date filtering.
+- [x] Add tests for continuation-page decision logic.
+- [/] Add regression fixtures for known problematic scans; current tests use OCR-text candidates and fake-processor fixtures.
+- [x] Add processor factory tests.
+- [x] Add integration tests for the generic folder pipeline with fake processor injection.
+- [x] Add a testability injection point for `process_folder()`.
 - [ ] Add linting and formatting configuration.
 - [ ] Add CI workflow.
 

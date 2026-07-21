@@ -24,6 +24,8 @@ acc-source-docs-processor/
 ├── README.md
 ├── AGENTS.md
 ├── requirements.txt
+├── requirements-dev.txt
+├── pytest.ini
 ├── main.py
 ├── run.sh
 ├── run_example.sh
@@ -32,6 +34,9 @@ acc-source-docs-processor/
 │   ├── ARCHITECTURE.md
 │   ├── CHANGELOG.md
 │   └── ROADMAP.md
+├── tests/
+│   ├── unit/
+│   └── integration/
 └── source_docs_processor/
     ├── __init__.py
     ├── cli.py
@@ -112,6 +117,37 @@ pip install -r requirements.txt
 ```
 
 Tesseract must also be installed separately and available in `PATH`.
+
+## Running tests
+
+The project uses `pytest` for unit and integration tests. Development dependencies are installed separately from runtime dependencies:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run the full current test suite from the project root:
+
+```bash
+pytest
+```
+
+or:
+
+```bash
+python -m pytest
+```
+
+The current test suite focuses on regression-prone logic around document-number adjustment, date selection, shipment-row parsing, continuation-page detection, filename generation, processor factory selection, and the generic folder-processing pipeline. The pipeline integration tests use a fake processor, so they do not require Tesseract.
+
+Markers are already configured for future OCR-heavy tests:
+
+```bash
+pytest -m ocr
+pytest -m "not slow"
+```
+
+Future tests that depend on a real Tesseract installation should be marked with `@pytest.mark.ocr` and skipped when Tesseract is not available.
 
 ## Basic usage
 

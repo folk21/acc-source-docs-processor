@@ -52,6 +52,8 @@ acc-source-docs-processor/
 ├── README.md
 ├── AGENTS.md
 ├── requirements.txt
+├── requirements-dev.txt
+├── pytest.ini
 ├── main.py
 ├── run.sh
 ├── run_example.sh
@@ -60,6 +62,9 @@ acc-source-docs-processor/
 │   ├── ARCHITECTURE.md
 │   ├── CHANGELOG.md
 │   └── ROADMAP.md
+├── tests/
+│   ├── unit/
+│   └── integration/
 └── source_docs_processor/
     ├── __init__.py
     ├── cli.py
@@ -363,3 +368,41 @@ python main.py --source "/path/to/scans" --document-type new_processor_id
 - Crop coordinates are tuned for the currently observed UPD scan layout.
 - Field confidence is document-level and heuristic-based, not a calibrated probability.
 - There are no automated regression tests yet for the problematic scan examples.
+
+## Testing architecture
+
+The project now includes a `pytest`-based test suite. Tests are intentionally split into two groups.
+
+### Unit tests
+
+Unit tests cover pure extraction and decision logic without calling Tesseract. This keeps the most fragile OCR-adjacent logic fast and deterministic. Current unit tests verify:
+
+- document-number normalization and adjustment;
+- correction of OCR over-read such as `43007 -> 430` and `4977 -> 497`;
+- fallback from too-short header numbers such as `4 -> 405`;
+- Russian textual and numeric date normalization;
+- rejection of the UPD form-template date `02-04-2021`;
+- priority of the `Документ об отгрузке` date over noisy header/general OCR dates;
+- parsing of `Документ об отгрузке № п/п 1 № ... от ...`;
+- conservative continuation-page scoring;
+- output filename generation;
+- processor factory behavior.
+
+### Integration tests with fake processors
+
+The generic folder pipeline accepts an optional injected `DocumentProcessor`. Production CLI execution still uses the factory, but tests can inject a fake processor that returns deterministic recognition results without running OCR. This verifies:
+
+- recursive folder processing;
+- output subfolder preservation;
+- recognized document copying and renaming;
+- continuation-page attachment;
+- unchanged copying of unrecognized files;
+- CSV registry generation with portable file names instead of absolute paths.
+
+This injection point is the main testability refactor. It prevents high-level pipeline tests from depending on Tesseract, scan quality, OCR language packs, or OS-specific OCR behavior.
+
+### Future OCR tests
+
+Future tests that run real Tesseract should be marked with `@pytest.mark.ocr` and usually `@pytest.mark.slow`. They should use a small curated fixture set and skip automatically when Tesseract is not installed.
+
+The recommended policy is: every new real-world recognition bug should become a regression test, preferably as a unit test over OCR text/candidates and only as a real OCR test when the bug depends on image preprocessing itself.
