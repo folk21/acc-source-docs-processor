@@ -57,18 +57,18 @@ Status legend:
 
 ## Generalization
 
-- [/] Keep the project name generic enough for source documents beyond UPD.
-- [/] Keep the processing pipeline separable from UPD-specific extraction logic.
-- [ ] Introduce a `DocumentExtractor` interface.
-- [ ] Move UPD status `1` parsing into a dedicated extractor class.
-- [ ] Add an extractor registry/factory.
+- [x] Keep the project name generic enough for source documents beyond UPD.
+- [x] Keep the processing pipeline separable from UPD-specific extraction logic.
+- [x] Introduce a document processor interface/protocol.
+- [x] Move UPD status `1` parsing into a dedicated processor package.
+- [x] Add a processor registry/factory.
 - [ ] Add config-driven document type definitions for simple templates.
 - [ ] Add configurable output actions: copy/rename, registry only, statistics only, review folder.
 - [ ] Add support for other primary document types, for example acts, waybills, generic invoices, contracts, or payment documents.
 
 ## Configuration and usability
 
-- [x] Provide command-line options for source, target name, output base, deep OCR, dry run, auto-rotation, and debug crops.
+- [x] Provide command-line options for source, target name, output base, deep OCR, dry run, auto-rotation, debug crops, and document type.
 - [ ] Add a YAML configuration file for profiles.
 - [ ] Add named processing profiles, for example `tax_request_upd` and `archive_inventory`.
 - [ ] Add a simple local UI for non-technical users.

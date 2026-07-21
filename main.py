@@ -1,4 +1,4 @@
-"""Command-line entry point for acc-source-docs-processor."""
+"""Application entry point."""
 
 from source_docs_processor.cli import main
 

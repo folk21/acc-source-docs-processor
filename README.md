@@ -2,9 +2,9 @@
 
 `acc-source-docs-processor` is a local Python utility for processing scanned Russian accounting source documents.
 
-The current version focuses on scanned UPD transfer documents with status `1`. In the UPD form, status `1` means that the document acts both as an invoice and as a transfer document. In this README these input files are also called transfer documents or primary documents.
+The current released document processor focuses on scanned UPD transfer documents with status `1`. In the UPD form, status `1` means that the document acts both as an invoice and as a transfer document. In this README these input files are also called transfer documents or primary documents.
 
-The program recursively scans a source folder, detects supported primary documents, extracts the document number and document date, copies processed scans into a target folder, renames recognized files, and generates a CSV registry plus a text report.
+The program recursively scans a source folder, selects a document processor through the `--document-type` CLI parameter, detects supported primary documents, extracts the document number and document date, copies processed scans into a target folder, renames recognized files, and generates a CSV registry plus a text report.
 
 Source files are never modified.
 
@@ -35,11 +35,17 @@ acc-source-docs-processor/
 └── source_docs_processor/
     ├── __init__.py
     ├── cli.py
-    ├── extractor.py
     ├── file_ops.py
     ├── image_processing.py
     ├── models.py
-    └── ocr.py
+    ├── ocr.py
+    ├── processors.py
+    └── upd_invoices_status_1/
+        ├── __init__.py
+        ├── extractor.py
+        ├── image_processing.py
+        ├── ocr.py
+        └── processor.py
 ```
 
 The repository/project folder uses hyphens. The internal Python package uses underscores so it can be imported normally:
@@ -54,17 +60,18 @@ The current workflow is:
 
 1. Recursively reads PNG/JPG/JPEG/TIFF/BMP scans from the source folder.
 2. Sorts files in natural order so sequential scans are processed in the expected order.
-3. Detects UPD transfer documents with status `1`.
-4. Extracts the document number and document date where possible.
-5. Uses a dedicated document-number adjustment algorithm to improve recognition accuracy.
-6. Uses the `Документ об отгрузке` row as a fallback source for the document number and date.
-7. Tries 0, 90, 180, and 270 degree rotations and chooses the best recognition result.
-8. Saves recognized sideways documents in the corrected orientation.
-9. Detects likely continuation pages only after standalone UPD recognition fails.
-10. Copies recognized, continuation, and unrecognized files to the target folder.
-11. Preserves the source subfolder structure inside the target folder.
-12. Generates an Excel-friendly CSV registry and a text report.
-13. Optionally saves debug OCR crops for difficult documents.
+3. Creates the selected document processor. The default processor is `upd_invoices_status_1`.
+4. Detects UPD transfer documents with status `1`.
+5. Extracts the document number and document date where possible.
+6. Uses a dedicated document-number adjustment algorithm to improve recognition accuracy.
+7. Uses the `Документ об отгрузке` row as a fallback source for the document number and date.
+8. Tries 0, 90, 180, and 270 degree rotations and chooses the best recognition result.
+9. Saves recognized sideways documents in the corrected orientation.
+10. Detects likely continuation pages only after standalone UPD recognition fails.
+11. Copies recognized, continuation, and unrecognized files to the target folder.
+12. Preserves the source subfolder structure inside the target folder.
+13. Generates an Excel-friendly CSV registry and a text report.
+14. Optionally saves debug OCR crops for difficult documents.
 
 The full recognition strategy is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -129,6 +136,24 @@ The default output will contain:
 ./передаточные_документы/передаточные_документы.csv
 ./передаточные_документы/передаточные_документы_report.txt
 ```
+
+
+## Document type processor
+
+The application is moving toward a more universal architecture. The currently available processor is:
+
+```text
+upd_invoices_status_1
+```
+
+It is also the default, so these two commands are equivalent:
+
+```bash
+python main.py --source "/path/to/scans"
+python main.py --source "/path/to/scans" --document-type upd_invoices_status_1
+```
+
+Future document types should be added as separate processor packages and registered in the factory in `source_docs_processor/processors.py`.
 
 ## Custom target directory name
 
@@ -292,6 +317,12 @@ This mode is useful when a document number, date, or status is not recognized an
 
 ## Other useful options
 
+Select the current UPD status 1 processor explicitly:
+
+```bash
+python main.py --source "/path/to/scans" --document-type upd_invoices_status_1
+```
+
 Disable rotation attempts:
 
 ```bash
@@ -333,7 +364,7 @@ python main.py --source "/path/to/scans" --output "/path/to/output" --target-dir
 Debug problematic scans:
 
 ```bash
-python main.py --source "/path/to/scans" --debug-crops
+python main.py --source "/path/to/scans" --document-type upd_invoices_status_1 --debug-crops
 ```
 
 Analyze without writing output:
@@ -344,6 +375,6 @@ python main.py --source "/path/to/scans" --dry-run
 
 ## Notes and limitations
 
-The tool is optimized for a specific family of UPD transfer documents. Recognition quality depends on scan quality, crop alignment, text contrast, and document layout.
+The default processor is optimized for a specific family of UPD transfer documents. Recognition quality depends on scan quality, crop alignment, text contrast, and document layout.
 
 The document-number adjustment algorithm significantly improves document-number detection for the supported template, but final business-critical submissions should still be reviewed by a human, especially for low-quality scans or documents listed in tax authority requests.

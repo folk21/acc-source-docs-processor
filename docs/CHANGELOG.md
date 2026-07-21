@@ -2,6 +2,28 @@
 
 This changelog describes the project evolution by functional milestones. The project is still pre-release and does not use strict semantic version tags yet.
 
+## Processor factory and first generalization refactor
+
+### Added
+
+- `--document-type` CLI parameter.
+- `source_docs_processor/processors.py` with a simple processor factory.
+- `DocumentProcessor` protocol for document-specific processors.
+- `source_docs_processor/upd_invoices_status_1/` package for UPD status 1 logic.
+- `UpdInvoicesStatus1Processor` as the first registered processor.
+
+### Changed
+
+- Moved UPD-specific extraction logic from the top-level package into `upd_invoices_status_1/extractor.py`.
+- Moved UPD-specific targeted OCR logic into `upd_invoices_status_1/ocr.py`.
+- Moved UPD-specific crop coordinates into `upd_invoices_status_1/image_processing.py`.
+- Kept generic image loading, rotation, OCR wrappers, file operations, and CLI orchestration in the top-level package.
+- The CLI now asks the processor factory for the selected processor instead of importing UPD extraction functions directly.
+
+### Reason
+
+The project is evolving from a single-purpose UPD finder into a more general accounting source-document processor. The first step is to isolate document-template-specific logic behind a processor boundary while preserving current behavior.
+
 ## Initial prototype
 
 ### Added

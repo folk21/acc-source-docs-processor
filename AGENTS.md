@@ -6,7 +6,7 @@ This file contains instructions for AI coding agents working on `acc-source-docs
 
 `acc-source-docs-processor` is a local Python utility for processing scanned Russian accounting source documents. The current implementation focuses on UPD transfer documents with status `1`, extracts document number/date, copies and renames files, and generates a CSV registry plus a report.
 
-The current OCR logic is practical and heuristic-heavy because it was tuned against real scanned documents with rotation, weak contrast, punch holes, noisy headers, over-read digits, and second pages.
+The current OCR logic is practical and heuristic-heavy because it was tuned against real scanned documents with rotation, weak contrast, punch holes, noisy headers, over-read digits, and second pages. The UPD-specific logic now lives in the `upd_invoices_status_1` processor package; generic pipeline code should stay outside that package.
 
 ## Repository structure
 
@@ -26,11 +26,17 @@ acc-source-docs-processor/
 └── source_docs_processor/
     ├── __init__.py
     ├── cli.py
-    ├── extractor.py
     ├── file_ops.py
     ├── image_processing.py
     ├── models.py
-    └── ocr.py
+    ├── ocr.py
+    ├── processors.py
+    └── upd_invoices_status_1/
+        ├── __init__.py
+        ├── extractor.py
+        ├── image_processing.py
+        ├── ocr.py
+        └── processor.py
 ```
 
 ## Language rules
@@ -52,6 +58,16 @@ acc-source-docs-processor/
 - Be careful with filesystem paths that contain Cyrillic characters.
 - Preserve the source subfolder structure in output unless the user explicitly asks otherwise.
 - Do not write full local paths to CSV output unless the user explicitly asks for them.
+
+
+## Processor architecture rules
+
+- Generic folder scanning, file copying, registry generation, run logging, and common OCR wrappers must stay in the top-level `source_docs_processor` package.
+- Document-template-specific crop coordinates, targeted OCR, extraction heuristics, and continuation-page decisions must live in a document processor package.
+- The current processor package is `source_docs_processor/upd_invoices_status_1/`.
+- Select processors through `source_docs_processor/processors.py`; do not import a concrete processor directly from `cli.py`.
+- When adding a new document type, create a new package and register it in `SUPPORTED_DOCUMENT_TYPES` and `create_document_processor()`.
+- Keep the initial factory explicit. A simple switch is acceptable until the project has enough processors to justify plugin discovery.
 
 ## OCR-specific rules
 
@@ -85,13 +101,14 @@ Before returning an updated project archive:
 1. Run Python compilation checks:
 
    ```bash
-   python -m py_compile main.py source_docs_processor/*.py
+   python -m py_compile main.py source_docs_processor/*.py source_docs_processor/*/*.py
    ```
 
 2. Confirm the archive contains the project root folder, not only loose files.
 3. Confirm the internal package is named `source_docs_processor`.
 4. Confirm generated documentation is included in the archive.
 5. Confirm README examples still match the current CLI behavior.
+6. Confirm the default processor `upd_invoices_status_1` is still registered in `source_docs_processor/processors.py`.
 
 ## Avoid
 

@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from .models import ExtractedDocument
-from .ocr import OcrResult
+from ..models import ExtractedDocument
+from ..ocr import OcrResult
 
 
 MONTHS_RU = {
