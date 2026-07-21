@@ -14,7 +14,7 @@ class FakeProcessor:
     The production processor performs OCR and extraction. Integration tests use
     this fake to verify the generic folder pipeline, output naming, continuation
     handling, and registry generation without depending on the local Tesseract
-    installation or real scanned documents.
+    installation or customer scanned accounting documents.
     """
 
     document_type = "fake_processor"

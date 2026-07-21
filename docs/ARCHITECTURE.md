@@ -229,7 +229,7 @@ Important crop areas include:
 - `Документ об отгрузке` row candidates;
 - continuation-page marker candidates.
 
-The crop coordinates are tuned for the current family of landscape UPD scans. They are intentionally duplicated across a few nearby candidate boxes because real scans may be shifted, scaled, or slightly cropped.
+The crop coordinates are tuned for the current family of landscape UPD scans. They are intentionally duplicated across a few nearby candidate boxes because scanned inputs may be shifted, scaled, or slightly cropped.
 
 ### `upd_invoices_status_1/ocr.py`
 
@@ -367,7 +367,7 @@ python main.py --source "/path/to/scans" --document-type new_processor_id
 - The output model still uses invoice-oriented field names internally.
 - Crop coordinates are tuned for the currently observed UPD scan layout.
 - Field confidence is document-level and heuristic-based, not a calibrated probability.
-- There are no automated regression tests yet for the problematic scan examples.
+- There are no committed real-scan regression fixtures. Current regression coverage uses OCR-text candidates, pure decision tests, fake processors, and synthetic tiny PNGs generated during tests.
 
 ## Testing architecture
 
@@ -403,6 +403,6 @@ This injection point is the main testability refactor. It prevents high-level pi
 
 ### Future OCR tests
 
-Future tests that run real Tesseract should be marked with `@pytest.mark.ocr` and usually `@pytest.mark.slow`. They should use a small curated fixture set and skip automatically when Tesseract is not installed.
+Future tests that run real Tesseract should be marked with `@pytest.mark.ocr` and usually `@pytest.mark.slow`. They should use anonymized or synthetic fixtures and skip automatically when Tesseract is not installed. Real customer/company scans must not be committed to the repository.
 
-The recommended policy is: every new real-world recognition bug should become a regression test, preferably as a unit test over OCR text/candidates and only as a real OCR test when the bug depends on image preprocessing itself.
+The recommended policy is: every new recognition bug should become a regression test, preferably as a unit test over anonymized OCR text/candidates and only as a real OCR test when the bug depends on image preprocessing itself.

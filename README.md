@@ -120,25 +120,23 @@ Tesseract must also be installed separately and available in `PATH`.
 
 ## Running tests
 
-The project uses `pytest` for unit and integration tests. Development dependencies are installed separately from runtime dependencies:
+The project uses `pytest` for unit and integration tests. Test dependencies are developer-only dependencies, so install them from `requirements-dev.txt`:
 
 ```bash
 pip install -r requirements-dev.txt
 ```
 
+`requirements.txt` intentionally contains only runtime dependencies needed to run the document processor. It does not include `pytest`.
+
 Run the full current test suite from the project root:
 
 ```bash
-pytest
+python -m pytest -q
 ```
 
-or:
+You can also run `pytest` directly if your shell resolves it from the active virtual environment.
 
-```bash
-python -m pytest
-```
-
-The current test suite focuses on regression-prone logic around document-number adjustment, date selection, shipment-row parsing, continuation-page detection, filename generation, processor factory selection, and the generic folder-processing pipeline. The pipeline integration tests use a fake processor, so they do not require Tesseract.
+The current test suite focuses on regression-prone logic around document-number adjustment, date selection, shipment-row parsing, continuation-page detection, filename generation, processor factory selection, and the generic folder-processing pipeline. The pipeline integration tests use a fake processor and synthetic tiny PNG files generated at test time, so they do not require Tesseract and do not include customer scanned accounting documents.
 
 Markers are already configured for future OCR-heavy tests:
 
@@ -147,7 +145,7 @@ pytest -m ocr
 pytest -m "not slow"
 ```
 
-Future tests that depend on a real Tesseract installation should be marked with `@pytest.mark.ocr` and skipped when Tesseract is not available.
+Future tests that depend on a real Tesseract installation should be marked with `@pytest.mark.ocr` and skipped when Tesseract is not available. Do not commit real customer/company scans to the repository; use anonymized or synthetic fixtures instead.
 
 ## Basic usage
 

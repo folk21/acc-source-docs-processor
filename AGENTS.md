@@ -6,7 +6,7 @@ This file contains instructions for AI coding agents working on `acc-source-docs
 
 `acc-source-docs-processor` is a local Python utility for processing scanned Russian accounting source documents. The current implementation focuses on UPD transfer documents with status `1`, extracts document number/date, copies and renames files, and generates a CSV registry plus a report.
 
-The current OCR logic is practical and heuristic-heavy because it was tuned against real scanned documents with rotation, weak contrast, punch holes, noisy headers, over-read digits, and second pages. The UPD-specific logic now lives in the `upd_invoices_status_1` processor package; generic pipeline code should stay outside that package.
+The current OCR logic is practical and heuristic-heavy because it was tuned against scanned-document scenarios with rotation, weak contrast, punch holes, noisy headers, over-read digits, and second pages. The UPD-specific logic now lives in the `upd_invoices_status_1` processor package; generic pipeline code should stay outside that package.
 
 ## Repository structure
 
@@ -49,7 +49,7 @@ acc-source-docs-processor/
 - All code comments must be written in English.
 - All docstrings must be written in English.
 - All software documentation must be written in English.
-- User-facing file names may contain Russian when this matches the business requirement, for example `УПД_426_от_09-03-2023.png` or `передаточные_документы`.
+- User-facing file names may contain Russian when this matches the business requirement, for example `УПД_123_от_09-03-2023.png` or `передаточные_документы`.
 - Do not translate Russian accounting field names that must be matched in OCR text, for example `Документ об отгрузке`, `Счет-фактура`, or `Статус`.
 
 ## Coding rules
@@ -138,3 +138,17 @@ Before returning an updated project archive:
 - Do not classify a scan as a continuation page before standalone document recognition has failed.
 - Do not make output paths absolute in the registry by default.
 - Do not add external network calls. The tool must remain local.
+
+
+## Test dependency policy
+
+- Keep runtime dependencies in `requirements.txt`.
+- Keep test and developer dependencies such as `pytest`, `ruff`, and `mypy` in `requirements-dev.txt`.
+- Prefer `python -m pytest -q` in documentation because it uses the active Python environment explicitly.
+
+## Privacy and fixture policy
+
+- Do not commit real customer/company scans to the repository.
+- Do not use real company names in tests, comments, or documentation. Use fictional names such as `ООО Учебный Перевозчик` and `ООО Учебный Производитель`.
+- Prefer unit tests over anonymized OCR text/candidates and integration tests over fake processors with generated synthetic images.
+- Real OCR fixtures, if needed, must be anonymized before committing or kept in a private local-only folder ignored by Git.

@@ -42,7 +42,7 @@ def test_shipment_row_date_overrides_form_template_date():
     """Verify that `Документ об отгрузке` wins over the template service date.
 
     Fixed problem verified: scans with a weak header date were incorrectly named
-    with `02-04-2021`. The shipment row repeats the real accounting date and must
+    with `02-04-2021`. The shipment row repeats the correct accounting date and must
     override the template date.
     """
     value, warning = choose_more_reliable_document_date(

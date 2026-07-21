@@ -30,7 +30,7 @@ Status legend:
 - [x] Ignore the UPD form-template date `02-04-2021` when it comes from service text.
 - [x] Correct OCR over-read in document numbers.
 - [x] Avoid false continuation-page detection for normal first pages.
-- [/] Continue collecting real problematic scans and tuning crop boxes.
+- [/] Continue collecting private problematic examples outside the repository and tuning crop boxes.
 - [ ] Add confidence levels per field instead of only one document-level score.
 - [ ] Add a review folder for low-confidence documents.
 - [ ] Add a machine-readable debug JSON file per processed document.
@@ -80,16 +80,18 @@ Status legend:
 - [x] Use English comments and docstrings in code.
 - [x] Keep the Python package name import-friendly: `source_docs_processor`.
 - [x] Compile-check the project after changes.
+- [x] Keep runtime dependencies in `requirements.txt` and test dependencies in `requirements-dev.txt`.
 - [x] Add unit tests for number/date normalization and selection.
 - [x] Add tests for shipment-row parsing.
 - [x] Add tests for template-date filtering.
 - [x] Add tests for continuation-page decision logic.
-- [/] Add regression fixtures for known problematic scans; current tests use OCR-text candidates and fake-processor fixtures.
+- [/] Add anonymized/synthetic regression fixtures for known problematic cases; current tests use OCR-text candidates, fake processors, and generated tiny PNGs.
 - [x] Add processor factory tests.
 - [x] Add integration tests for the generic folder pipeline with fake processor injection.
 - [x] Add a testability injection point for `process_folder()`.
 - [ ] Add linting and formatting configuration.
 - [ ] Add CI workflow.
+- [ ] Add private OCR fixture policy for local-only customer scans.
 
 ## Packaging
 

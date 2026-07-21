@@ -71,7 +71,7 @@ def _score_digits(raw: str) -> tuple[int, str]:
 def _prefer_shorter_prefix_candidate(candidates: list[str]) -> str | None:
     """Prefer a stable shorter number when OCR over-reads trailing digits.
 
-    Examples observed in real scans: `430` may also be read as `43007`, and
+    Examples observed in scanned samples: `430` may also be read as `43007`, and
     `497` may also be read as `4977`. When a 3-4 digit candidate is a prefix of
     a longer candidate, the shorter value is usually the actual document number.
     """

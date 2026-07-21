@@ -2,9 +2,12 @@
 *.zip
 .venv
 .idea
+.vscode
 **/__pycache__
+.pytest_cache/
 target_scans
 scans
 scans1
-.vscode
-                  
+private_scans/
+tests/fixtures_private/
+tests/fixtures_real/

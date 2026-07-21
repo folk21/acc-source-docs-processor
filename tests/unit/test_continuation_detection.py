@@ -8,7 +8,7 @@ from source_docs_processor.upd_invoices_status_1.extractor import (
 
 
 def test_sparse_signature_page_is_detected_as_continuation():
-    """Verify detection of real page-2 scans with no invoice header.
+    """Verify detection of sparse page-2 scans with no invoice header.
 
     Fixed problem verified: some important scans are second pages with stamp and
     signature fields only. They must be copied as continuation pages rather than
@@ -17,7 +17,7 @@ def test_sparse_signature_page_is_detected_as_continuation():
     text = """
     Наименование экономического субъекта составителя документа
     Ответственный за правильность оформления факта хозяйственной жизни
-    Должность Подпись М.П. ООО ТРАСТ ООО ПК Эталон
+    Должность Подпись М.П. ООО Учебный Перевозчик ООО Учебный Производитель
     """
 
     assert _is_probable_continuation_page(text) is True
@@ -56,7 +56,7 @@ def test_header_marker_reduces_continuation_score():
     text = """
     Универсальный передаточный документ Счет-фактура № 434 от 10 марта 2023 г.
     Наименование экономического субъекта составителя документа Ответственный за правильность
-    Подпись М.П. ООО ТРАСТ ООО ПК Эталон
+    Подпись М.П. ООО Учебный Перевозчик ООО Учебный Производитель
     """
 
     assert _is_probable_continuation_page(text) is False

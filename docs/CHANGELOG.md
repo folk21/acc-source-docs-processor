@@ -2,6 +2,19 @@
 
 This changelog describes the project evolution by functional milestones. The project is still pre-release and does not use strict semantic version tags yet.
 
+
+## Privacy cleanup for tests and documentation
+
+### Changed
+
+- Replaced real company names in tests with clearly fictional sample company names.
+- Clarified that integration tests use fake processors and generated tiny PNG files, not customer accounting scans.
+- Restored dependency separation: runtime dependencies stay in `requirements.txt`, while `pytest` belongs to `requirements-dev.txt`.
+
+### Reason
+
+The project may be published to GitHub, so tests and documentation should not contain real company names or customer scanned documents.
+
 ## Test suite and pipeline testability
 
 ### Added
@@ -158,7 +171,7 @@ Full-page OCR is too noisy for scanned accounting forms. Targeted OCR is more re
 
 ### Reason
 
-The shipment row repeats the real document number and date and is often a more reliable OCR source than the top header.
+The shipment row repeats the actual document number and date and is often a more reliable OCR source than the top header.
 
 ## Continuation-page support
 
@@ -239,3 +252,15 @@ First pages and continuation pages can both contain signatures, stamps, and comp
 ### Reason
 
 The project has accumulated enough OCR heuristics and operational rules to require dedicated documentation beyond the README.
+
+## Test dependency documentation
+
+### Changed
+
+- Test instructions now explicitly use `requirements-dev.txt`.
+- `requirements.txt` remains limited to runtime dependencies for ordinary document processing.
+- README test-running instructions recommend `pip install -r requirements-dev.txt` followed by `python -m pytest -q`.
+
+### Reason
+
+The application runtime and the development/test environment should stay separate. Users who only process scans do not need `pytest`; developers who run tests should install developer dependencies.

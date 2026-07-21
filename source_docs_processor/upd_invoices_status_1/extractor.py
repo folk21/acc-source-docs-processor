@@ -215,7 +215,7 @@ def is_form_template_date(date_value: str | None, text: str) -> bool:
     """Return True when a date is likely from the UPD form template text.
 
     The standard UPD form has a service note in the top-right corner with
-    `2 апреля 2021 г. № 534`. OCR may read that date when the real document
+    `2 апреля 2021 г. № 534`. OCR may read that date when the actual document
     date in the header is weak or partially covered. This date must not be
     used as the primary document date.
     """
@@ -240,7 +240,7 @@ def choose_more_reliable_document_date(
 ) -> tuple[Optional[str], Optional[str]]:
     """Choose a document date using source priority and template-date filtering.
 
-    The shipment row (`Документ об отгрузке`) repeats the real document date
+    The shipment row (`Документ об отгрузке`) repeats the actual document date
     and is usually more reliable than the top-right header area because the
     latter is close to the UPD form service text. Therefore, a valid shipment
     date is allowed to override an existing header/general OCR date.
@@ -476,7 +476,7 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
     invoice_number, invoice_date = _extract_invoice_number_and_date(combined)
 
     # The shipment row is handled as a first-class fallback source because it
-    # repeats the real document number and date in a cleaner area of the form.
+    # repeats the actual document number and date in a cleaner area of the form.
     shipment_source = getattr(ocr, "shipment_document_text_from_crop", None)
     if not shipment_source and "документ" in combined.lower() and "отгруз" in combined.lower():
         shipment_source = combined

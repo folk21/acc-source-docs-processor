@@ -17,7 +17,7 @@ def test_normalize_document_number_removes_spaces_and_noise():
 def test_replaces_too_short_header_number_with_shipment_row_number():
     """Verify fallback when the header OCR reads only the first digit.
 
-    Fixed problem verified: one real scan had document number `405`, but the
+    Fixed problem verified: one observed OCR failure had document number `405`, but the
     header crop returned only `4`. The shipment row repeats the correct number
     and should override the suspiciously short header candidate.
     """
@@ -30,7 +30,7 @@ def test_replaces_too_short_header_number_with_shipment_row_number():
 def test_prefers_shorter_shipment_row_prefix_when_header_overreads_suffix():
     """Verify correction of OCR over-read at the end of the document number.
 
-    Fixed problem verified: real scans produced values such as `43007`, where
+    Fixed problem verified: observed OCR output produced values such as `43007`, where
     `07` was accidentally attached from a neighbouring date/crop area. The
     cleaner shipment-row value `430` should win.
     """
@@ -44,7 +44,7 @@ def test_keeps_shorter_header_prefix_when_fallback_overreads_suffix():
     """Verify the symmetric over-read correction for fallback candidates.
 
     Fixed problem verified: a crop or shipment-row OCR candidate can also read
-    `4977` while the real document number is `497`. A reliable 3-digit prefix
+    `4977` while the correct document number is `497`. A reliable 3-digit prefix
     should not be replaced by the longer noisy value.
     """
     value, warning = choose_more_reliable_document_number("497", "4977")
