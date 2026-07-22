@@ -2,7 +2,41 @@
 
 This changelog describes the project evolution by functional milestones. The project is still pre-release and does not use strict semantic version tags yet.
 
-## Generic document model and processor-owned output policies
+## Independent processors, workflows, and registry definitions
+
+### Added
+
+- `source_docs_processor/document_types.py` with `DocumentTypeDefinition`.
+- `source_docs_processor/workflows/` with workflow contracts, runtime options, results, logging helpers, and reusable `CopyAndRegisterWorkflow`.
+- `source_docs_processor/registry/` with a registry definition protocol and generic validated CSV writer.
+- `upd_invoices_status_1/workflow.py` for UPD copy, rename, continuation, and output-folder behavior.
+- `upd_invoices_status_1/registry.py` for the detailed UPD CSV schema and row mapping.
+- Integration tests that inject a fake processor, a separate fake workflow, and a separate registry definition.
+
+### Changed
+
+- `DocumentProcessor` now owns only image-level recognition and extraction.
+- Removed target directory, filename, continuation preparation, and CSV policy from `BaseDocumentProcessor` and the UPD processor.
+- Moved folder processing out of `cli.py` into the selected workflow.
+- Reduced `file_ops.py` to low-level copying and image-output mechanics.
+- The CLI now resolves one complete document type definition and runs its selected workflow.
+- Bumped the package version to `0.9.0`.
+
+### Preserved
+
+- Existing UPD output directory behavior.
+- Copying and renaming recognized UPD files.
+- Copying unrecognized files unchanged.
+- Relative subfolder preservation.
+- Detailed UPD CSV and text report generation.
+- Established UPD filenames and continuation suffixes.
+- All current OCR heuristics and regression tests.
+
+### Reason
+
+Document types can require fundamentally different folder actions and CSV schemas. A future receipt type should be able to generate only a short registry in the source folder without inheriting UPD copy and rename behavior.
+
+## Generic document model and initial output-policy generalization (superseded)
 
 ### Added
 

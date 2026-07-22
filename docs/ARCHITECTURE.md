@@ -2,30 +2,35 @@
 
 `acc-source-docs-processor` is a local OCR-based CLI for scanned accounting source documents.
 
-The architecture separates a generic folder pipeline from document-specific processors:
+The project separates three responsibilities that were previously combined in one folder pipeline:
 
 ```text
-source folder
-  -> generic file discovery and image loading
-  -> explicit processor factory
-  -> selected document processor
-  -> orientation/OCR/extraction
-  -> generic copy and registry output
-  -> text report
+CLI args
+  -> DocumentTypeDefinition
+      -> DocumentProcessor
+      -> ProcessingWorkflow
+      -> RegistryDefinition
 ```
 
-The current released processor is `upd_invoices_status_1`. The shared architecture is intentionally suitable for later processors such as NPD receipts, acts, waybills, and generic invoices.
+The current released definition is `upd_invoices_status_1`. It keeps the existing UPD copy, rename, registry, report, rotation, and continuation behavior.
 
-## Design goals
+## Why three components are necessary
 
-- Keep original scans unchanged.
-- Process folders recursively and preserve relative subfolders.
-- Keep OCR and extraction local.
-- Keep generic pipeline code free from UPD-specific names and rules.
-- Make a new single-page processor small to implement.
-- Allow document-specific filename formats and CSV fields without modifying shared output code.
-- Preserve existing UPD recognition heuristics and filenames.
-- Keep tests deterministic and independent from real Tesseract where possible.
+Different document types may require different actions after recognition.
+
+The UPD scenario requires:
+
+```text
+scan -> recognize -> rotate -> copy -> rename -> register all files -> report
+```
+
+A future receipt scenario may require:
+
+```text
+scan -> recognize receipts only -> do not copy -> write a short CSV beside source files
+```
+
+These differences are folder-level business rules. They must not be implemented as flags or conditionals inside OCR processors.
 
 ## Project structure
 
@@ -33,212 +38,157 @@ The current released processor is `upd_invoices_status_1`. The shared architectu
 source_docs_processor/
 ├── cli.py
 ├── document_processor.py
+├── document_types.py
 ├── file_ops.py
 ├── image_processing.py
 ├── models.py
 ├── ocr.py
 ├── processors.py
+├── registry/
+│   ├── __init__.py
+│   ├── base.py
+│   └── csv_writer.py
+├── workflows/
+│   ├── __init__.py
+│   ├── base.py
+│   └── copy_and_register.py
 └── upd_invoices_status_1/
     ├── __init__.py
     ├── extractor.py
     ├── image_processing.py
     ├── ocr.py
-    └── processor.py
+    ├── processor.py
+    ├── registry.py
+    └── workflow.py
 ```
 
-## Generic data model
+## Document type definition
 
-`source_docs_processor/models.py` defines `ExtractedDocument`.
-
-The model contains common source-document fields:
-
-- `document_type`;
-- `is_recognized`;
-- `status`;
-- `document_number`;
-- `document_date`;
-- `document_datetime`;
-- issuer name, INN, and KPP;
-- recipient name, INN, and KPP;
-- amount without tax, tax amount, total amount, and currency;
-- description;
-- confidence, rotation, warnings, errors, and OCR preview;
-- continuation-page state;
-- `extra_fields` for processor-specific values.
-
-The shared model deliberately avoids names such as `invoice_number`, `seller_name`, or `is_upd_invoice_transfer`. A UPD processor maps its seller to the generic issuer and its buyer to the generic recipient. A receipt processor can map the service provider to issuer and the customer to recipient without changing the pipeline.
-
-### Processor-specific fields
-
-`extra_fields` stores values that are not useful as universal accounting fields. Each processor declares its exported keys through `registry_extra_columns`.
-
-For UPD the current extra fields are:
-
-```text
-request_number
-request_date
-vehicle
-loading_datetime
-unloading_datetime
-```
-
-The CSV writer validates that processor-specific columns do not collide with common columns.
-
-## Generic OCR result
-
-`source_docs_processor/ocr.py` contains document-neutral Tesseract helpers and
-`OcrResult`. Anchored values are stored in `targeted_fields` rather than fixed
-attributes such as an invoice number or receipt ID. Each processor defines and
-interprets its own keys inside its package.
-
-## Processor interface
-
-`source_docs_processor/document_processor.py` contains:
-
-- `DocumentProcessor` — structural protocol used by the pipeline;
-- `BaseDocumentProcessor` — reusable default behavior.
-
-A new single-page processor normally configures:
+`source_docs_processor/document_types.py` contains `DocumentTypeDefinition`:
 
 ```python
-class ExampleProcessor(BaseDocumentProcessor):
-    document_type = "example"
-    display_name = "Example document"
-    default_target_dir_name = "example_documents"
-    registry_extra_columns = ("example_field",)
+@dataclass(frozen=True)
+class DocumentTypeDefinition:
+    document_type: str
+    processor_factory: Callable[[], DocumentProcessor]
+    workflow_factory: Callable[[], ProcessingWorkflow]
+    registry_definition_factory: Callable[[], RegistryDefinition]
 ```
 
-It must implement `analyze_image_orientations()`. The base class already provides:
+The explicit registry binds all behavior for one CLI value:
 
-- recognition checks based on `document_type` and `is_recognized`;
-- no-op continuation-page analysis;
-- continuation metadata inheritance when enabled;
-- neutral fallback filename generation;
-- export of declared values from `extra_fields`.
+```text
+upd_invoices_status_1
+  -> UpdInvoicesStatus1Processor
+  -> UpdInvoicesStatus1Workflow
+  -> UpdInvoicesStatus1RegistryDefinition
+```
 
-A processor may override:
+This registry is intentionally explicit. Plugin discovery is not useful until external processor packages actually exist.
 
+`source_docs_processor/processors.py` remains as a small backward-compatible processor-only factory for callers that need just the recognizer.
+
+## Document processor
+
+`DocumentProcessor` handles one image. It owns:
+
+- orientation candidates;
+- targeted and optional full-page OCR;
+- document detection;
+- extraction and normalization;
+- field confidence and warnings;
+- optional continuation-page recognition.
+
+It does not own:
+
+- source folder traversal;
+- output directory selection;
+- copying or renaming;
+- filename generation;
+- CSV columns or row mapping;
+- report generation.
+
+`BaseDocumentProcessor` provides only recognition checks and a no-op continuation analyzer for ordinary single-page types.
+
+This boundary means a future receipt processor can remain small even when its workflow does not copy files at all.
+
+## Processing workflow
+
+`source_docs_processor/workflows/base.py` defines:
+
+- `ProcessingOptions` — CLI/runtime options;
+- `ProcessingResult` — extracted documents and produced artifact paths;
+- `ProcessingWorkflow` — folder-level protocol;
+- common logging and path helpers.
+
+`CopyAndRegisterWorkflow` is a reusable workflow for scenarios that need:
+
+- recursive file discovery;
+- natural ordering;
+- optional continuation handling;
+- copying recognized files;
+- copying unrecognized files;
+- corrected-orientation output;
+- generated filenames;
+- output subfolder preservation;
+- CSV registry and text report.
+
+The base workflow exposes document-specific hooks:
+
+- `default_target_dir_name`;
+- `supports_continuation_pages`;
 - `build_primary_filename_stem()`;
 - `build_output_filename_stem()`;
-- continuation recognition and preparation;
-- registry value conversion.
+- `prepare_continuation_document()`.
 
-This keeps business naming and document layout outside generic file operations.
+These hooks belong to a workflow because they describe what happens to files after recognition.
 
-## Processor factory
+A future registry-only workflow can implement `ProcessingWorkflow` directly without inheriting any copy behavior.
 
-`source_docs_processor/processors.py` contains the explicit registry:
+## Registry definition
 
-```text
-PROCESSOR_FACTORIES
+`RegistryDefinition` owns only tabular shape and row conversion:
+
+```python
+class RegistryDefinition(Protocol):
+    columns: tuple[str, ...]
+
+    def build_row(
+        self,
+        document: ExtractedDocument,
+        source_root: Path,
+    ) -> Mapping[str, RegistryValue]:
+        ...
 ```
 
-Adding a processor requires one lazy factory function and one registry entry. This is simpler and more transparent than plugin discovery for the current project size.
+The generic CSV writer:
 
-The CLI uses only `create_document_processor()` and does not import concrete OCR packages.
+- validates column uniqueness;
+- writes UTF-8 with BOM;
+- uses semicolon delimiters;
+- rejects undeclared row keys;
+- knows nothing about UPD or receipts.
 
-## Generic folder pipeline
+The selected workflow decides which document list is passed to the writer. Therefore one workflow may register every scanned file, while another may register only recognized documents.
 
-`source_docs_processor/cli.py` owns orchestration:
+The `source_root` argument allows future registry definitions to create portable relative file links without embedding this policy in the CSV writer.
 
-1. Validate source and output paths.
-2. Create or receive an injected processor.
-3. Resolve the output folder from `--target-dir-name` or the processor default.
-4. Discover image files recursively and sort them naturally.
-5. Load one image.
-6. Ask the processor to analyze standalone orientations.
-7. Attempt continuation recognition only when:
-   - a previous primary document exists;
-   - the processor declares continuation support;
-   - standalone recognition failed.
-8. Ask the processor to prepare inherited continuation metadata.
-9. Copy recognized or unrecognized files through generic file operations.
-10. Write the common plus processor-specific CSV registry.
-11. Write console messages to the text report.
+## Generic extracted model
 
-The pipeline contains no UPD status, seller, invoice-number, or filename rules.
+`ExtractedDocument` contains common accounting concepts:
 
-## Output and filename policy
+- document type and recognition state;
+- number, date, and datetime;
+- issuer and recipient names/INN/KPP;
+- amount without tax, tax amount, total amount, and currency;
+- description and status;
+- rotation, confidence, warnings, errors, and OCR preview;
+- continuation metadata;
+- `extra_fields` for document-specific extracted values.
 
-`source_docs_processor/file_ops.py` owns filesystem mechanics:
+The model does not define output-folder or filename policy.
 
-- safe filenames;
-- duplicate-safe paths;
-- copying original bytes when rotation is unnecessary;
-- writing the selected upright image after rotation;
-- copying unrecognized files unchanged;
-- writing UTF-8 BOM semicolon-separated CSV.
-
-The selected processor owns the filename stem. This allows formats such as:
-
-```text
-УПД_511_от_21-03-2023
-RECEIPT_204hy1b28u_02-04-2026
-ACT_17_30-04-2026
-```
-
-The current UPD processor overrides the neutral base policy to preserve existing Russian filenames and continuation suffixes.
-
-## Registry schema
-
-The common registry is stable across document types:
-
-```text
-source_file
-destination_file
-document_type
-is_recognized
-is_continuation_page
-continued_from
-status
-document_number
-document_date
-document_datetime
-rotation_degrees
-issuer_name
-issuer_inn
-issuer_kpp
-recipient_name
-recipient_inn
-recipient_kpp
-amount_without_tax
-tax_amount
-total_amount
-currency
-description
-confidence
-warnings
-error
-text_preview
-```
-
-Processor columns are appended after the common schema. A folder run uses one selected processor, so its CSV has one deterministic schema.
-
-Unrecognized rows remain minimal but include source filename, attempted document type, warnings, and error information. Absolute local paths are never written by default.
-
-## UPD status 1 processor
-
-The package `source_docs_processor/upd_invoices_status_1/` retains all current UPD-specific behavior.
-
-### OCR and crop rules
-
-- Try 0, 90, 180, and 270 degree orientations.
-- Prefer targeted OCR over one global text pass.
-- Read status, document number, date, and shipment row from dedicated crops.
-- Use `Документ об отгрузке` as a high-priority fallback.
-- Ignore the form-template date `02-04-2021` when it belongs to regulation text.
-- Correct suspicious short and over-read document numbers.
-- Save debug crops when requested.
-
-### Continuation-page rules
-
-- Recognize a standalone UPD first.
-- Attempt continuation detection only after standalone recognition fails.
-- Require strong sparse-page markers and reject pages containing a normal UPD header.
-- Inherit common and UPD-specific metadata from the previous primary page.
-- Preserve the `_2_страница` naming convention.
-
-### Generic field mapping
+### Common field mapping for UPD
 
 ```text
 UPD number          -> document_number
@@ -251,62 +201,99 @@ amount with VAT     -> total_amount
 service text        -> description
 ```
 
-## Adding an NPD receipt processor
+UPD-only transport and request values remain in `extra_fields`.
 
-A future package can be structured as:
+## Low-level file operations
 
-```text
-source_docs_processor/npd_receipts/
-├── __init__.py
-├── extractor.py
-├── image_processing.py
-├── ocr.py
-├── processor.py
-└── qr.py
-```
+`source_docs_processor/file_ops.py` provides mechanical helpers only:
 
-The processor can populate:
+- safe filename normalization;
+- duplicate-safe destination paths;
+- image writing to non-ASCII paths;
+- copying a processed image using a workflow-provided filename stem;
+- copying an unrecognized source image unchanged.
 
-```text
-document_number
-document_datetime
-issuer_name / issuer_inn
-recipient_name / recipient_inn
-total_amount
-currency
-description
-```
+The module does not know which files should be copied or what any document should be called.
 
-QR URL or payment-specific values can be additional registry columns. It does not need continuation support and does not require changes to the generic CSV writer or folder pipeline.
+## CLI orchestration
+
+`source_docs_processor/cli.py` is deliberately small:
+
+1. parse common runtime options;
+2. resolve a `DocumentTypeDefinition`;
+3. create the processor, workflow, and registry definition;
+4. create `ProcessingOptions`;
+5. run the selected workflow.
+
+The CLI contains no UPD-specific branch.
+
+`process_folder()` also accepts optional component injections for deterministic integration tests and embedded use. Normal CLI execution always uses the registered definition.
+
+## UPD status 1 implementation
+
+### Processor
+
+`upd_invoices_status_1/processor.py` owns image-level recognition only:
+
+- 0/90/180/270-degree orientation attempts;
+- targeted status, number, date, and shipment-row OCR;
+- field extraction and scoring;
+- conservative continuation recognition.
+
+### Workflow
+
+`upd_invoices_status_1/workflow.py` owns:
+
+- default output folder `передаточные_документы`;
+- copy-and-register scenario selection;
+- continuation-page support;
+- `УПД_<number>_от_<date>` naming;
+- `_2_страница` continuation suffix.
+
+### Registry
+
+`upd_invoices_status_1/registry.py` owns the detailed UPD CSV schema, including:
+
+- common document and party fields;
+- recognition and continuation state;
+- output filename;
+- confidence, warnings, errors, and OCR preview;
+- request number/date;
+- vehicle;
+- loading and unloading datetime.
+
+Unrecognized rows remain minimal, preserving existing workflow behavior.
+
+## Preserved UPD OCR rules
+
+- Prefer structured and targeted OCR over one global text pass.
+- Use `Документ об отгрузке` as a high-priority number/date source.
+- Replace suspiciously short header values such as `4` with reliable values such as `405`.
+- Correct over-read values such as `43007` or `4977` when a shorter reliable candidate exists.
+- Reject the form-template date `02-04-2021` when it comes from regulation text.
+- Recognize a standalone first page before testing continuation markers.
+- Keep auto-rotation and debug-crop support.
+
+## Adding a future document type
+
+A new type should be added without changing the existing UPD processor or workflow:
+
+1. Create a processor package with OCR and extraction logic.
+2. Reuse or implement a `ProcessingWorkflow`.
+3. Create a registry definition with the exact required columns.
+4. Register all three factories in `document_types.py`.
+5. Add processor unit tests and workflow/registry integration tests.
+6. Update public documentation when CLI behavior changes.
+
+For a registry-only receipt type, the new workflow would scan recursively, retain only recognized receipts, skip copying and renaming, and write its CSV in the source directory. None of those actions would require changes to the receipt OCR processor.
 
 ## Testing architecture
 
-### Unit tests
+Tests are split by responsibility:
 
-Pure tests cover:
+- extraction and OCR decision tests use prepared text and fake OCR values;
+- workflow integration tests use a fake processor, a separate fake workflow, a separate registry definition, and generated tiny images;
+- filename tests target the UPD workflow rather than the processor;
+- registry factory tests verify that a document type definition creates all three independent components.
 
-- number normalization and over-read correction;
-- date normalization and template-date filtering;
-- shipment-row parsing;
-- continuation decisions;
-- processor-controlled filenames;
-- generic metadata inheritance;
-- processor factory behavior.
-
-### Integration tests
-
-The pipeline tests use a synthetic fake receipt processor and tiny generated PNG files. They verify:
-
-- non-UPD filename policy;
-- common generic metadata;
-- processor-specific CSV columns;
-- continuation inheritance;
-- relative folder preservation;
-- unrecognized file copying;
-- processor-provided default output directory.
-
-These tests do not call Tesseract and contain no customer data.
-
-### Future OCR tests
-
-Real OCR tests may be marked `ocr` and `slow`, skipped when Tesseract is unavailable, and must use synthetic or confirmed anonymized fixtures.
+Real accounting scans and identifiers are not committed.

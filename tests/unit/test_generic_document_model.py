@@ -2,13 +2,14 @@ from pathlib import Path
 
 from source_docs_processor.document_processor import BaseDocumentProcessor
 from source_docs_processor.models import ExtractedDocument
+from source_docs_processor.workflows.copy_and_register import CopyAndRegisterWorkflow
 
 
-def test_continuation_inherits_common_and_extra_metadata():
-    """Verify reusable continuation metadata inheritance.
+def test_continuation_workflow_inherits_common_and_extra_metadata():
+    """Verify reusable continuation metadata inheritance in the copy workflow.
 
-    Protected risk: continuation logic must not depend on seller/buyer or invoice
-    field names and must preserve page-specific values over inherited values.
+    Protected risk: continuation preparation is a folder workflow concern and
+    must not force receipt or other single-page OCR processors to implement it.
     """
     primary = ExtractedDocument(
         source_path=Path("primary.png"),
@@ -29,7 +30,7 @@ def test_continuation_inherits_common_and_extra_metadata():
         extra_fields={"page_note": "continuation"},
     )
 
-    BaseDocumentProcessor().prepare_continuation_document(
+    CopyAndRegisterWorkflow().prepare_continuation_document(
         continuation,
         primary,
         page_number=2,
@@ -46,15 +47,28 @@ def test_continuation_inherits_common_and_extra_metadata():
 
 
 def test_base_processor_rejects_other_document_types():
-    """Verify document-type isolation in shared recognition checks.
+    """Verify document-type isolation remains a recognition responsibility.
 
-    Protected risk: a recognized result produced by one processor must not be
-    accepted accidentally by another processor in an embedded workflow.
+    Protected risk: a result produced by one processor must not be accepted by
+    another processor even though folder actions are now selected separately.
     """
-    doc = ExtractedDocument(
+    document = ExtractedDocument(
         source_path=Path("document.png"),
         document_type="another_type",
         is_recognized=True,
     )
 
-    assert BaseDocumentProcessor().is_supported_document(doc) is False
+    assert BaseDocumentProcessor().is_supported_document(document) is False
+
+
+def test_base_processor_does_not_define_output_policy():
+    """Verify OCR processors do not own copying, naming, or registry concerns.
+
+    Protected risk: putting workflow methods back on processors would make a
+    registry-only document type inherit irrelevant file-output behavior.
+    """
+    processor = BaseDocumentProcessor()
+
+    assert not hasattr(processor, "default_target_dir_name")
+    assert not hasattr(processor, "build_output_filename_stem")
+    assert not hasattr(processor, "registry_extra_columns")

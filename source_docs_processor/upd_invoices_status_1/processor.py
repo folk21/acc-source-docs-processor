@@ -20,30 +20,6 @@ class UpdInvoicesStatus1Processor(BaseDocumentProcessor):
 
     document_type = "upd_invoices_status_1"
     display_name = "UPD invoice-transfer document, status 1"
-    default_target_dir_name = "передаточные_документы"
-    supports_continuation_pages = True
-    registry_extra_columns = (
-        "request_number",
-        "request_date",
-        "vehicle",
-        "loading_datetime",
-        "unloading_datetime",
-    )
-
-    def build_primary_filename_stem(self, doc: ExtractedDocument) -> str:
-        """Preserve the established UPD filename convention."""
-        number = doc.document_number or "без_номера"
-        if doc.document_date:
-            return f"УПД_{number}_от_{doc.document_date}"
-        return f"УПД_{number}"
-
-    def build_output_filename_stem(self, doc: ExtractedDocument) -> str:
-        """Build the established primary or continuation UPD filename."""
-        stem = self.build_primary_filename_stem(doc)
-        if doc.is_continuation_page:
-            page_number = doc.continuation_page_number or 2
-            return f"{stem}_{page_number}_страница"
-        return stem
 
     def _score_document(self, doc: ExtractedDocument) -> int:
         """Score one orientation using UPD-specific recognition signals."""

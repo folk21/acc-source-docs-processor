@@ -8,19 +8,19 @@ Status legend:
 
 ## Generic architecture
 
-- [x] Separate generic folder processing from document-specific OCR.
-- [x] Select processors through an explicit factory registry.
-- [x] Introduce a document-type-neutral `ExtractedDocument` model.
-- [x] Use common issuer/recipient, date, amount, and description fields.
-- [x] Support processor-specific values through `extra_fields`.
-- [x] Let processors declare additional CSV columns.
-- [x] Let processors control default output folders and filename conventions.
-- [x] Provide reusable single-page and continuation behavior in `BaseDocumentProcessor`.
-- [x] Test the generic pipeline with a synthetic non-UPD processor.
-- [ ] Add config-driven processors for simple layouts after at least one more real processor exists.
-- [ ] Evaluate entry-point plugin discovery only if external processor packages become necessary.
+- [x] Separate shared models from document-specific OCR.
+- [x] Use a document-type-neutral `ExtractedDocument` model.
+- [x] Separate image-level `DocumentProcessor` behavior from folder actions.
+- [x] Introduce independently selectable `ProcessingWorkflow` implementations.
+- [x] Introduce document-specific `RegistryDefinition` schemas and row mapping.
+- [x] Bind processor, workflow, and registry factories through `DocumentTypeDefinition`.
+- [x] Move generic CSV serialization into a document-neutral writer.
+- [x] Keep low-level file copying independent from filename policy.
+- [x] Test processor, workflow, and registry separation with synthetic components.
+- [ ] Add config-driven processors only after at least two real processors need the same extension point.
+- [ ] Evaluate entry-point discovery only if external processor packages become necessary.
 
-## Current UPD processor
+## Current UPD document type
 
 - [x] Detect UPD invoice-transfer documents with status `1`.
 - [x] Extract document number and date.
@@ -29,35 +29,41 @@ Status legend:
 - [x] Correct suspicious short and over-read numbers.
 - [x] Try multiple rotations and save upright output.
 - [x] Detect continuation pages conservatively.
-- [x] Preserve established UPD filenames after model generalization.
+- [x] Preserve copying, renaming, report generation, and detailed registry output.
+- [x] Move UPD filename and continuation policy into its workflow.
+- [x] Move UPD CSV shape into its registry definition.
 - [/] Continue tuning private problematic examples outside the repository.
 - [ ] Add field-level confidence values.
 
 ## NPD receipts
 
 - [ ] Add `source_docs_processor/npd_receipts/` as a separate processor package.
+- [ ] Add a registry-only workflow that does not copy or rename files.
+- [ ] Write the receipt CSV directly in the source folder.
+- [ ] Include only recognized receipts in the registry.
+- [ ] Add portable hyperlink file cells.
+- [ ] Use receipt columns: file, document number/date, recipient, amount, and issuer.
 - [ ] Decode receipt QR codes locally.
-- [ ] Extract receipt number, datetime, issuer, recipient INN, service description, and total amount.
 - [ ] Reconcile QR values with OCR values and report conflicts.
-- [ ] Support both clean print views and mobile screenshots.
-- [ ] Add synthetic receipt fixtures without real names or INNs.
-- [ ] Add an optional local INN-to-organization mapping file for recipient names.
+- [ ] Support clean print views and mobile screenshots.
+- [ ] Add synthetic fixtures without real names or INNs.
+- [ ] Add an optional local INN-to-organization mapping for recipient names.
 
 ## Output and review
 
-- [x] Preserve source subfolder structure.
-- [x] Copy unrecognized files unchanged.
+- [x] Preserve source subfolders for the UPD copy workflow.
+- [x] Copy unrecognized files unchanged in the UPD workflow.
 - [x] Generate UTF-8 BOM semicolon-separated CSV.
-- [x] Keep absolute paths out of the registry.
-- [x] Generate a text report.
-- [ ] Generate XLSX in addition to CSV.
+- [x] Keep absolute paths out of current registries.
+- [x] Generate a text report for the UPD workflow.
+- [ ] Generate XLSX where native hyperlinks are preferable.
 - [ ] Add a review folder for low-confidence documents.
-- [ ] Add a machine-readable debug JSON result per document.
-- [ ] Add summary counts by document type, year, and recognition status.
+- [ ] Add machine-readable debug JSON.
+- [ ] Add summary counts by document type and recognition status.
 
 ## Performance
 
-- [x] Keep full-page OCR optional for the UPD processor.
+- [x] Keep full-page OCR optional for UPD.
 - [x] Prefer targeted crop OCR for high-value fields.
 - [ ] Add a persistent OCR cache.
 - [ ] Add optional parallel processing with `--workers`.
@@ -66,9 +72,9 @@ Status legend:
 ## Configuration and usability
 
 - [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug crops.
-- [x] Use processor-specific default target directory names.
+- [x] Let each workflow interpret output-related options.
 - [ ] Add YAML processing profiles.
-- [ ] Add a validation command for Tesseract and language packs.
+- [ ] Add a Tesseract validation command.
 - [ ] Add Windows-oriented setup instructions.
 - [ ] Add a simple local UI.
 

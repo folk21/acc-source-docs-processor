@@ -1,15 +1,15 @@
 """Local processing of scanned accounting source documents.
 
-The package consists of a document-type-neutral folder pipeline and explicit
-processor packages. Shared code owns file discovery, image loading, output,
-registry generation, and reporting. Each processor owns OCR, extraction,
-recognition decisions, filename policy, continuation behavior, and optional
-registry columns for one document type.
+The package separates three independently selected responsibilities:
 
-The current released processor is ``upd_invoices_status_1``. Future processors,
-including NPD receipts, can reuse the generic ``ExtractedDocument`` model and
-``BaseDocumentProcessor`` without introducing invoice-specific fields into the
-shared pipeline.
+1. a document processor recognizes and extracts one image;
+2. a processing workflow decides how a source folder and its files are handled;
+3. a registry definition controls the tabular output schema and row mapping.
+
+A complete document type definition binds these parts together for CLI use. The
+current released definition is ``upd_invoices_status_1``. Future receipt, act,
+or other definitions can select different folder actions and CSV schemas without
+adding conditional business logic to the OCR processor or CLI.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

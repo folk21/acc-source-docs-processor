@@ -1,18 +1,18 @@
 from pathlib import Path
 
 from source_docs_processor.models import ExtractedDocument
-from source_docs_processor.upd_invoices_status_1.processor import (
-    UpdInvoicesStatus1Processor,
+from source_docs_processor.upd_invoices_status_1.workflow import (
+    UpdInvoicesStatus1Workflow,
 )
 
 
-def test_upd_processor_builds_established_primary_filename():
-    """Verify that generalization preserves the existing UPD output convention.
+def test_upd_workflow_builds_established_primary_filename():
+    """Verify that workflow separation preserves the existing UPD output name.
 
-    Protected risk: moving filename policy out of the shared model must not alter
-    the accountant-facing ``УПД_<number>_от_<date>`` naming format.
+    Protected risk: moving naming out of the OCR processor must not alter the
+    accountant-facing ``УПД_<number>_от_<date>`` convention.
     """
-    doc = ExtractedDocument(
+    document = ExtractedDocument(
         source_path=Path("scan.png"),
         document_type="upd_invoices_status_1",
         is_recognized=True,
@@ -20,18 +20,18 @@ def test_upd_processor_builds_established_primary_filename():
         document_date="21-03-2023",
     )
 
-    stem = UpdInvoicesStatus1Processor().build_output_filename_stem(doc)
+    stem = UpdInvoicesStatus1Workflow().build_output_filename_stem(document)
 
     assert stem == "УПД_511_от_21-03-2023"
 
 
-def test_upd_processor_builds_established_continuation_filename():
-    """Verify that the existing Russian page suffix remains unchanged.
+def test_upd_workflow_builds_established_continuation_filename():
+    """Verify that the existing Russian continuation suffix remains unchanged.
 
-    Protected risk: the generic base processor uses a neutral page suffix, while
-    the UPD workflow must continue producing ``_2_страница`` names.
+    Protected risk: the reusable copy workflow uses a neutral suffix, while UPD
+    output must continue producing ``_2_страница`` names.
     """
-    doc = ExtractedDocument(
+    document = ExtractedDocument(
         source_path=Path("scan_page_2.png"),
         document_type="upd_invoices_status_1",
         is_recognized=True,
@@ -41,6 +41,6 @@ def test_upd_processor_builds_established_continuation_filename():
         continuation_page_number=2,
     )
 
-    stem = UpdInvoicesStatus1Processor().build_output_filename_stem(doc)
+    stem = UpdInvoicesStatus1Workflow().build_output_filename_stem(document)
 
     assert stem == "УПД_356_от_27-02-2023_2_страница"

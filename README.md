@@ -2,76 +2,76 @@
 
 `acc-source-docs-processor` is a local Python CLI for folders of scanned accounting source documents.
 
-The application uses a generic folder-processing pipeline and document-specific processors:
+The application now separates three responsibilities:
 
 ```text
-CLI args -> processor factory -> selected processor -> scan/extract/copy/register/report
+CLI args
+  -> document type definition
+      -> document processor
+      -> folder workflow
+      -> registry definition
 ```
 
-The currently released processor is:
+The currently released document type is:
 
 ```text
 upd_invoices_status_1
 ```
 
-It recognizes Russian UPD invoice-transfer documents with status `1`. Source files are never modified and no documents are uploaded to external services.
+It recognizes Russian UPD invoice-transfer documents with status `1`. Source files are never modified, and no scans are uploaded to external services.
 
-## Documentation
+## Why the architecture is split
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — processor boundary, generic model, registry schema, and OCR design;
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — completed changes and bug fixes;
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — current and planned work;
-- [`AGENTS.md`](AGENTS.md) — development rules for AI coding agents.
+A document processor answers only:
+
+- whether one image is a supported document;
+- which orientation is correct;
+- which fields can be extracted.
+
+A workflow decides folder-level actions such as:
+
+- copy or do not copy files;
+- rename or preserve filenames;
+- create an output folder or write beside source files;
+- include unrecognized files;
+- generate a report.
+
+A registry definition decides:
+
+- CSV columns;
+- which extracted values are written to each column;
+- how file references are represented.
+
+This allows a future receipt type to use a registry-only workflow and a short receipt-specific CSV without inheriting UPD copy/rename behavior.
 
 ## Project layout
 
 ```text
-acc-source-docs-processor/
-├── main.py
-├── requirements.txt
-├── requirements-dev.txt
-├── source_docs_processor/
-│   ├── cli.py
-│   ├── document_processor.py
-│   ├── file_ops.py
-│   ├── image_processing.py
-│   ├── models.py
-│   ├── ocr.py
-│   ├── processors.py
-│   └── upd_invoices_status_1/
-│       ├── extractor.py
-│       ├── image_processing.py
-│       ├── ocr.py
-│       └── processor.py
-├── tests/
-└── docs/
+source_docs_processor/
+├── cli.py
+├── document_processor.py
+├── document_types.py
+├── file_ops.py
+├── image_processing.py
+├── models.py
+├── ocr.py
+├── processors.py
+├── registry/
+│   ├── base.py
+│   └── csv_writer.py
+├── workflows/
+│   ├── base.py
+│   └── copy_and_register.py
+└── upd_invoices_status_1/
+    ├── extractor.py
+    ├── image_processing.py
+    ├── ocr.py
+    ├── processor.py
+    ├── registry.py
+    └── workflow.py
 ```
 
-## Generic processor model
-
-Shared code no longer contains UPD/invoice field names. `ExtractedDocument` provides common fields suitable for receipts, acts, invoices, and other source documents:
-
-- document type, number, date, and datetime;
-- issuer and recipient names/INN/KPP;
-- amount without tax, tax amount, total amount, and currency;
-- description, status, confidence, warnings, and OCR preview;
-- continuation-page metadata;
-- `extra_fields` for processor-specific values.
-
-Each processor controls:
-
-- recognition and OCR;
-- default output directory name;
-- output filename format;
-- continuation-page support;
-- additional CSV columns.
-
-The UPD processor still produces established filenames such as:
-
-```text
-УПД_511_от_21-03-2023.png
-УПД_511_от_21-03-2023_2_страница.png
-```
+Detailed design is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Requirements
 
@@ -107,7 +107,7 @@ Run from the project root:
 python main.py --source "/path/to/scans"
 ```
 
-The default processor is `upd_invoices_status_1`, so the following command is equivalent:
+The default document type is `upd_invoices_status_1`:
 
 ```bash
 python main.py \
@@ -115,21 +115,13 @@ python main.py \
   --document-type upd_invoices_status_1
 ```
 
-The selected processor provides its default output directory name. For the UPD processor it remains:
+The UPD workflow creates this output folder by default:
 
 ```text
 ./передаточные_документы
 ```
 
-Override it when needed:
-
-```bash
-python main.py \
-  --source "/path/to/scans" \
-  --target-dir-name "result_2026"
-```
-
-Choose a different output base directory:
+Override its name or base directory:
 
 ```bash
 python main.py \
@@ -147,81 +139,45 @@ python main.py --source "/path/to/scans" --no-auto-rotate
 python main.py --source "/path/to/scans" --dry-run
 ```
 
-## Output
+The meaning of output-related options is defined by the selected workflow. The current UPD workflow uses them exactly as before.
 
-The target folder contains copied images, an Excel-friendly semicolon-separated CSV file, and a text report:
+## Current UPD behavior
 
-```text
-result_2026/
-├── ... copied documents ...
-├── result_2026.csv
-└── result_2026_report.txt
-```
+The UPD workflow:
 
-Source subfolder structure is preserved. Recognized rotated images are copied in the corrected orientation. Unrecognized files are copied unchanged.
+1. scans image files recursively;
+2. recognizes UPD status `1` documents;
+3. corrects orientation;
+4. copies and renames recognized files;
+5. copies unrecognized files unchanged;
+6. attaches continuation pages conservatively;
+7. preserves source subfolders;
+8. writes a detailed CSV registry and text report.
 
-## CSV registry
-
-The common registry schema includes:
-
-```text
-source_file
-destination_file
-document_type
-is_recognized
-is_continuation_page
-continued_from
-status
-document_number
-document_date
-document_datetime
-issuer_name / issuer_inn / issuer_kpp
-recipient_name / recipient_inn / recipient_kpp
-amount_without_tax
-tax_amount
-total_amount
-currency
-description
-rotation_degrees
-confidence
-warnings
-error
-text_preview
-```
-
-A processor may append its own columns. The UPD processor currently adds:
+Established filenames remain unchanged:
 
 ```text
-request_number
-request_date
-vehicle
-loading_datetime
-unloading_datetime
+УПД_511_от_21-03-2023.png
+УПД_511_от_21-03-2023_2_страница.png
 ```
-
-Only file names are written to the registry, not absolute local paths.
 
 ## Adding a document type
 
-A new processor should:
+A new type should provide:
 
-1. Create a separate package under `source_docs_processor/`.
-2. Extend `BaseDocumentProcessor`.
-3. Populate the generic `ExtractedDocument` fields.
-4. Override filename generation only when a business-specific format is required.
-5. Declare optional `registry_extra_columns` and place their values in `extra_fields`.
-6. Register one factory entry in `source_docs_processor/processors.py`.
-7. Add deterministic unit and integration tests.
+1. a processor package for file-level OCR and extraction;
+2. a workflow, either reusable or document-specific;
+3. a registry definition with its own columns and row mapping;
+4. one `DocumentTypeDefinition` entry in `source_docs_processor/document_types.py`;
+5. deterministic tests.
 
-The planned NPD receipt processor is not included in this version; this release prepares the shared architecture for it.
+The planned NPD receipt type is intentionally not included in this version.
 
 ## Tests
-
-Install developer dependencies and run the suite:
 
 ```bash
 pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Most tests use prepared OCR text, fake processors, or synthetic tiny images. Real customer scans must not be committed to the repository.
+Most tests use prepared OCR text, fake processors, independent fake workflows, custom registry definitions, and synthetic images. Real accounting scans must not be committed to the repository.
