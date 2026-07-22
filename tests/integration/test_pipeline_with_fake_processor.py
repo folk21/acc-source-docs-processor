@@ -5,46 +5,64 @@ import cv2
 import numpy as np
 
 from source_docs_processor.cli import process_folder
+from source_docs_processor.document_processor import BaseDocumentProcessor
 from source_docs_processor.models import ExtractedDocument
 
 
-class FakeProcessor:
-    """Small test processor that bypasses Tesseract and returns fixed results.
+class FakeProcessor(BaseDocumentProcessor):
+    """Test processor that proves the shared pipeline has no UPD assumptions."""
 
-    The production processor performs OCR and extraction. Integration tests use
-    this fake to verify the generic folder pipeline, output naming, continuation
-    handling, and registry generation without depending on the local Tesseract
-    installation or customer scanned accounting documents.
-    """
+    document_type = "fake_receipt"
+    display_name = "Fake receipt processor"
+    default_target_dir_name = "fake_receipts"
+    supports_continuation_pages = True
+    registry_extra_columns = ("payment_method",)
 
-    document_type = "fake_processor"
-    display_name = "Fake processor for pipeline tests"
-
-    def analyze_image_orientations(self, image_path: Path, image: np.ndarray, **_kwargs):
-        """Return deterministic first-pass results based on the file name."""
+    def analyze_image_orientations(
+        self,
+        image_path: Path,
+        image: np.ndarray,
+        **_kwargs,
+    ):
+        """Return deterministic standalone results based on the file name."""
         if image_path.name == "scan_001.png":
             return (
                 ExtractedDocument(
                     source_path=image_path,
-                    is_upd_invoice_transfer=True,
-                    status="1",
-                    invoice_number="511",
-                    invoice_date="21-03-2023",
+                    document_type=self.document_type,
+                    is_recognized=True,
+                    document_number="R-511",
+                    document_date="21-03-2023",
+                    issuer_name="Synthetic Supplier",
+                    recipient_name="Synthetic Buyer",
+                    total_amount="1250.00",
+                    currency="RUB",
                     confidence=95,
+                    extra_fields={"payment_method": "card"},
                 ),
                 image,
             )
-        # Page 2 is intentionally not recognized as a standalone first page in
-        # this first-pass method. The pipeline should then call the continuation
-        # analyzer because a previous first page is active.
-        return ExtractedDocument(source_path=image_path, confidence=0), image
+        return (
+            ExtractedDocument(
+                source_path=image_path,
+                document_type=self.document_type,
+            ),
+            image,
+        )
 
-    def analyze_continuation_orientations(self, image_path: Path, image: np.ndarray, **_kwargs):
-        """Return a continuation result only for the known second-page fixture."""
+    def analyze_continuation_orientations(
+        self,
+        image_path: Path,
+        image: np.ndarray,
+        **_kwargs,
+    ):
+        """Return a continuation result only for the known second page."""
         if image_path.name == "scan_002.png":
             return (
                 ExtractedDocument(
                     source_path=image_path,
+                    document_type=self.document_type,
+                    is_recognized=True,
                     is_continuation_page=True,
                     rotation_degrees=90,
                     confidence=80,
@@ -53,13 +71,9 @@ class FakeProcessor:
             )
         return None
 
-    def is_supported_document(self, doc: ExtractedDocument) -> bool:
-        """Mirror the production processor first-page check."""
-        return doc.is_upd_invoice_transfer
-
-    def is_continuation_page(self, doc: ExtractedDocument) -> bool:
-        """Mirror the production processor continuation-page check."""
-        return doc.is_continuation_page
+    def build_primary_filename_stem(self, doc: ExtractedDocument) -> str:
+        """Use a non-UPD filename to guard the generic output boundary."""
+        return f"RECEIPT_{doc.document_number}_{doc.document_date}"
 
 
 def _write_test_image(path: Path) -> None:
@@ -75,12 +89,11 @@ def _read_registry(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(file, delimiter=";"))
 
 
-def test_pipeline_copies_recognized_continuation_and_unrecognized_files(tmp_path):
-    """Verify the generic pipeline with an injected fake document processor.
+def test_pipeline_uses_processor_naming_and_generic_metadata(tmp_path):
+    """Verify processor-controlled names, continuation handling, and copying.
 
-    Fixed problem verified: the high-level folder workflow should be testable
-    without real OCR. It must copy page 1 with generated naming, attach page 2
-    as a continuation, preserve the source subfolder, and keep unrecognized files.
+    Protected risk: adding a second document type must not require UPD-specific
+    flags, invoice field names, or filename logic in the shared folder pipeline.
     """
     source_dir = tmp_path / "source"
     output_dir = tmp_path / "output"
@@ -100,17 +113,21 @@ def test_pipeline_copies_recognized_continuation_and_unrecognized_files(tmp_path
     target_dir = output_dir / "target_scans" / "2023"
     assert len(found_docs) == 1
     assert len(all_docs) == 3
-    assert (target_dir / "УПД_511_от_21-03-2023.png").exists()
-    assert (target_dir / "УПД_511_от_21-03-2023_2_страница.png").exists()
+    assert (target_dir / "RECEIPT_R-511_21-03-2023.png").exists()
+    assert (target_dir / "RECEIPT_R-511_21-03-2023_page_2.png").exists()
     assert (target_dir / "scan_003.png").exists()
 
+    continuation = all_docs[1]
+    assert continuation.document_number == "R-511"
+    assert continuation.issuer_name == "Synthetic Supplier"
+    assert continuation.extra_fields["payment_method"] == "card"
 
-def test_registry_contains_portable_file_names_not_absolute_paths(tmp_path):
-    """Verify registry rows stay portable and do not expose absolute paths.
 
-    Fixed problem verified: earlier CSV output used full paths. The current
-    accounting workflow needs only source/destination file names so the registry
-    can be moved together with the result folder.
+def test_registry_uses_common_and_processor_specific_columns(tmp_path):
+    """Verify generic CSV columns plus declared document-specific fields.
+
+    Protected risk: a new processor should extend the registry without editing
+    the shared CSV writer or reusing invoice-oriented column names.
     """
     source_dir = tmp_path / "source"
     output_dir = tmp_path / "output"
@@ -128,10 +145,17 @@ def test_registry_contains_portable_file_names_not_absolute_paths(tmp_path):
     )
 
     rows = _read_registry(output_dir / "target_scans" / "target_scans.csv")
-    assert rows[0]["source_file"] == "scan_001.png"
-    assert rows[0]["destination_file"] == "УПД_511_от_21-03-2023.png"
+    assert rows[0]["document_type"] == "fake_receipt"
+    assert rows[0]["document_number"] == "R-511"
+    assert rows[0]["issuer_name"] == "Synthetic Supplier"
+    assert rows[0]["recipient_name"] == "Synthetic Buyer"
+    assert rows[0]["total_amount"] == "1250.00"
+    assert rows[0]["payment_method"] == "card"
+    assert "invoice_number" not in rows[0]
+    assert "is_upd_invoice_transfer" not in rows[0]
+
     assert rows[1]["is_continuation_page"] == "1"
-    assert rows[1]["destination_file"] == "УПД_511_от_21-03-2023_2_страница.png"
+    assert rows[1]["destination_file"] == "RECEIPT_R-511_21-03-2023_page_2.png"
     assert rows[2]["source_file"] == "scan_003.png"
     assert rows[2]["destination_file"] == ""
 
@@ -139,3 +163,23 @@ def test_registry_contains_portable_file_names_not_absolute_paths(tmp_path):
         assert "/" not in row["source_file"]
         assert "\\" not in row["source_file"]
         assert not row["source_file"].startswith(str(tmp_path))
+
+
+def test_processor_default_target_directory_is_used(tmp_path):
+    """Verify that each processor can provide its own default output folder.
+
+    Protected risk: future receipt and act processors should not inherit the
+    current UPD-specific default directory name from generic CLI code.
+    """
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "output"
+    _write_test_image(source_dir / "scan_001.png")
+
+    process_folder(
+        source_dir=source_dir,
+        output_dir=output_dir,
+        lang="rus+eng",
+        document_processor=FakeProcessor(),
+    )
+
+    assert (output_dir / "fake_receipts" / "fake_receipts.csv").exists()

@@ -472,16 +472,16 @@ def _is_upd_invoice_transfer(text: str, status: str | None) -> bool:
 
 def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
     """Convert OCR output into structured document metadata."""
-    combined = normalize_spaces(ocr.header_text + "\n" + ocr.text + "\n" + getattr(ocr, "targeted_text", ""))
+    combined = normalize_spaces(ocr.header_text + "\n" + ocr.text + "\n" + ocr.targeted_text)
     invoice_number, invoice_date = _extract_invoice_number_and_date(combined)
 
     # The shipment row is handled as a first-class fallback source because it
     # repeats the actual document number and date in a cleaner area of the form.
-    shipment_source = getattr(ocr, "shipment_document_text_from_crop", None)
+    shipment_source = ocr.targeted_fields.get("shipment_document_text_from_crop")
     if not shipment_source and "документ" in combined.lower() and "отгруз" in combined.lower():
         shipment_source = combined
     shipment_number, shipment_date = _extract_number_date_from_shipment_document(shipment_source)
-    crop_number = getattr(ocr, "invoice_number_from_crop", None)
+    crop_number = ocr.targeted_fields.get("invoice_number_from_crop")
 
     # Prefer the most document-like number candidate before using it for output
     # filenames. The shipment row is especially useful for rejecting numbers
@@ -495,7 +495,7 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
     invoice_date, date_adjustment_warning = choose_more_reliable_document_date(
         current_date=invoice_date,
         shipment_date=shipment_date,
-        crop_date_text=getattr(ocr, "invoice_date_text_from_crop", None),
+        crop_date_text=ocr.targeted_fields.get("invoice_date_text_from_crop"),
         combined_text=combined,
     )
 
@@ -512,7 +512,7 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
 
     # Classify the page after extracting key fields. Continuation pages are never
     # allowed to override a successful first-page UPD classification.
-    is_upd = _is_upd_invoice_transfer(combined, ocr.status_digit)
+    is_upd = _is_upd_invoice_transfer(combined, ocr.targeted_fields.get("status"))
     is_continuation = False if is_upd else _is_probable_continuation_page(combined)
     status_warning = False
     compact_combined = re.sub(r"\s+", " ", combined.lower())
@@ -522,8 +522,8 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
         # of losing the document entirely.
         has_invoice_marker = bool(re.search(r"сч[её]т\s*[-–]?\s*фактур", compact_combined))
         has_transfer_marker = "универсальн" in compact_combined or "передаточ" in compact_combined
-        has_shipment_row = bool(getattr(ocr, "shipment_document_text_from_crop", None))
-        if has_invoice_marker and (has_transfer_marker or (ocr.status_digit == "1" and has_shipment_row)):
+        has_shipment_row = bool(ocr.targeted_fields.get("shipment_document_text_from_crop"))
+        if has_invoice_marker and (has_transfer_marker or (ocr.targeted_fields.get("status") == "1" and has_shipment_row)):
             is_upd = True
             status_warning = True
     # Confidence is a practical score for sorting/diagnostics. It intentionally
@@ -546,29 +546,32 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
 
     doc = ExtractedDocument(
         source_path=source_path,
-        is_upd_invoice_transfer=is_upd,
-        status=ocr.status_digit,
-        invoice_number=invoice_number,
-        invoice_date=invoice_date,
-        seller_name=seller_name,
-        seller_inn=seller_inn,
-        seller_kpp=seller_kpp,
-        buyer_name=buyer_name,
-        buyer_inn=buyer_inn,
-        buyer_kpp=buyer_kpp,
-        amount_without_vat=amount_without_vat,
-        vat_amount=vat_amount,
-        amount_with_vat=amount_with_vat,
-        service_text=service_text,
-        request_number=request_number,
-        request_date=request_date,
-        vehicle=vehicle,
-        loading_datetime=loading_datetime,
-        unloading_datetime=unloading_datetime,
+        document_type="upd_invoices_status_1",
+        is_recognized=is_upd or is_continuation,
+        status=ocr.targeted_fields.get("status"),
+        document_number=invoice_number,
+        document_date=invoice_date,
+        issuer_name=seller_name,
+        issuer_inn=seller_inn,
+        issuer_kpp=seller_kpp,
+        recipient_name=buyer_name,
+        recipient_inn=buyer_inn,
+        recipient_kpp=buyer_kpp,
+        amount_without_tax=amount_without_vat,
+        tax_amount=vat_amount,
+        total_amount=amount_with_vat,
+        description=service_text,
         confidence=min(confidence, 100),
         rotation_degrees=getattr(ocr, "rotation_degrees", 0),
         is_continuation_page=is_continuation,
         text_preview=combined[:500].replace("\n", " "),
+        extra_fields={
+            "request_number": request_number,
+            "request_date": request_date,
+            "vehicle": vehicle,
+            "loading_datetime": loading_datetime,
+            "unloading_datetime": unloading_datetime,
+        },
     )
 
     if is_upd and number_adjustment_warning:
@@ -587,8 +590,12 @@ def extract_document(source_path: Path, ocr: OcrResult) -> ExtractedDocument:
         doc.warnings.append("Invoice number was not recognized")
     if is_upd and not invoice_date:
         doc.warnings.append("Invoice date was not recognized")
-    if is_upd and getattr(ocr, "invoice_number_from_crop", None) and invoice_number == ocr.invoice_number_from_crop:
+    if (
+        is_upd
+        and ocr.targeted_fields.get("invoice_number_from_crop")
+        and invoice_number == ocr.targeted_fields.get("invoice_number_from_crop")
+    ):
         doc.warnings.append("Invoice number was recognized from target crop")
-    if is_upd and getattr(ocr, "invoice_date_text_from_crop", None) and invoice_date:
+    if is_upd and ocr.targeted_fields.get("invoice_date_text_from_crop") and invoice_date:
         doc.warnings.append("Invoice date crop was used or checked")
     return doc

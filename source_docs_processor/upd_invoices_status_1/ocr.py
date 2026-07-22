@@ -344,12 +344,14 @@ def run_ocr(
     return OcrResult(
         text=text,
         header_text=header_text,
-        status_digit=status_digit,
         mean_confidence=conf,
         rotation_degrees=rotation_degrees,
         targeted_text=targeted_text,
-        invoice_number_from_crop=invoice_number_from_crop,
-        invoice_date_text_from_crop=invoice_date_text_from_crop,
-        shipment_document_text_from_crop=shipment_document_text_from_crop,
-        continuation_text=continuation_text,
+        targeted_fields={
+            "status": status_digit,
+            "invoice_number_from_crop": invoice_number_from_crop,
+            "invoice_date_text_from_crop": invoice_date_text_from_crop,
+            "shipment_document_text_from_crop": shipment_document_text_from_crop,
+            "continuation_text": continuation_text,
+        },
     )

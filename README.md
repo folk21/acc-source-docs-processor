@@ -1,90 +1,81 @@
 # acc-source-docs-processor
 
-`acc-source-docs-processor` is a local Python utility for processing scanned Russian accounting source documents.
+`acc-source-docs-processor` is a local Python CLI for folders of scanned accounting source documents.
 
-The current released document processor focuses on scanned UPD transfer documents with status `1`. In the UPD form, status `1` means that the document acts both as an invoice and as a transfer document. In this README these input files are also called transfer documents or primary documents.
+The application uses a generic folder-processing pipeline and document-specific processors:
 
-The program recursively scans a source folder, selects a document processor through the `--document-type` CLI parameter, detects supported primary documents, extracts the document number and document date, copies processed scans into a target folder, renames recognized files, and generates a CSV registry plus a text report.
+```text
+CLI args -> processor factory -> selected processor -> scan/extract/copy/register/report
+```
 
-Source files are never modified.
+The currently released processor is:
+
+```text
+upd_invoices_status_1
+```
+
+It recognizes Russian UPD invoice-transfer documents with status `1`. Source files are never modified and no documents are uploaded to external services.
 
 ## Documentation
 
-More detailed project documentation is available in:
-
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — detailed architecture, components, OCR pipeline, decision logic, and recognition heuristics;
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — functional evolution and fixes by milestone;
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — current and planned tasks;
-- [`AGENTS.md`](AGENTS.md) — rules for AI coding agents working on this project.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — processor boundary, generic model, registry schema, and OCR design;
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — completed changes and bug fixes;
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — current and planned work;
+- [`AGENTS.md`](AGENTS.md) — development rules for AI coding agents.
 
 ## Project layout
 
 ```text
 acc-source-docs-processor/
-├── README.md
-├── AGENTS.md
+├── main.py
 ├── requirements.txt
 ├── requirements-dev.txt
-├── pytest.ini
-├── main.py
-├── run.sh
-├── run_example.sh
-├── archive.sh
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── CHANGELOG.md
-│   └── ROADMAP.md
+├── source_docs_processor/
+│   ├── cli.py
+│   ├── document_processor.py
+│   ├── file_ops.py
+│   ├── image_processing.py
+│   ├── models.py
+│   ├── ocr.py
+│   ├── processors.py
+│   └── upd_invoices_status_1/
+│       ├── extractor.py
+│       ├── image_processing.py
+│       ├── ocr.py
+│       └── processor.py
 ├── tests/
-│   ├── unit/
-│   └── integration/
-└── source_docs_processor/
-    ├── __init__.py
-    ├── cli.py
-    ├── file_ops.py
-    ├── image_processing.py
-    ├── models.py
-    ├── ocr.py
-    ├── processors.py
-    └── upd_invoices_status_1/
-        ├── __init__.py
-        ├── extractor.py
-        ├── image_processing.py
-        ├── ocr.py
-        └── processor.py
+└── docs/
 ```
 
-The repository/project folder uses hyphens. The internal Python package uses underscores so it can be imported normally:
+## Generic processor model
 
-```python
-from source_docs_processor.cli import main
+Shared code no longer contains UPD/invoice field names. `ExtractedDocument` provides common fields suitable for receipts, acts, invoices, and other source documents:
+
+- document type, number, date, and datetime;
+- issuer and recipient names/INN/KPP;
+- amount without tax, tax amount, total amount, and currency;
+- description, status, confidence, warnings, and OCR preview;
+- continuation-page metadata;
+- `extra_fields` for processor-specific values.
+
+Each processor controls:
+
+- recognition and OCR;
+- default output directory name;
+- output filename format;
+- continuation-page support;
+- additional CSV columns.
+
+The UPD processor still produces established filenames such as:
+
+```text
+УПД_511_от_21-03-2023.png
+УПД_511_от_21-03-2023_2_страница.png
 ```
-
-## What the program does
-
-The current workflow is:
-
-1. Recursively reads PNG/JPG/JPEG/TIFF/BMP scans from the source folder.
-2. Sorts files in natural order so sequential scans are processed in the expected order.
-3. Creates the selected document processor. The default processor is `upd_invoices_status_1`.
-4. Detects UPD transfer documents with status `1`.
-5. Extracts the document number and document date where possible.
-6. Uses a dedicated document-number adjustment algorithm to improve recognition accuracy.
-7. Uses the `Документ об отгрузке` row as a fallback source for the document number and date.
-8. Tries 0, 90, 180, and 270 degree rotations and chooses the best recognition result.
-9. Saves recognized sideways documents in the corrected orientation.
-10. Detects likely continuation pages only after standalone UPD recognition fails.
-11. Copies recognized, continuation, and unrecognized files to the target folder.
-12. Preserves the source subfolder structure inside the target folder.
-13. Generates an Excel-friendly CSV registry and a text report.
-14. Optionally saves debug OCR crops for difficult documents.
-
-The full recognition strategy is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Requirements
 
-Python 3.10+ is recommended.
-
-The program uses local OCR through Tesseract. Install Tesseract OCR with Russian and English language data.
+Python 3.10+ is recommended. Install Tesseract OCR with Russian and English language data.
 
 ### macOS
 
@@ -100,9 +91,7 @@ sudo apt-get update
 sudo apt-get install -y tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
 ```
 
-### Python dependencies
-
-From the project root:
+### Python environment
 
 ```bash
 python -m venv .venv
@@ -110,305 +99,129 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-On Windows, create and activate a virtual environment using standard Windows commands, then run:
+## Usage
 
-```bash
-pip install -r requirements.txt
-```
-
-Tesseract must also be installed separately and available in `PATH`.
-
-## Running tests
-
-The project uses `pytest` for unit and integration tests. Test dependencies are developer-only dependencies, so install them from `requirements-dev.txt`:
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-`requirements.txt` intentionally contains only runtime dependencies needed to run the document processor. It does not include `pytest`.
-
-Run the full current test suite from the project root:
-
-```bash
-python -m pytest -q
-```
-
-You can also run `pytest` directly if your shell resolves it from the active virtual environment.
-
-The current test suite focuses on regression-prone logic around document-number adjustment, date selection, shipment-row parsing, continuation-page detection, filename generation, processor factory selection, and the generic folder-processing pipeline. The pipeline integration tests use a fake processor and synthetic tiny PNG files generated at test time, so they do not require Tesseract and do not include customer scanned accounting documents.
-
-Markers are already configured for future OCR-heavy tests:
-
-```bash
-pytest -m ocr
-pytest -m "not slow"
-```
-
-Future tests that depend on a real Tesseract installation should be marked with `@pytest.mark.ocr` and skipped when Tesseract is not available. Do not commit real customer/company scans to the repository; use anonymized or synthetic fixtures instead.
-
-## Basic usage
-
-Run the program from the project root:
+Run from the project root:
 
 ```bash
 python main.py --source "/path/to/scans"
 ```
 
-The `--source` parameter points to the folder with input scans. Subfolders are processed recursively.
+The default processor is `upd_invoices_status_1`, so the following command is equivalent:
 
-By default, the target folder is created in the current working directory, not inside the source scan folder:
+```bash
+python main.py \
+  --source "/path/to/scans" \
+  --document-type upd_invoices_status_1
+```
+
+The selected processor provides its default output directory name. For the UPD processor it remains:
 
 ```text
 ./передаточные_документы
 ```
 
-The default output will contain:
-
-```text
-./передаточные_документы/
-./передаточные_документы/передаточные_документы.csv
-./передаточные_документы/передаточные_документы_report.txt
-```
-
-
-## Document type processor
-
-The application is moving toward a more universal architecture. The currently available processor is:
-
-```text
-upd_invoices_status_1
-```
-
-It is also the default, so these two commands are equivalent:
+Override it when needed:
 
 ```bash
-python main.py --source "/path/to/scans"
-python main.py --source "/path/to/scans" --document-type upd_invoices_status_1
+python main.py \
+  --source "/path/to/scans" \
+  --target-dir-name "result_2026"
 ```
 
-Future document types should be added as separate processor packages and registered in the factory in `source_docs_processor/processors.py`.
-
-## Custom target directory name
-
-Use `--target-dir-name` to change the target folder name. This is the second most important parameter after `--source`.
+Choose a different output base directory:
 
 ```bash
-python main.py --source "/path/to/scans" --target-dir-name "result_2023"
+python main.py \
+  --source "/path/to/scans" \
+  --output "/path/to/output" \
+  --target-dir-name "result_2026"
 ```
 
-This creates the target folder in the current working directory:
-
-```text
-./result_2023/
-./result_2023/result_2023.csv
-./result_2023/result_2023_report.txt
-```
-
-The target directory name must be a folder name, not a full path. For example, use `result_2023`, not `/path/to/result_2023`.
-
-## Custom output base folder
-
-Use `--output` when the target folder should be created in a specific base directory:
-
-```bash
-python main.py --source "/path/to/scans" --output "/path/to/output" --target-dir-name "result_2023"
-```
-
-This creates:
-
-```text
-/path/to/output/result_2023/
-/path/to/output/result_2023/result_2023.csv
-/path/to/output/result_2023/result_2023_report.txt
-```
-
-## File naming
-
-Recognized transfer documents are renamed using the extracted document number and date.
-
-If both number and date are recognized:
-
-```text
-УПД_2548_от_27-12-2023.png
-```
-
-If only the document number is recognized:
-
-```text
-УПД_2548.png
-```
-
-If the document is recognized but the number is not recognized:
-
-```text
-УПД_без_номера.png
-```
-
-If the program detects a continuation page for the previous recognized document, the continuation page is named after the previous document with a page suffix:
-
-```text
-УПД_527_от_02-03-2023_2_страница.png
-```
-
-Duplicate filenames are resolved automatically by adding a numeric suffix. Unrecognized files are copied as is and keep their original file names.
-
-## Output structure
-
-The program preserves the source subfolder structure inside the target folder.
-
-Example source structure:
-
-```text
-/path/to/scans/
-├── 2023/
-│   ├── scan_001.png
-│   └── scan_002.png
-└── 2024/
-    └── scan_003.png
-```
-
-With the default target folder, the output will look like:
-
-```text
-./передаточные_документы/
-├── 2023/
-│   ├── УПД_2548_от_27-12-2023.png
-│   └── scan_002.png
-├── 2024/
-│   └── scan_003.png
-├── передаточные_документы.csv
-└── передаточные_документы_report.txt
-```
-
-## CSV registry
-
-The CSV registry is written inside the target folder.
-
-For the default target folder:
-
-```text
-./передаточные_документы/передаточные_документы.csv
-```
-
-For a custom target folder:
-
-```text
-./result_2023/result_2023.csv
-```
-
-The registry uses semicolon delimiters and UTF-8 with BOM, so it opens correctly in Excel.
-
-For recognized transfer documents and continuation pages, the CSV contains information such as:
-
-- source file name;
-- destination file name;
-- recognition status;
-- continuation-page flag;
-- previous document file for continuation pages;
-- UPD status;
-- document number;
-- document date;
-- rotation used for recognition;
-- seller and buyer names/identifiers where available;
-- amounts where available;
-- optional vehicle/loading/unloading fields when deep OCR is enabled;
-- confidence score;
-- warnings;
-- text preview.
-
-Only file names are written to the CSV, not full local paths.
-
-For unrecognized files, only the first column is filled with the original source file name. This makes it clear that the file was processed and copied, but no reliable document data was extracted.
-
-## Text report
-
-Each run creates a report file inside the target folder.
-
-For the default target folder:
-
-```text
-./передаточные_документы/передаточные_документы_report.txt
-```
-
-The report contains the same processing messages that are printed to the console, including run settings, per-file status, recognized document numbers and dates, selected rotations, and errors if any.
-
-## Debug OCR crops
-
-Use `--debug-crops` to save OCR crop images for analysis:
+Useful options:
 
 ```bash
 python main.py --source "/path/to/scans" --debug-crops
+python main.py --source "/path/to/scans" --deep-ocr
+python main.py --source "/path/to/scans" --no-auto-rotate
+python main.py --source "/path/to/scans" --dry-run
 ```
 
-Debug files are written under the target folder:
+## Output
+
+The target folder contains copied images, an Excel-friendly semicolon-separated CSV file, and a text report:
 
 ```text
-./передаточные_документы/_debug/
+result_2026/
+├── ... copied documents ...
+├── result_2026.csv
+└── result_2026_report.txt
 ```
 
-This mode is useful when a document number, date, or status is not recognized and crop coordinates need to be tuned.
+Source subfolder structure is preserved. Recognized rotated images are copied in the corrected orientation. Unrecognized files are copied unchanged.
 
-## Other useful options
+## CSV registry
 
-Select the current UPD status 1 processor explicitly:
+The common registry schema includes:
+
+```text
+source_file
+destination_file
+document_type
+is_recognized
+is_continuation_page
+continued_from
+status
+document_number
+document_date
+document_datetime
+issuer_name / issuer_inn / issuer_kpp
+recipient_name / recipient_inn / recipient_kpp
+amount_without_tax
+tax_amount
+total_amount
+currency
+description
+rotation_degrees
+confidence
+warnings
+error
+text_preview
+```
+
+A processor may append its own columns. The UPD processor currently adds:
+
+```text
+request_number
+request_date
+vehicle
+loading_datetime
+unloading_datetime
+```
+
+Only file names are written to the registry, not absolute local paths.
+
+## Adding a document type
+
+A new processor should:
+
+1. Create a separate package under `source_docs_processor/`.
+2. Extend `BaseDocumentProcessor`.
+3. Populate the generic `ExtractedDocument` fields.
+4. Override filename generation only when a business-specific format is required.
+5. Declare optional `registry_extra_columns` and place their values in `extra_fields`.
+6. Register one factory entry in `source_docs_processor/processors.py`.
+7. Add deterministic unit and integration tests.
+
+The planned NPD receipt processor is not included in this version; this release prepares the shared architecture for it.
+
+## Tests
+
+Install developer dependencies and run the suite:
 
 ```bash
-python main.py --source "/path/to/scans" --document-type upd_invoices_status_1
+pip install -r requirements-dev.txt
+python -m pytest -q
 ```
 
-Disable rotation attempts:
-
-```bash
-python main.py --source "/path/to/scans" --no-auto-rotate
-```
-
-Use slower full-page extraction for more optional details:
-
-```bash
-python main.py --source "/path/to/scans" --deep-ocr
-```
-
-Analyze files without copying images or writing the registry:
-
-```bash
-python main.py --source "/path/to/scans" --dry-run
-```
-
-## Common commands
-
-Default run:
-
-```bash
-python main.py --source "/path/to/scans"
-```
-
-Custom target folder name:
-
-```bash
-python main.py --source "/path/to/scans" --target-dir-name "result_2023"
-```
-
-Custom output base folder:
-
-```bash
-python main.py --source "/path/to/scans" --output "/path/to/output" --target-dir-name "result_2023"
-```
-
-Debug problematic scans:
-
-```bash
-python main.py --source "/path/to/scans" --document-type upd_invoices_status_1 --debug-crops
-```
-
-Analyze without writing output:
-
-```bash
-python main.py --source "/path/to/scans" --dry-run
-```
-
-## Notes and limitations
-
-The default processor is optimized for a specific family of UPD transfer documents. Recognition quality depends on scan quality, crop alignment, text contrast, and document layout.
-
-The document-number adjustment algorithm significantly improves document-number detection for the supported template, but final business-critical submissions should still be reviewed by a human, especially for low-quality scans or documents listed in tax authority requests.
+Most tests use prepared OCR text, fake processors, or synthetic tiny images. Real customer scans must not be committed to the repository.

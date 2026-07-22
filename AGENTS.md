@@ -1,154 +1,91 @@
 # AGENTS.md
 
-This file contains instructions for AI coding agents working on `acc-source-docs-processor`.
+This file contains development rules for AI coding agents working on `acc-source-docs-processor`.
 
 ## Project summary
 
-`acc-source-docs-processor` is a local Python utility for processing scanned Russian accounting source documents. The current implementation focuses on UPD transfer documents with status `1`, extracts document number/date, copies and renames files, and generates a CSV registry plus a report.
+The project is a local CLI for scanned accounting source documents. It uses a generic folder pipeline plus factory-selected document processors.
 
-The current OCR logic is practical and heuristic-heavy because it was tuned against scanned-document scenarios with rotation, weak contrast, punch holes, noisy headers, over-read digits, and second pages. The UPD-specific logic now lives in the `upd_invoices_status_1` processor package; generic pipeline code should stay outside that package.
-
-## Repository structure
-
-```text
-acc-source-docs-processor/
-├── README.md
-├── AGENTS.md
-├── requirements.txt
-├── requirements-dev.txt
-├── pytest.ini
-├── main.py
-├── run.sh
-├── run_example.sh
-├── archive.sh
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── CHANGELOG.md
-│   └── ROADMAP.md
-├── tests/
-│   ├── unit/
-│   └── integration/
-└── source_docs_processor/
-    ├── __init__.py
-    ├── cli.py
-    ├── file_ops.py
-    ├── image_processing.py
-    ├── models.py
-    ├── ocr.py
-    ├── processors.py
-    └── upd_invoices_status_1/
-        ├── __init__.py
-        ├── extractor.py
-        ├── image_processing.py
-        ├── ocr.py
-        └── processor.py
-```
+The current released processor is `upd_invoices_status_1`. Its OCR logic is heuristic-heavy and tuned for rotation, weak contrast, noisy headers, over-read digits, template dates, and continuation pages.
 
 ## Language rules
 
-- All code comments must be written in English.
-- All docstrings must be written in English.
-- All software documentation must be written in English.
-- User-facing file names may contain Russian when this matches the business requirement, for example `УПД_123_от_09-03-2023.png` or `передаточные_документы`.
-- Do not translate Russian accounting field names that must be matched in OCR text, for example `Документ об отгрузке`, `Счет-фактура`, or `Статус`.
+- All code comments, docstrings, tests, configuration comments, and software documentation must be in English.
+- Russian accounting field names may remain in OCR patterns and user-facing filenames where required by the business workflow.
 
-## Coding rules
+## Generic architecture rules
 
-- Keep `main.py` minimal. Put application logic in `source_docs_processor`.
-- Keep importable package code under `source_docs_processor`.
-- Do not use hyphens in Python package or module names.
-- Prefer small functions with clear docstrings.
-- Add comments only when they explain non-obvious OCR or business logic.
-- Preserve source files. The application must never modify input scans.
-- Be careful with filesystem paths that contain Cyrillic characters.
-- Preserve the source subfolder structure in output unless the user explicitly asks otherwise.
-- Do not write full local paths to CSV output unless the user explicitly asks for them.
+- Keep `main.py` minimal.
+- Keep file discovery, image loading, copying, CSV/report output, and common OCR wrappers in the top-level package.
+- Keep template crops, OCR anchors, extraction rules, confidence logic, and business naming in a processor package.
+- Use `ExtractedDocument` common fields for values shared across document types.
+- Put document-specific values in `extra_fields` and declare their CSV keys in `registry_extra_columns`.
+- Do not add invoice-, UPD-, receipt-, or act-specific fields to the generic model unless at least two real processor types need the same concept.
+- Do not generate filenames in generic file operations. Each processor owns its filename policy.
+- A processor should extend `BaseDocumentProcessor` unless there is a concrete reason not to.
+- Register processors explicitly in `PROCESSOR_FACTORIES`.
+- Do not add external network calls. Processing must remain local.
 
+## Generic field semantics
 
-## Processor architecture rules
+Use these mappings consistently:
 
-- Generic folder scanning, file copying, registry generation, run logging, and common OCR wrappers must stay in the top-level `source_docs_processor` package.
-- Document-template-specific crop coordinates, targeted OCR, extraction heuristics, and continuation-page decisions must live in a document processor package.
-- The current processor package is `source_docs_processor/upd_invoices_status_1/`.
-- Select processors through `source_docs_processor/processors.py`; do not import a concrete processor directly from `cli.py`.
-- When adding a new document type, create a new package and register it in `SUPPORTED_DOCUMENT_TYPES` and `create_document_processor()`.
-- Keep the initial factory explicit. A simple switch is acceptable until the project has enough processors to justify plugin discovery.
+- `document_number`, `document_date`, `document_datetime` for document identity;
+- `issuer_*` for the party issuing/providing the document or service;
+- `recipient_*` for the receiving/buying party;
+- `amount_without_tax`, `tax_amount`, `total_amount`, `currency` for money;
+- `description` for the main service or goods description;
+- `status` for a processor-defined document status;
+- `extra_fields` only for document-specific values.
 
-## OCR-specific rules
+## UPD processor rules
 
-- Do not rely only on full-page OCR for key fields.
-- Prefer targeted crop OCR for status, document number, document date, and shipment-row fields.
-- The `Документ об отгрузке` row is a high-priority fallback source for document number/date.
-- In rows like `№ п/п 1 № 511 от 21 марта 2023 г.`, the first `1` is only the row number. The actual document number is after the next `№`.
-- Ignore the UPD form-template date `02-04-2021` when it comes from the government-decree service text.
-- Continue to record heuristic corrections in the `warnings` field.
-- Use `--debug-crops` when changing crop coordinates or OCR preprocessing.
-
-## Continuation-page rules
-
-- Always try to recognize a scan as a standalone UPD first page before treating it as a continuation page.
-- Treat a page as a continuation only when standalone UPD recognition fails and continuation markers are strong.
-- Continuation pages inherit the previous recognized document number/date.
-- Continuation output file names must use the previous document stem plus `_2_страница` or a later page suffix if implemented.
+- Keep all UPD-specific logic under `source_docs_processor/upd_invoices_status_1/`.
+- Prefer targeted OCR crops over full-page OCR.
+- Use `Документ об отгрузке` as a high-priority number/date fallback.
+- Ignore the form-template date `02-04-2021` when it comes from regulation text.
+- Preserve short-number and over-read correction heuristics.
+- Recognize standalone UPD pages before checking continuation-page markers.
+- Preserve auto-rotation and debug-crop support.
+- Preserve the `УПД_<number>_от_<date>` and `_2_страница` filename conventions.
 
 ## Testing rules
 
-- Use `pytest` for tests.
-- Put pure decision-logic tests under `tests/unit/`.
-- Put file-system or pipeline tests under `tests/integration/`.
-- Test methods must include English docstrings explaining the tested behavior and the fixed problem being guarded.
-- Prefer fake OCR text or fake processors for ordinary tests. Do not require Tesseract unless the test is explicitly marked with `@pytest.mark.ocr`.
-- Every OCR or extraction bug fix should add or update a regression test.
-- Use the `document_processor` injection point in `process_folder()` for high-level pipeline tests.
+- Use `pytest`.
+- Put pure logic tests under `tests/unit/` and pipeline/filesystem tests under `tests/integration/`.
+- Every test must have an English docstring explaining the verified behavior and protected risk.
+- Prefer fake OCR, fake processors, and synthetic images.
+- Every recognition bug fix must add a regression test.
+- Do not commit real scans, company names, INNs/KPPs, addresses, or shipment data.
+
+Run tests with:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
 
 ## Documentation rules
 
-- Keep `README.md` concise and user-oriented.
-- Put detailed internal logic in `docs/ARCHITECTURE.md`.
-- Record functional milestones in `docs/CHANGELOG.md`.
-- Track planned work in `docs/ROADMAP.md`.
-- Update documentation when changing CLI parameters, output files, registry columns, or recognition behavior.
+- Keep `README.md` user-oriented and reasonably compact.
+- Put detailed design in `docs/ARCHITECTURE.md`.
+- Record completed changes in `docs/CHANGELOG.md`.
+- Track work in `docs/ROADMAP.md` using `[x]`, `[/]`, and `[ ]`.
+- Update documentation when CLI behavior, registry columns, project structure, or processor contracts change.
 
 ## Validation checklist
 
-Before returning an updated project archive:
+Before returning an archive:
 
-1. Run Python compilation checks:
+```bash
+python -m py_compile main.py source_docs_processor/*.py source_docs_processor/*/*.py
+python -m pytest -q
+```
 
-   ```bash
-   python -m py_compile main.py source_docs_processor/*.py source_docs_processor/*/*.py
-   ```
+Also confirm:
 
-2. Run the test suite:
-
-   ```bash
-   python -m pytest
-   ```
-
-3. Confirm the archive contains the project root folder, not only loose files.
-4. Confirm the internal package is named `source_docs_processor`.
-5. Confirm generated documentation is included in the archive.
-6. Confirm README examples still match the current CLI behavior.
-7. Confirm the default processor `upd_invoices_status_1` is still registered in `source_docs_processor/processors.py`.
-
-## Avoid
-
-- Do not remove working OCR heuristics without replacing them with tested behavior.
-- Do not simplify date extraction in a way that allows the template date `02-04-2021` to be used as a document date.
-- Do not classify a scan as a continuation page before standalone document recognition has failed.
-- Do not make output paths absolute in the registry by default.
-- Do not add external network calls. The tool must remain local.
-
-
-## Test dependency policy
-
-- Keep runtime dependencies in `requirements.txt`.
-- Keep test and developer dependencies such as `pytest`, `ruff`, and `mypy` in `requirements-dev.txt`.
-- Prefer `python -m pytest -q` in documentation because it uses the active Python environment explicitly.
-
-## Privacy and fixture policy
-
-- Do not commit real customer/company scans to the repository.
-- Do not use real company names in tests, comments, or documentation. Use fictional names such as `ООО Учебный Перевозчик` and `ООО Учебный Производитель`.
-- Prefer unit tests over anonymized OCR text/candidates and integration tests over fake processors with generated synthetic images.
-- Real OCR fixtures, if needed, must be anonymized before committing or kept in a private local-only folder ignored by Git.
+1. The archive contains the root folder `acc-source-docs-processor/`.
+2. The default UPD processor is still registered.
+3. No real accounting scans or identifiers were added.
+4. README examples match the current CLI.
+5. CSV common columns remain document-type-neutral.

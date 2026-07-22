@@ -2,6 +2,41 @@
 
 This changelog describes the project evolution by functional milestones. The project is still pre-release and does not use strict semantic version tags yet.
 
+## Generic document model and processor-owned output policies
+
+### Added
+
+- `source_docs_processor/document_processor.py` with `DocumentProcessor` and `BaseDocumentProcessor`.
+- A generic `ExtractedDocument` model with document identity, issuer/recipient, amount, currency, description, continuation state, and `extra_fields`.
+- A document-neutral `OcrResult.targeted_fields` mapping for anchored processor OCR values.
+- Processor-provided default target directory names.
+- Processor-controlled primary and continuation filename generation.
+- Common CSV columns plus validated processor-specific registry columns.
+- Integration coverage using a synthetic non-UPD fake receipt processor.
+- Unit coverage for generic continuation metadata inheritance and processor isolation.
+
+### Changed
+
+- Removed invoice- and UPD-specific fields from shared models, CLI logic, file operations, and common CSV output.
+- Mapped UPD seller/buyer and VAT fields to generic issuer/recipient and tax fields.
+- Moved the established UPD filename convention into `UpdInvoicesStatus1Processor`.
+- Replaced the factory switch with a small explicit `PROCESSOR_FACTORIES` registry.
+- Changed the shared CSV schema from invoice-oriented names to document-neutral names.
+- Bumped the package version to `0.8.0`.
+
+### Preserved
+
+- UPD status `1` OCR and extraction heuristics.
+- Rotation handling and corrected-orientation output.
+- Shipment-row number/date fallback.
+- Template-date filtering.
+- Conservative continuation-page recognition.
+- Existing `УПД_<number>_от_<date>` filenames and Russian page suffixes.
+
+### Reason
+
+The first processor boundary still left invoice-specific data names and output behavior in shared code. The new model allows receipts, acts, and other document types to reuse the pipeline without pretending that every document is an invoice.
+
 
 ## Privacy cleanup for tests and documentation
 

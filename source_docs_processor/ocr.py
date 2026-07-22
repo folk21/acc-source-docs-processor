@@ -8,7 +8,7 @@ layout. Document-type-specific OCR code should live inside a processor package.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pytesseract
@@ -16,24 +16,19 @@ import pytesseract
 
 @dataclass
 class OcrResult:
-    """Raw OCR output plus optional targeted field-recognition results.
+    """Raw OCR output plus processor-defined targeted field values.
 
-    The fields are intentionally broad enough for the current UPD processor and
-    future processors. A future document type may ignore UPD-specific attributes
-    and add its own processor-level interpretation on top of `text` and
-    `targeted_text`.
+    Generic OCR code stores no invoice, receipt, or UPD-specific attributes.
+    Concrete processors place anchored OCR results in ``targeted_fields`` and
+    interpret those keys inside their own extractor package.
     """
 
     text: str
     header_text: str
-    status_digit: str | None
     mean_confidence: float
     rotation_degrees: int = 0
     targeted_text: str = ""
-    invoice_number_from_crop: str | None = None
-    invoice_date_text_from_crop: str | None = None
-    shipment_document_text_from_crop: str | None = None
-    continuation_text: str = ""
+    targeted_fields: dict[str, str | None] = field(default_factory=dict)
 
 
 def _ocr_text(image: np.ndarray, lang: str, psm: int = 6, whitelist: str | None = None, timeout: int = 5) -> str:

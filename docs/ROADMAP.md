@@ -2,101 +2,82 @@
 
 Status legend:
 
-- `[x]` Done / released in the current prototype
+- `[x]` Done / released
 - `[/]` In progress / partially implemented
 - `[ ]` To do / backlog
 
-## Current document-processing scope
+## Generic architecture
 
-- [x] Recursively process image files from a source folder.
-- [x] Support PNG, JPG, JPEG, TIFF, and BMP input files.
-- [x] Detect UPD transfer documents with status `1`.
-- [x] Extract document number.
-- [x] Extract document date.
-- [x] Copy recognized documents into a target folder.
-- [x] Rename recognized documents using `УПД_<number>_от_<date>`.
+- [x] Separate generic folder processing from document-specific OCR.
+- [x] Select processors through an explicit factory registry.
+- [x] Introduce a document-type-neutral `ExtractedDocument` model.
+- [x] Use common issuer/recipient, date, amount, and description fields.
+- [x] Support processor-specific values through `extra_fields`.
+- [x] Let processors declare additional CSV columns.
+- [x] Let processors control default output folders and filename conventions.
+- [x] Provide reusable single-page and continuation behavior in `BaseDocumentProcessor`.
+- [x] Test the generic pipeline with a synthetic non-UPD processor.
+- [ ] Add config-driven processors for simple layouts after at least one more real processor exists.
+- [ ] Evaluate entry-point plugin discovery only if external processor packages become necessary.
+
+## Current UPD processor
+
+- [x] Detect UPD invoice-transfer documents with status `1`.
+- [x] Extract document number and date.
+- [x] Preserve `Документ об отгрузке` fallback logic.
+- [x] Filter the form-template date `02-04-2021`.
+- [x] Correct suspicious short and over-read numbers.
+- [x] Try multiple rotations and save upright output.
+- [x] Detect continuation pages conservatively.
+- [x] Preserve established UPD filenames after model generalization.
+- [/] Continue tuning private problematic examples outside the repository.
+- [ ] Add field-level confidence values.
+
+## NPD receipts
+
+- [ ] Add `source_docs_processor/npd_receipts/` as a separate processor package.
+- [ ] Decode receipt QR codes locally.
+- [ ] Extract receipt number, datetime, issuer, recipient INN, service description, and total amount.
+- [ ] Reconcile QR values with OCR values and report conflicts.
+- [ ] Support both clean print views and mobile screenshots.
+- [ ] Add synthetic receipt fixtures without real names or INNs.
+- [ ] Add an optional local INN-to-organization mapping file for recipient names.
+
+## Output and review
+
+- [x] Preserve source subfolder structure.
 - [x] Copy unrecognized files unchanged.
-- [x] Preserve source subfolder structure in output.
-- [x] Generate an Excel-friendly CSV registry.
+- [x] Generate UTF-8 BOM semicolon-separated CSV.
+- [x] Keep absolute paths out of the registry.
 - [x] Generate a text report.
-- [x] Save debug OCR crops when requested.
-
-## OCR reliability
-
-- [x] Try multiple page rotations.
-- [x] Save recognized sideways documents in the corrected orientation.
-- [x] Use targeted OCR crops for status, document number, and document date.
-- [x] Use `Документ об отгрузке` as a fallback source for number/date.
-- [x] Ignore the UPD form-template date `02-04-2021` when it comes from service text.
-- [x] Correct OCR over-read in document numbers.
-- [x] Avoid false continuation-page detection for normal first pages.
-- [/] Continue collecting private problematic examples outside the repository and tuning crop boxes.
-- [ ] Add confidence levels per field instead of only one document-level score.
+- [ ] Generate XLSX in addition to CSV.
 - [ ] Add a review folder for low-confidence documents.
-- [ ] Add a machine-readable debug JSON file per processed document.
-
-## Output and reporting
-
-- [x] Use `--target-dir-name` for custom target folder names.
-- [x] Use `--output` for custom output base directories.
-- [x] Store file names in CSV instead of full local paths.
-- [x] Add warnings to registry rows.
-- [ ] Generate XLSX registry in addition to CSV.
-- [ ] Generate a summary report with counts by year, subfolder, and recognition status.
-- [ ] Generate a `not_recognized.csv` or review-only registry.
-- [ ] Optionally split recognized/unrecognized/continuation files into separate folders.
+- [ ] Add a machine-readable debug JSON result per document.
+- [ ] Add summary counts by document type, year, and recognition status.
 
 ## Performance
 
-- [x] Keep full-page OCR limited by default.
-- [x] Use targeted crops for high-value fields.
-- [ ] Add persistent OCR cache keyed by file path, size, and modification time.
+- [x] Keep full-page OCR optional for the UPD processor.
+- [x] Prefer targeted crop OCR for high-value fields.
+- [ ] Add a persistent OCR cache.
 - [ ] Add optional parallel processing with `--workers`.
-- [ ] Add a benchmark command for measuring OCR throughput on sample folders.
-- [ ] Add a fast precheck mode that only detects likely UPD pages before deep extraction.
-
-## Generalization
-
-- [x] Keep the project name generic enough for source documents beyond UPD.
-- [x] Keep the processing pipeline separable from UPD-specific extraction logic.
-- [x] Introduce a document processor interface/protocol.
-- [x] Move UPD status `1` parsing into a dedicated processor package.
-- [x] Add a processor registry/factory.
-- [ ] Add config-driven document type definitions for simple templates.
-- [ ] Add configurable output actions: copy/rename, registry only, statistics only, review folder.
-- [ ] Add support for other primary document types, for example acts, waybills, generic invoices, contracts, or payment documents.
+- [ ] Add a benchmark command.
 
 ## Configuration and usability
 
-- [x] Provide command-line options for source, target name, output base, deep OCR, dry run, auto-rotation, debug crops, and document type.
-- [ ] Add a YAML configuration file for profiles.
-- [ ] Add named processing profiles, for example `tax_request_upd` and `archive_inventory`.
-- [ ] Add a simple local UI for non-technical users.
-- [ ] Add Windows-oriented setup instructions and run scripts.
-- [ ] Add a validation command that checks Tesseract installation and language packs.
+- [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug crops.
+- [x] Use processor-specific default target directory names.
+- [ ] Add YAML processing profiles.
+- [ ] Add a validation command for Tesseract and language packs.
+- [ ] Add Windows-oriented setup instructions.
+- [ ] Add a simple local UI.
 
-## Code quality
+## Code quality and packaging
 
-- [x] Use English comments and docstrings in code.
-- [x] Keep the Python package name import-friendly: `source_docs_processor`.
-- [x] Compile-check the project after changes.
-- [x] Keep runtime dependencies in `requirements.txt` and test dependencies in `requirements-dev.txt`.
-- [x] Add unit tests for number/date normalization and selection.
-- [x] Add tests for shipment-row parsing.
-- [x] Add tests for template-date filtering.
-- [x] Add tests for continuation-page decision logic.
-- [/] Add anonymized/synthetic regression fixtures for known problematic cases; current tests use OCR-text candidates, fake processors, and generated tiny PNGs.
-- [x] Add processor factory tests.
-- [x] Add integration tests for the generic folder pipeline with fake processor injection.
-- [x] Add a testability injection point for `process_folder()`.
-- [ ] Add linting and formatting configuration.
-- [ ] Add CI workflow.
-- [ ] Add private OCR fixture policy for local-only customer scans.
-
-## Packaging
-
-- [x] Provide archive script for project distribution.
-- [ ] Add `pyproject.toml`.
-- [ ] Package as an installable CLI.
+- [x] Keep runtime and developer dependencies separate.
+- [x] Add deterministic unit and integration tests.
+- [x] Keep comments, docstrings, and software documentation in English.
+- [ ] Add `ruff` configuration.
+- [ ] Add CI.
+- [ ] Add `pyproject.toml` and package the CLI.
 - [ ] Add a standalone executable build option.
-- [ ] Evaluate whether a future Rust CLI or Rust helper module is worth implementing after the Python logic stabilizes.

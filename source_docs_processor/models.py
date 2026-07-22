@@ -4,56 +4,86 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import TypeAlias
+
+
+RegistryValue: TypeAlias = str | int | float | bool | None
 
 
 @dataclass
 class ExtractedDocument:
-    """Recognized metadata and processing state for a single input scan.
+    """Generic metadata and processing state for one input scan.
 
-    The internal field names keep the current UPD/invoice terminology because
-    UPD status 1 acts both as an invoice and as a transfer document. User-facing
-    documentation can still describe this as a primary document number.
+    Common accounting fields live directly on the model so processors for UPD,
+    receipts, acts, invoices, and other documents can share the same pipeline and
+    CSV registry. Template-specific values belong in ``extra_fields`` and are
+    exposed as additional CSV columns by the selected processor.
     """
 
     source_path: Path
-    is_upd_invoice_transfer: bool = False
-    status: Optional[str] = None
-    invoice_number: Optional[str] = None
-    invoice_date: Optional[str] = None
-    seller_name: Optional[str] = None
-    seller_inn: Optional[str] = None
-    seller_kpp: Optional[str] = None
-    buyer_name: Optional[str] = None
-    buyer_inn: Optional[str] = None
-    buyer_kpp: Optional[str] = None
-    amount_without_vat: Optional[str] = None
-    vat_amount: Optional[str] = None
-    amount_with_vat: Optional[str] = None
-    service_text: Optional[str] = None
-    request_number: Optional[str] = None
-    request_date: Optional[str] = None
-    vehicle: Optional[str] = None
-    loading_datetime: Optional[str] = None
-    unloading_datetime: Optional[str] = None
+    document_type: str | None = None
+    is_recognized: bool = False
+    status: str | None = None
+    document_number: str | None = None
+    document_date: str | None = None
+    document_datetime: str | None = None
+    issuer_name: str | None = None
+    issuer_inn: str | None = None
+    issuer_kpp: str | None = None
+    recipient_name: str | None = None
+    recipient_inn: str | None = None
+    recipient_kpp: str | None = None
+    amount_without_tax: str | None = None
+    tax_amount: str | None = None
+    total_amount: str | None = None
+    currency: str | None = None
+    description: str | None = None
     confidence: int = 0
     rotation_degrees: int = 0
     is_continuation_page: bool = False
-    continuation_page_number: Optional[int] = None
-    continued_from: Optional[str] = None
-    destination_path: Optional[Path] = None
-    error: Optional[str] = None
+    continuation_page_number: int | None = None
+    continued_from: str | None = None
+    destination_path: Path | None = None
+    error: str | None = None
     text_preview: str = ""
     warnings: list[str] = field(default_factory=list)
+    extra_fields: dict[str, RegistryValue] = field(default_factory=dict)
 
-    def filename_stem(self) -> str:
-        """Build the output filename stem for a recognized primary document."""
-        number = self.invoice_number or "без_номера"
-        if self.invoice_date:
-            return f"УПД_{number}_от_{self.invoice_date}"
-        return f"УПД_{number}"
+    @property
+    def is_primary_document(self) -> bool:
+        """Return True for a recognized standalone document page."""
+        return self.is_recognized and not self.is_continuation_page
 
-    def continuation_filename_stem(self) -> str:
-        """Build the output filename stem for a continuation page."""
-        page_number = self.continuation_page_number or 2
-        return f"{self.filename_stem()}_{page_number}_страница"
+    def inherit_common_metadata(self, previous: "ExtractedDocument") -> None:
+        """Fill missing continuation metadata from the previous primary page.
+
+        A continuation page normally has no independent number, date, or party
+        fields. Existing values on the continuation page win, which allows a
+        document-specific processor to preserve page-level data when available.
+        """
+        common_fields = (
+            "document_type",
+            "status",
+            "document_number",
+            "document_date",
+            "document_datetime",
+            "issuer_name",
+            "issuer_inn",
+            "issuer_kpp",
+            "recipient_name",
+            "recipient_inn",
+            "recipient_kpp",
+            "amount_without_tax",
+            "tax_amount",
+            "total_amount",
+            "currency",
+            "description",
+        )
+        for field_name in common_fields:
+            if getattr(self, field_name) is None:
+                setattr(self, field_name, getattr(previous, field_name))
+
+        inherited_extra = dict(previous.extra_fields)
+        inherited_extra.update(self.extra_fields)
+        self.extra_fields = inherited_extra
+        self.is_recognized = True

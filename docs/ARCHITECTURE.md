@@ -1,408 +1,312 @@
 # Architecture
 
-`acc-source-docs-processor` is a local OCR-based utility for processing scanned Russian accounting source documents.
+`acc-source-docs-processor` is a local OCR-based CLI for scanned accounting source documents.
 
-The current released processor focuses on UPD transfer documents with status `1`, where the document acts both as an invoice and as a transfer document. The project has now been refactored so this UPD logic is a document-specific processor selected by the CLI, while the generic pipeline stays independent from the concrete document template.
-
-## Goals
-
-The main practical goals are:
-
-- scan a source folder recursively;
-- detect supported primary documents among image files;
-- extract a reliable document number and document date;
-- copy processed scans into a target folder;
-- rename recognized files using extracted fields;
-- keep unrecognized files visible in the result set;
-- generate a CSV registry and a text report;
-- handle poor scan quality, rotated pages, punch holes, weak dates, OCR over-read, and second pages;
-- support future document types through processor packages instead of hardcoding all logic into one module.
-
-The tool is fully local. It does not upload scanned documents anywhere.
-
-## High-level pipeline
-
-The current pipeline is:
+The architecture separates a generic folder pipeline from document-specific processors:
 
 ```text
 source folder
-  -> image file discovery
-  -> natural file ordering
-  -> image loading
-  -> document processor factory
-  -> processor-specific orientation candidates
-  -> processor-specific OCR on each candidate orientation
-  -> processor-specific document detection and field extraction
-  -> processor-specific number/date adjustment
-  -> processor-specific continuation-page check when standalone detection fails
-  -> generic copy/rename output image
-  -> generic CSV registry row
-  -> generic text report line
+  -> generic file discovery and image loading
+  -> explicit processor factory
+  -> selected document processor
+  -> orientation/OCR/extraction
+  -> generic copy and registry output
+  -> text report
 ```
 
-The main architectural split is:
+The current released processor is `upd_invoices_status_1`. The shared architecture is intentionally suitable for later processors such as NPD receipts, acts, waybills, and generic invoices.
 
-- generic code owns file traversal, image loading, rotation primitives, output, registry, report, and CLI orchestration;
-- processor code owns template crop coordinates, targeted OCR, field extraction, and document-specific decision logic.
+## Design goals
 
-## Current project structure
+- Keep original scans unchanged.
+- Process folders recursively and preserve relative subfolders.
+- Keep OCR and extraction local.
+- Keep generic pipeline code free from UPD-specific names and rules.
+- Make a new single-page processor small to implement.
+- Allow document-specific filename formats and CSV fields without modifying shared output code.
+- Preserve existing UPD recognition heuristics and filenames.
+- Keep tests deterministic and independent from real Tesseract where possible.
+
+## Project structure
 
 ```text
-acc-source-docs-processor/
-├── README.md
-├── AGENTS.md
-├── requirements.txt
-├── requirements-dev.txt
-├── pytest.ini
-├── main.py
-├── run.sh
-├── run_example.sh
-├── archive.sh
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── CHANGELOG.md
-│   └── ROADMAP.md
-├── tests/
-│   ├── unit/
-│   └── integration/
-└── source_docs_processor/
+source_docs_processor/
+├── cli.py
+├── document_processor.py
+├── file_ops.py
+├── image_processing.py
+├── models.py
+├── ocr.py
+├── processors.py
+└── upd_invoices_status_1/
     ├── __init__.py
-    ├── cli.py
-    ├── file_ops.py
+    ├── extractor.py
     ├── image_processing.py
-    ├── models.py
     ├── ocr.py
-    ├── processors.py
-    └── upd_invoices_status_1/
-        ├── __init__.py
-        ├── extractor.py
-        ├── image_processing.py
-        ├── ocr.py
-        └── processor.py
+    └── processor.py
 ```
 
-## Generic components
+## Generic data model
 
-### `main.py`
+`source_docs_processor/models.py` defines `ExtractedDocument`.
 
-A very small entry point. It delegates command-line execution to the package-level CLI module.
+The model contains common source-document fields:
 
-### `source_docs_processor/cli.py`
+- `document_type`;
+- `is_recognized`;
+- `status`;
+- `document_number`;
+- `document_date`;
+- `document_datetime`;
+- issuer name, INN, and KPP;
+- recipient name, INN, and KPP;
+- amount without tax, tax amount, total amount, and currency;
+- description;
+- confidence, rotation, warnings, errors, and OCR preview;
+- continuation-page state;
+- `extra_fields` for processor-specific values.
 
-Contains command-line argument parsing and the high-level folder processing workflow.
+The shared model deliberately avoids names such as `invoice_number`, `seller_name`, or `is_upd_invoice_transfer`. A UPD processor maps its seller to the generic issuer and its buyer to the generic recipient. A receipt processor can map the service provider to issuer and the customer to recipient without changing the pipeline.
 
-Responsibilities:
+### Processor-specific fields
 
-- validate the source folder;
-- resolve the target folder;
-- select the document processor using `--document-type`;
-- collect image files;
-- apply natural sorting;
-- call the selected processor for OCR/extraction per image;
-- track the last recognized document for possible continuation pages;
-- coordinate copying, registry generation, and report generation;
-- write console messages and report messages through `RunLogger`.
+`extra_fields` stores values that are not useful as universal accounting fields. Each processor declares its exported keys through `registry_extra_columns`.
 
-Important behavior:
-
-- The target directory is created in the current working directory by default.
-- `--target-dir-name` changes the folder name, not the base path.
-- `--output` changes the base output directory.
-- `--document-type` selects the processor. The current default is `upd_invoices_status_1`.
-- Each scan is first tested as a standalone document by the selected processor.
-- Continuation-page detection is attempted only if standalone document detection fails.
-
-### `source_docs_processor/processors.py`
-
-Contains the processor factory and shared processor protocol.
-
-The factory currently uses a simple switch:
+For UPD the current extra fields are:
 
 ```text
-upd_invoices_status_1 -> UpdInvoicesStatus1Processor
+request_number
+request_date
+vehicle
+loading_datetime
+unloading_datetime
 ```
 
-This is intentionally simple. When more processors are added, the switch can evolve into a registry or plugin mechanism.
+The CSV writer validates that processor-specific columns do not collide with common columns.
 
-The CLI does not import UPD extraction code directly. It asks the factory for a processor and then calls the processor interface.
+## Generic OCR result
 
-### `source_docs_processor/image_processing.py`
+`source_docs_processor/ocr.py` contains document-neutral Tesseract helpers and
+`OcrResult`. Anchored values are stored in `targeted_fields` rather than fixed
+attributes such as an invoice number or receipt ID. Each processor defines and
+interprets its own keys inside its package.
 
-Contains document-type-neutral image utilities.
+## Processor interface
 
-Responsibilities:
+`source_docs_processor/document_processor.py` contains:
 
-- recursively find supported image files;
-- skip output folders when necessary;
-- read images with non-ASCII paths;
-- rotate images;
-- crop by relative coordinates;
-- create generic OCR preprocessing variants.
+- `DocumentProcessor` — structural protocol used by the pipeline;
+- `BaseDocumentProcessor` — reusable default behavior.
 
-Template-specific crop coordinates do not belong here anymore. They belong to the processor package.
+A new single-page processor normally configures:
 
-### `source_docs_processor/ocr.py`
+```python
+class ExampleProcessor(BaseDocumentProcessor):
+    document_type = "example"
+    display_name = "Example document"
+    default_target_dir_name = "example_documents"
+    registry_extra_columns = ("example_field",)
+```
 
-Contains generic OCR primitives.
+It must implement `analyze_image_orientations()`. The base class already provides:
 
-Responsibilities:
+- recognition checks based on `document_type` and `is_recognized`;
+- no-op continuation-page analysis;
+- continuation metadata inheritance when enabled;
+- neutral fallback filename generation;
+- export of declared values from `extra_fields`.
 
-- call Tesseract through `pytesseract`;
-- provide the `OcrResult` data object;
-- choose the best text result from preprocessing variants;
-- allow document processors to pass marker patterns for scoring.
+A processor may override:
 
-This module does not contain UPD crop coordinates or status-specific logic.
+- `build_primary_filename_stem()`;
+- `build_output_filename_stem()`;
+- continuation recognition and preparation;
+- registry value conversion.
 
-### `source_docs_processor/models.py`
+This keeps business naming and document layout outside generic file operations.
 
-Contains the main data structures.
+## Processor factory
 
-Important model:
-
-- `ExtractedDocument` — structured result of document recognition and processing.
-
-The field names currently keep UPD/invoice terminology because the first processor handles UPD invoice-transfer documents. Future refactoring can introduce more generic field aliases once more document types exist.
-
-Recognized first-page UPD files are named with the current convention:
+`source_docs_processor/processors.py` contains the explicit registry:
 
 ```text
-УПД_<document_number>_от_<document_date>.png
+PROCESSOR_FACTORIES
 ```
 
-When the date is missing:
+Adding a processor requires one lazy factory function and one registry entry. This is simpler and more transparent than plugin discovery for the current project size.
+
+The CLI uses only `create_document_processor()` and does not import concrete OCR packages.
+
+## Generic folder pipeline
+
+`source_docs_processor/cli.py` owns orchestration:
+
+1. Validate source and output paths.
+2. Create or receive an injected processor.
+3. Resolve the output folder from `--target-dir-name` or the processor default.
+4. Discover image files recursively and sort them naturally.
+5. Load one image.
+6. Ask the processor to analyze standalone orientations.
+7. Attempt continuation recognition only when:
+   - a previous primary document exists;
+   - the processor declares continuation support;
+   - standalone recognition failed.
+8. Ask the processor to prepare inherited continuation metadata.
+9. Copy recognized or unrecognized files through generic file operations.
+10. Write the common plus processor-specific CSV registry.
+11. Write console messages to the text report.
+
+The pipeline contains no UPD status, seller, invoice-number, or filename rules.
+
+## Output and filename policy
+
+`source_docs_processor/file_ops.py` owns filesystem mechanics:
+
+- safe filenames;
+- duplicate-safe paths;
+- copying original bytes when rotation is unnecessary;
+- writing the selected upright image after rotation;
+- copying unrecognized files unchanged;
+- writing UTF-8 BOM semicolon-separated CSV.
+
+The selected processor owns the filename stem. This allows formats such as:
 
 ```text
-УПД_<document_number>.png
+УПД_511_от_21-03-2023
+RECEIPT_204hy1b28u_02-04-2026
+ACT_17_30-04-2026
 ```
 
-Continuation pages inherit the previous document stem and add:
+The current UPD processor overrides the neutral base policy to preserve existing Russian filenames and continuation suffixes.
+
+## Registry schema
+
+The common registry is stable across document types:
 
 ```text
-_2_страница
+source_file
+destination_file
+document_type
+is_recognized
+is_continuation_page
+continued_from
+status
+document_number
+document_date
+document_datetime
+rotation_degrees
+issuer_name
+issuer_inn
+issuer_kpp
+recipient_name
+recipient_inn
+recipient_kpp
+amount_without_tax
+tax_amount
+total_amount
+currency
+description
+confidence
+warnings
+error
+text_preview
 ```
 
-### `source_docs_processor/file_ops.py`
+Processor columns are appended after the common schema. A folder run uses one selected processor, so its CSV has one deterministic schema.
 
-Contains output operations.
-
-Responsibilities:
-
-- sanitize filenames;
-- avoid duplicate output filenames;
-- copy recognized documents;
-- copy continuation pages;
-- copy unrecognized files unchanged;
-- preserve source subfolder structure;
-- write an Excel-friendly CSV registry.
-
-The CSV uses semicolon delimiters and UTF-8 with BOM. It stores file names, not full local paths.
+Unrecognized rows remain minimal but include source filename, attempted document type, warnings, and error information. Absolute local paths are never written by default.
 
 ## UPD status 1 processor
 
-The package `source_docs_processor/upd_invoices_status_1/` contains all logic specific to the current UPD template.
+The package `source_docs_processor/upd_invoices_status_1/` retains all current UPD-specific behavior.
 
-### `upd_invoices_status_1/processor.py`
+### OCR and crop rules
 
-Boundary class between the generic pipeline and the UPD implementation.
+- Try 0, 90, 180, and 270 degree orientations.
+- Prefer targeted OCR over one global text pass.
+- Read status, document number, date, and shipment row from dedicated crops.
+- Use `Документ об отгрузке` as a high-priority fallback.
+- Ignore the form-template date `02-04-2021` when it belongs to regulation text.
+- Correct suspicious short and over-read document numbers.
+- Save debug crops when requested.
 
-Responsibilities:
+### Continuation-page rules
 
-- expose `document_type = "upd_invoices_status_1"`;
-- score rotated OCR candidates;
-- analyze a scan as a standalone UPD first page;
-- analyze a scan as a possible continuation page;
-- decide whether an `ExtractedDocument` is supported by this processor;
-- hide UPD-specific OCR/extraction details from the CLI.
+- Recognize a standalone UPD first.
+- Attempt continuation detection only after standalone recognition fails.
+- Require strong sparse-page markers and reject pages containing a normal UPD header.
+- Inherit common and UPD-specific metadata from the previous primary page.
+- Preserve the `_2_страница` naming convention.
 
-### `upd_invoices_status_1/image_processing.py`
-
-Contains UPD-specific crop coordinates.
-
-Important crop areas include:
-
-- header area;
-- status digit area;
-- document number candidates;
-- document date candidates;
-- transfer/shipment date candidates;
-- `Документ об отгрузке` row candidates;
-- continuation-page marker candidates.
-
-The crop coordinates are tuned for the current family of landscape UPD scans. They are intentionally duplicated across a few nearby candidate boxes because scanned inputs may be shifted, scaled, or slightly cropped.
-
-### `upd_invoices_status_1/ocr.py`
-
-Contains targeted OCR helpers for UPD documents.
-
-Responsibilities:
-
-- run header OCR;
-- read the framed status digit;
-- read the document number from fixed crop areas;
-- read document date crops;
-- read the `Документ об отгрузке` row;
-- read continuation-page marker crops;
-- save debug crop files when `--debug-crops` is enabled;
-- return an `OcrResult` object to the UPD extractor.
-
-Full-page OCR is deliberately limited because it is expensive on large archives. The application prefers targeted OCR for high-value fields such as status, document number, date, and shipment-row data.
-
-### `upd_invoices_status_1/extractor.py`
-
-Contains text normalization and UPD-specific extraction logic.
-
-Responsibilities:
-
-- normalize OCR text;
-- normalize document numbers;
-- normalize Russian textual dates;
-- normalize money values;
-- detect UPD status `1`;
-- detect whether a scan is a UPD invoice-transfer document;
-- extract document number and date;
-- extract number/date fallback data from `Документ об отгрузке`;
-- reject false form-template dates;
-- correct OCR over-read in document numbers;
-- detect probable continuation pages;
-- extract optional party, amount, and transport fields.
-
-## Recognition strategy
-
-### Orientation selection
-
-The processor tries several orientations:
+### Generic field mapping
 
 ```text
-0°, 90°, 180°, 270°
+UPD number          -> document_number
+UPD date            -> document_date
+seller              -> issuer
+buyer               -> recipient
+amount without VAT  -> amount_without_tax
+VAT amount          -> tax_amount
+amount with VAT     -> total_amount
+service text        -> description
 ```
 
-If the source image is portrait-shaped, sideways rotations are tried first because most supported UPD scans are landscape.
+## Adding an NPD receipt processor
 
-Each orientation receives a score. The score increases when the candidate has:
-
-- UPD/invoice-transfer markers;
-- status `1`;
-- a document number;
-- a document date;
-- strong continuation-page markers, but only in the continuation-specific path.
-
-When a sideways document is recognized, the output copy is saved in the corrected orientation. The source file is never modified.
-
-### UPD status detection
-
-The status field is visually simple but OCR can be misleading because the left-side area contains explanatory text:
+A future package can be structured as:
 
 ```text
-1 - счет-фактура и передаточный документ
-2 - передаточный документ (акт)
+source_docs_processor/npd_receipts/
+├── __init__.py
+├── extractor.py
+├── image_processing.py
+├── ocr.py
+├── processor.py
+└── qr.py
 ```
 
-A naive OCR approach may accidentally read the explanation as status `2`. The processor therefore uses tighter crops around the framed status digit and treats surrounding explanatory text cautiously.
+The processor can populate:
 
-### Document number extraction
-
-The document number is extracted from multiple sources:
-
-1. header crop near `Счет-фактура №`;
-2. general header OCR;
-3. `Документ об отгрузке` row.
-
-A dedicated adjustment algorithm compares candidates. It fixes common scan/OCR issues such as:
-
-- internal spaces: `2 548 -> 2548`;
-- punctuation: `2.548 -> 2548`;
-- partial header values: `4 -> 405` when shipment row has `405`;
-- over-read values: `43007 -> 430`, `4977 -> 497`.
-
-The adjustment algorithm is intentionally heuristic-based and records warnings when it changes a field.
-
-### Document date extraction
-
-The document date is also extracted from multiple sources:
-
-1. `Документ об отгрузке` row;
-2. top document date crop;
-3. bottom transfer/shipment date crop;
-4. general OCR only as a lower-priority source.
-
-The row `Документ об отгрузке № п/п 1 № 511 от 21 марта 2023 г.` is treated as a high-priority source because it repeats the actual document number/date.
-
-The processor explicitly rejects the standard UPD form-template date `02-04-2021` when it is associated with the government-decree service text in the upper-right corner.
-
-### Continuation pages
-
-Some documents are scanned as two sequential files. The second page can contain only signature/stamp blocks and may not have the invoice header.
-
-The processor detects continuation pages conservatively:
-
-1. First try to recognize the scan as a standalone UPD first page.
-2. If standalone recognition fails and there is a previous recognized document, run continuation marker OCR.
-3. If continuation markers are strong, copy the scan using the previous document number/date and add a page suffix.
-
-This order prevents normal first pages from being incorrectly classified as continuation pages merely because they also contain signatures and stamps.
-
-## How to add a new document type
-
-A new document type should not be implemented by modifying `cli.py` directly.
-
-Recommended steps:
-
-1. Create a new package under `source_docs_processor/`, for example `acts_status_1/` or `generic_invoices/`.
-2. Add a `processor.py` class implementing the same methods as `UpdInvoicesStatus1Processor`.
-3. Add template-specific OCR/crop/extractor modules inside that package.
-4. Register the new processor in `source_docs_processor/processors.py`.
-5. Add the processor id to `SUPPORTED_DOCUMENT_TYPES`.
-6. Update README, architecture, changelog, and roadmap.
-
-The CLI should then be able to run the new processor with:
-
-```bash
-python main.py --source "/path/to/scans" --document-type new_processor_id
+```text
+document_number
+document_datetime
+issuer_name / issuer_inn
+recipient_name / recipient_inn
+total_amount
+currency
+description
 ```
 
-## Current limitations
-
-- Only one document type is currently released: `upd_invoices_status_1`.
-- The output model still uses invoice-oriented field names internally.
-- Crop coordinates are tuned for the currently observed UPD scan layout.
-- Field confidence is document-level and heuristic-based, not a calibrated probability.
-- There are no committed real-scan regression fixtures. Current regression coverage uses OCR-text candidates, pure decision tests, fake processors, and synthetic tiny PNGs generated during tests.
+QR URL or payment-specific values can be additional registry columns. It does not need continuation support and does not require changes to the generic CSV writer or folder pipeline.
 
 ## Testing architecture
 
-The project now includes a `pytest`-based test suite. Tests are intentionally split into two groups.
-
 ### Unit tests
 
-Unit tests cover pure extraction and decision logic without calling Tesseract. This keeps the most fragile OCR-adjacent logic fast and deterministic. Current unit tests verify:
+Pure tests cover:
 
-- document-number normalization and adjustment;
-- correction of OCR over-read such as `43007 -> 430` and `4977 -> 497`;
-- fallback from too-short header numbers such as `4 -> 405`;
-- Russian textual and numeric date normalization;
-- rejection of the UPD form-template date `02-04-2021`;
-- priority of the `Документ об отгрузке` date over noisy header/general OCR dates;
-- parsing of `Документ об отгрузке № п/п 1 № ... от ...`;
-- conservative continuation-page scoring;
-- output filename generation;
+- number normalization and over-read correction;
+- date normalization and template-date filtering;
+- shipment-row parsing;
+- continuation decisions;
+- processor-controlled filenames;
+- generic metadata inheritance;
 - processor factory behavior.
 
-### Integration tests with fake processors
+### Integration tests
 
-The generic folder pipeline accepts an optional injected `DocumentProcessor`. Production CLI execution still uses the factory, but tests can inject a fake processor that returns deterministic recognition results without running OCR. This verifies:
+The pipeline tests use a synthetic fake receipt processor and tiny generated PNG files. They verify:
 
-- recursive folder processing;
-- output subfolder preservation;
-- recognized document copying and renaming;
-- continuation-page attachment;
-- unchanged copying of unrecognized files;
-- CSV registry generation with portable file names instead of absolute paths.
+- non-UPD filename policy;
+- common generic metadata;
+- processor-specific CSV columns;
+- continuation inheritance;
+- relative folder preservation;
+- unrecognized file copying;
+- processor-provided default output directory.
 
-This injection point is the main testability refactor. It prevents high-level pipeline tests from depending on Tesseract, scan quality, OCR language packs, or OS-specific OCR behavior.
+These tests do not call Tesseract and contain no customer data.
 
 ### Future OCR tests
 
-Future tests that run real Tesseract should be marked with `@pytest.mark.ocr` and usually `@pytest.mark.slow`. They should use anonymized or synthetic fixtures and skip automatically when Tesseract is not installed. Real customer/company scans must not be committed to the repository.
-
-The recommended policy is: every new recognition bug should become a regression test, preferably as a unit test over anonymized OCR text/candidates and only as a real OCR test when the bug depends on image preprocessing itself.
+Real OCR tests may be marked `ocr` and `slow`, skipped when Tesseract is unavailable, and must use synthetic or confirmed anonymized fixtures.

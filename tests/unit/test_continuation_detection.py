@@ -33,18 +33,22 @@ def test_normal_upd_first_page_is_not_detected_as_continuation():
     ocr = OcrResult(
         text="Наименование экономического субъекта составителя документа Подпись М.П.",
         header_text="Универсальный передаточный документ Счет-фактура № 434 от 10 марта 2023 г.",
-        status_digit="1",
         mean_confidence=80,
         targeted_text="Документ об отгрузке № п/п 1 № 434 от 10 марта 2023 г.",
-        shipment_document_text_from_crop="Документ об отгрузке № п/п 1 № 434 от 10 марта 2023 г.",
+        targeted_fields={
+            "status": "1",
+            "shipment_document_text_from_crop": (
+                "Документ об отгрузке № п/п 1 № 434 от 10 марта 2023 г."
+            ),
+        },
     )
 
     doc = extract_document(Path("scan_434.png"), ocr)
 
-    assert doc.is_upd_invoice_transfer is True
+    assert doc.is_primary_document is True
     assert doc.is_continuation_page is False
-    assert doc.invoice_number == "434"
-    assert doc.invoice_date == "10-03-2023"
+    assert doc.document_number == "434"
+    assert doc.document_date == "10-03-2023"
 
 
 def test_header_marker_reduces_continuation_score():
