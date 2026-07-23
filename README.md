@@ -149,8 +149,11 @@ Each workflow interprets output-related options according to its output policy.
 
 ## Tests
 
+Install development dependencies and run syntax validation plus the test suite:
+
 ```bash
 pip install -r requirements-dev.txt
+python -m compileall -q main.py source_docs_processor tests
 python -m pytest -q
 ```
 
