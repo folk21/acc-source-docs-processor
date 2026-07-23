@@ -12,10 +12,11 @@ CLI args
       -> registry definition
 ```
 
-The currently released document type is:
+The currently released document types are:
 
 ```text
 upd_invoices_status_1
+npd_receipts
 ```
 
 It recognizes Russian UPD invoice-transfer documents with status `1`. Source files are never modified, and no scans are uploaded to external services.
@@ -42,7 +43,7 @@ A registry definition decides:
 - which extracted values are written to each column;
 - how file references are represented.
 
-This allows a future receipt type to use a registry-only workflow and a short receipt-specific CSV without inheriting UPD copy/rename behavior.
+This allows each document type to select its own copy, rename, and registry behavior without placing folder rules inside OCR code.
 
 ## Project layout
 
@@ -171,7 +172,34 @@ A new type should provide:
 4. one `DocumentTypeDefinition` entry in `source_docs_processor/document_types.py`;
 5. deterministic tests.
 
-The planned NPD receipt type is intentionally not included in this version.
+## NPD receipt behavior
+
+Run the receipt workflow with:
+
+```bash
+python main.py \
+  --source "/path/to/receipts" \
+  --output "/path/to/output" \
+  --target-dir-name "processed_receipts" \
+  --document-type npd_receipts
+```
+
+The workflow copies every source image into the target directory. Recognized
+receipts use the filename pattern
+`<date>_<amount>_<surnameFirstNamePatronymic>_<receiptNumber>.<extension>`;
+unrecognized images are copied without renaming. The target directory also
+contains `реестр_чеков_нпд.xlsx`. Only the `target_file_name` cell is a hyperlink
+to the copied receipt; `source_file_name` remains plain text.
+
+The workbook contains exactly these columns in order: `target_file_name`,
+`source_file_name`, receipt date, amount, self-employed payee full name, receipt
+number, self-employed payee INN, and generation comments. The first INN in
+receipt order is treated as the self-employed payee INN. Full names are
+recognized both on one line and as a surname line followed by a
+first-name/patronymic line.
+
+Without `--output`, the target directory is created below the current working
+directory. Without `--target-dir-name`, its name is `чеки_нпд`.
 
 ## Tests
 

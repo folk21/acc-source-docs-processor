@@ -6,8 +6,9 @@
 **/__pycache__
 .pytest_cache/
 target_scans
+receipts_dir
 scans
-scans1
+scans_1
 private_scans/
 tests/fixtures_private/
 tests/fixtures_real/

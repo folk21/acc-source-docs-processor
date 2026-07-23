@@ -24,10 +24,10 @@ The UPD scenario requires:
 scan -> recognize -> rotate -> copy -> rename -> register all files -> report
 ```
 
-A future receipt scenario may require:
+The current NPD receipt scenario requires:
 
 ```text
-scan -> recognize receipts only -> do not copy -> write a short CSV beside source files
+scan -> recognize -> copy -> rename recognized receipts -> write a linked XLSX registry
 ```
 
 These differences are folder-level business rules. They must not be implemented as flags or conditionals inside OCR processors.
@@ -285,7 +285,7 @@ A new type should be added without changing the existing UPD processor or workfl
 5. Add processor unit tests and workflow/registry integration tests.
 6. Update public documentation when CLI behavior changes.
 
-For a registry-only receipt type, the new workflow would scan recursively, retain only recognized receipts, skip copying and renaming, and write its CSV in the source directory. None of those actions would require changes to the receipt OCR processor.
+The NPD receipt workflow scans recursively, copies all images, renames recognized receipts, and writes an XLSX registry whose links target the copied files. These actions remain independent from the receipt OCR processor.
 
 ## Testing architecture
 

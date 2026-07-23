@@ -37,12 +37,12 @@ Status legend:
 
 ## NPD receipts
 
-- [ ] Add `source_docs_processor/npd_receipts/` as a separate processor package.
-- [ ] Add a registry-only workflow that does not copy or rename files.
-- [ ] Write the receipt CSV directly in the source folder.
-- [ ] Include only recognized receipts in the registry.
-- [ ] Add portable hyperlink file cells.
-- [ ] Use receipt columns: file, document number/date, recipient, amount, and issuer.
+- [x] Add `source_docs_processor/npd_receipts/` as a separate processor package.
+- [x] Add a copy-and-register workflow that renames recognized receipts.
+- [x] Write the receipt XLSX inside the target directory.
+- [x] Include only recognized receipts in the registry.
+- [x] Add portable hyperlink file cells.
+- [x] Keep a stable receipt column order including service description, recipient, issuer identity, and amount.
 - [ ] Decode receipt QR codes locally.
 - [ ] Reconcile QR values with OCR values and report conflicts.
 - [ ] Support clean print views and mobile screenshots.

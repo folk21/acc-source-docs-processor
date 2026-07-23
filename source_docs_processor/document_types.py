@@ -11,6 +11,7 @@ from .workflows.base import ProcessingWorkflow
 
 
 DEFAULT_DOCUMENT_TYPE = "upd_invoices_status_1"
+NPD_RECEIPT_DOCUMENT_TYPE = "npd_receipts"
 
 
 @dataclass(frozen=True)
@@ -64,12 +65,39 @@ def _create_upd_registry_definition() -> RegistryDefinition:
     return UpdInvoicesStatus1RegistryDefinition()
 
 
+def _create_npd_receipt_processor() -> DocumentProcessor:
+    """Import and create the NPD receipt processor lazily."""
+    from .npd_receipts.processor import NpdReceiptProcessor
+
+    return NpdReceiptProcessor()
+
+
+def _create_npd_receipt_workflow() -> ProcessingWorkflow:
+    """Import and create the NPD receipt registry workflow lazily."""
+    from .npd_receipts.workflow import NpdReceiptRegistryWorkflow
+
+    return NpdReceiptRegistryWorkflow()
+
+
+def _create_npd_receipt_registry_definition() -> RegistryDefinition:
+    """Import and create the NPD receipt registry definition lazily."""
+    from .npd_receipts.registry import NpdReceiptRegistryDefinition
+
+    return NpdReceiptRegistryDefinition()
+
+
 DOCUMENT_TYPE_DEFINITIONS: dict[str, DocumentTypeDefinition] = {
     DEFAULT_DOCUMENT_TYPE: DocumentTypeDefinition(
         document_type=DEFAULT_DOCUMENT_TYPE,
         processor_factory=_create_upd_processor,
         workflow_factory=_create_upd_workflow,
         registry_definition_factory=_create_upd_registry_definition,
+    ),
+    NPD_RECEIPT_DOCUMENT_TYPE: DocumentTypeDefinition(
+        document_type=NPD_RECEIPT_DOCUMENT_TYPE,
+        processor_factory=_create_npd_receipt_processor,
+        workflow_factory=_create_npd_receipt_workflow,
+        registry_definition_factory=_create_npd_receipt_registry_definition,
     ),
 }
 SUPPORTED_DOCUMENT_TYPES = tuple(DOCUMENT_TYPE_DEFINITIONS)

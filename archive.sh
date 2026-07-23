@@ -14,8 +14,9 @@ zip -r "$ARCHIVE_NAME" "$PROJECT_DIR" \
      "*/.idea/*" \
      "*/__pycache__/*" \
      "*/scans/*" \
-     "*/scans/*" \
+     "*/scans_1/*" \
      "*/target_scans/*" \
+     "*/receipts_dir/*" \
      "*.zip" \
      "*/.DS_Store" \
      "*/.vscode/*" \

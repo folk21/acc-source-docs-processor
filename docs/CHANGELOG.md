@@ -1,5 +1,31 @@
 # Changelog
 
+## NPD receipt filename and compact workbook layout
+
+- Changed copied receipt names to `<date>_<amount>_<surnameFirstNamePatronymic>_<receiptNumber>`.
+- Reduced the NPD workbook to the requested eight columns.
+- Added a hyperlink only to `target_file_name`; `source_file_name` is plain text.
+- Kept the first receipt INN as the self-employed payment recipient INN.
+- Added regression coverage for filename generation, exact column order, and hyperlink placement.
+
+## NPD receipt copy, naming, and workbook regression fixes
+
+- Restored copying and renaming of recognized NPD receipt images.
+- Excel file hyperlinks now point to copied target files using relative external links.
+- Restored the stable business-column order and the service-description column.
+- Receipt numbers are accepted only after an explicit `Чек №`, `N`, `No`, or receipt-number label.
+- Full names may span two consecutive lines: one surname line plus a two-word first-name/patronymic line.
+- Added regression tests for split names, explicit receipt numbers, copied files, column order, and hyperlinks.
+
+## NPD receipt registry and issuer identity extraction
+
+- Added the `npd_receipts` document type and registry-only XLSX workflow.
+- The first INN in receipt order is now treated as the self-employed issuer INN.
+- The issuer's full name is selected from the same information block, with the
+  second non-empty block used as an additional layout hint.
+- The second INN remains available as the recipient organization INN.
+- Added regression tests for full-name extraction and first-INN ownership.
+
 This changelog describes the project evolution by functional milestones. The project is still pre-release and does not use strict semantic version tags yet.
 
 ## Independent processors, workflows, and registry definitions
