@@ -2,7 +2,7 @@
 
 Status legend:
 
-- `[x]` Done / released
+- `[x]` Done / implemented
 - `[/]` In progress / partially implemented
 - `[ ]` To do / backlog
 
@@ -14,13 +14,14 @@ Status legend:
 - [x] Introduce independently selectable `ProcessingWorkflow` implementations.
 - [x] Introduce document-specific `RegistryDefinition` schemas and row mapping.
 - [x] Bind processor, workflow, and registry factories through `DocumentTypeDefinition`.
-- [x] Move generic CSV serialization into a document-neutral writer.
 - [x] Keep low-level file copying independent from filename policy.
+- [x] Add document-neutral CSV and XLSX writers.
 - [x] Test processor, workflow, and registry separation with synthetic components.
-- [ ] Add config-driven processors only after at least two real processors need the same extension point.
+- [ ] Reuse `registry/common.py` consistently to remove duplicated writer validation.
+- [ ] Evaluate whether the existing processors share enough structure for config-driven definitions.
 - [ ] Evaluate entry-point discovery only if external processor packages become necessary.
 
-## Current UPD document type
+## UPD status 1
 
 - [x] Detect UPD invoice-transfer documents with status `1`.
 - [x] Extract document number and date.
@@ -30,8 +31,8 @@ Status legend:
 - [x] Try multiple rotations and save upright output.
 - [x] Detect continuation pages conservatively.
 - [x] Preserve copying, renaming, report generation, and detailed registry output.
-- [x] Move UPD filename and continuation policy into its workflow.
-- [x] Move UPD CSV shape into its registry definition.
+- [x] Keep UPD filename and continuation policy in its workflow.
+- [x] Keep UPD CSV shape in its registry definition.
 - [/] Continue tuning private problematic examples outside the repository.
 - [ ] Add field-level confidence values.
 
@@ -39,24 +40,30 @@ Status legend:
 
 - [x] Add `source_docs_processor/npd_receipts/` as a separate processor package.
 - [x] Add a copy-and-register workflow that renames recognized receipts.
-- [x] Write the receipt XLSX inside the target directory.
-- [x] Include only recognized receipts in the registry.
-- [x] Add portable hyperlink file cells.
-- [x] Keep a stable receipt column order including service description, recipient, issuer identity, and amount.
-- [ ] Decode receipt QR codes locally.
+- [x] Preserve relative source subfolders in copied output.
+- [x] Copy unrecognized receipt images without renaming.
+- [x] Write `реестр_чеков_нпд.xlsx` inside the target directory.
+- [x] Include only recognized receipts in the workbook.
+- [x] Keep the exact compact eight-column workbook contract.
+- [x] Add a hyperlink only to `target_file_name`.
+- [x] Extract the first INN as the self-employed payee INN.
+- [x] Recognize one-line and split-line full names.
+- [x] Require an explicit label before accepting a receipt number.
+- [/] Integrate the existing local QR decoder and NPD URL parser into receipt processing.
 - [ ] Reconcile QR values with OCR values and report conflicts.
-- [ ] Support clean print views and mobile screenshots.
-- [ ] Add synthetic fixtures without real names or INNs.
+- [ ] Improve support for clean print views and mobile screenshots.
+- [ ] Add synthetic OCR image fixtures without real names or INNs.
 - [ ] Add an optional local INN-to-organization mapping for recipient names.
 
 ## Output and review
 
-- [x] Preserve source subfolders for the UPD copy workflow.
-- [x] Copy unrecognized files unchanged in the UPD workflow.
-- [x] Generate UTF-8 BOM semicolon-separated CSV.
-- [x] Keep absolute paths out of current registries.
-- [x] Generate a text report for the UPD workflow.
-- [ ] Generate XLSX where native hyperlinks are preferable.
+- [x] Preserve source subfolders for UPD and NPD copy workflows.
+- [x] Copy unrecognized files unchanged in both current workflows.
+- [x] Generate UTF-8 BOM semicolon-separated CSV for UPD.
+- [x] Generate formatted XLSX with portable file hyperlinks for NPD receipts.
+- [x] Keep absolute paths out of current registry cells.
+- [x] Generate text reports for both current workflows.
+- [ ] Reuse XLSX output in additional workflows where native hyperlinks are preferable.
 - [ ] Add a review folder for low-confidence documents.
 - [ ] Add machine-readable debug JSON.
 - [ ] Add summary counts by document type and recognition status.
@@ -71,9 +78,9 @@ Status legend:
 
 ## Configuration and usability
 
-- [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug crops.
+- [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug options.
 - [x] Let each workflow interpret output-related options.
-- [ ] Add YAML processing profiles.
+- [ ] Add YAML processing profiles when repeated real configurations justify them.
 - [ ] Add a Tesseract validation command.
 - [ ] Add Windows-oriented setup instructions.
 - [ ] Add a simple local UI.
@@ -83,6 +90,8 @@ Status legend:
 - [x] Keep runtime and developer dependencies separate.
 - [x] Add deterministic unit and integration tests.
 - [x] Keep comments, docstrings, and software documentation in English.
+- [ ] Fix the stale `NpdReceiptsWorkflow` import in `tests/unit/test_npd_receipt_filename.py`.
+- [ ] Add missing English docstrings to NPD regression tests.
 - [ ] Add `ruff` configuration.
 - [ ] Add CI.
 - [ ] Add `pyproject.toml` and package the CLI.

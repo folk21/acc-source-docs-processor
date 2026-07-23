@@ -7,28 +7,34 @@ This file contains development rules for AI coding agents working on `acc-source
 The project is a local CLI for scanned accounting source documents. A complete document type definition selects three independent parts:
 
 ```text
-document processor + folder workflow + registry definition
+document processor + processing workflow + registry definition
 ```
 
-The current released type is `upd_invoices_status_1`.
+The registered document types are:
+
+- `upd_invoices_status_1` — the default document type;
+- `npd_receipts`.
 
 ## Language rules
 
 - All code comments, docstrings, tests, configuration comments, and software documentation must be in English.
-- Russian accounting field names may remain in OCR patterns and user-facing filenames where required by the business workflow.
+- Russian accounting field names may remain in OCR patterns, registry headers, and user-facing filenames where required by the business workflow.
 
 ## Architecture rules
 
 - Keep `main.py` minimal.
-- A document processor owns only image-level recognition, orientation, OCR, extraction, and recognition decisions.
-- A processor must not own copying, output folders, filename policy, report generation, or CSV columns.
-- A processing workflow owns recursive folder behavior and file actions.
-- A registry definition owns columns and row mapping.
+- A document processor owns only image-level recognition, orientation, OCR, extraction, normalization, and recognition decisions.
+- A processor must not own folder traversal, copying, output folders, filename policy, report generation, or registry columns.
+- A processing workflow owns recursive folder behavior, file actions, output selection, and the document list passed to a registry writer.
+- A registry definition owns the tabular schema and conversion of one `ExtractedDocument` into one row.
+- Registry writers own serialization. Keep generic CSV and XLSX output in `source_docs_processor/registry/`.
 - `source_docs_processor/document_types.py` binds processor, workflow, and registry factories into one CLI-selectable definition.
-- Keep low-level file operations in `file_ops.py` and generic CSV serialization in `registry/csv_writer.py`.
+- Keep low-level file operations in `file_ops.py`.
 - Keep template crops and OCR heuristics in the corresponding processor package.
 - Do not add document-type conditionals to `cli.py`.
 - Do not add external network calls. Processing must remain local.
+
+`RegistryDefinition` is intentionally narrower than an output processor. It defines columns and row mapping; workflows, file operations, and CSV/XLSX writers handle the remaining output behavior.
 
 ## Generic model rules
 
@@ -47,7 +53,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 - Keep UPD-specific code under `source_docs_processor/upd_invoices_status_1/`.
 - Keep OCR and extraction in `processor.py`, `ocr.py`, `extractor.py`, and `image_processing.py`.
-- Keep UPD copy/naming/continuation policy in `workflow.py`.
+- Keep UPD copy, naming, and continuation policy in `workflow.py`.
 - Keep UPD CSV columns and row mapping in `registry.py`.
 - Prefer targeted OCR crops over full-page OCR.
 - Preserve `Документ об отгрузке` fallback logic.
@@ -56,35 +62,56 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Recognize standalone pages before continuation pages.
 - Preserve auto-rotation, debug crops, `УПД_<number>_от_<date>`, and `_2_страница` output names.
 
+## NPD receipt rules
+
+- Keep NPD-specific code under `source_docs_processor/npd_receipts/`.
+- Keep receipt OCR and extraction inside the NPD package.
+- Keep copy, rename, output-folder, and workbook selection policy in `workflow.py`.
+- Keep the compact XLSX schema and row mapping in `registry.py`.
+- Preserve copying of every source image and relative subfolder structure.
+- Rename only recognized receipts; copy unrecognized images without renaming.
+- Include only recognized receipts in `реестр_чеков_нпд.xlsx`.
+- Preserve the filename pattern `<date>_<amount>_<surnameFirstNamePatronymic>_<receiptNumber>`.
+- Preserve the exact eight-column workbook contract documented in `README.md`.
+- Keep the hyperlink only in `target_file_name`; `source_file_name` must remain plain text.
+- Treat the first INN in receipt order as the self-employed payee INN unless stronger verified data is introduced.
+- Accept receipt numbers only after an explicit receipt-number label.
+- Preserve one-line and split-line full-name recognition.
+- QR decoding and official NPD URL parsing must remain local. When integrated, reconcile QR and OCR values explicitly and report conflicts instead of silently replacing data.
+
 ## Testing rules
 
 - Use `pytest`.
 - Put pure logic tests under `tests/unit/` and pipeline/filesystem tests under `tests/integration/`.
 - Every test must have an English docstring explaining the verified behavior and protected risk.
-- Test processors, workflows, and registry definitions independently where useful.
-- Prefer fake OCR, fake processors, synthetic workflows, and generated images.
+- Test processors, workflows, registry definitions, and writers independently where useful.
+- Prefer fake OCR, fake processors, synthetic workflows, prepared text, and generated images.
 - Every OCR or extraction bug fix must add a regression test.
-- Do not commit real scans, names, INNs/KPPs, addresses, or shipment data.
+- Real OCR tests must be optional, marked `ocr` or `slow`, and skipped when Tesseract is unavailable.
+- Do not commit real scans, names, INNs/KPPs, addresses, shipment data, or debug crops from private documents.
 
-Run validation with:
+Run validation from the project root:
 
 ```bash
-python -m py_compile main.py source_docs_processor/*.py source_docs_processor/*/*.py
+python -m compileall -q main.py source_docs_processor tests
 python -m pytest -q
 ```
 
 ## Documentation rules
 
-- Keep `README.md` user-oriented.
-- Put detailed design in `docs/ARCHITECTURE.md`.
+- Keep `README.md` user-oriented and compact.
+- Put detailed design and component contracts in `docs/ARCHITECTURE.md`.
 - Record completed changes in `docs/CHANGELOG.md`.
-- Track work in `docs/ROADMAP.md` using `[x]`, `[/]`, and `[ ]`.
-- Update documentation when CLI behavior, registry columns, project structure, or component contracts change.
+- Track planned and partially completed work in `docs/ROADMAP.md` using `[x]`, `[/]`, and `[ ]`.
+- Update documentation when CLI behavior, supported document types, registry columns, output files, project structure, or component contracts change.
+- Avoid changelog-style wording such as “now” or “previously” in documents that describe the current architecture.
 
 ## Archive checklist
 
 1. Preserve the root folder `acc-source-docs-processor/`.
-2. Keep the default UPD document type registered.
-3. Include no private accounting fixtures.
-4. Confirm README examples match current behavior.
-5. Confirm processors do not contain workflow or registry policy.
+2. Keep both registered document types and the default UPD selection intact.
+3. Include no private accounting fixtures or generated private output.
+4. Confirm README commands and output descriptions match current behavior.
+5. Confirm processors contain no workflow or registry policy.
+6. Confirm registry writers remain document-type-neutral.
+7. Run compile and test validation.
