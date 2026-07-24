@@ -1,9 +1,8 @@
-import csv
 from pathlib import Path
+from zipfile import ZipFile
 
 import cv2
 import numpy as np
-from openpyxl import load_workbook
 
 from source_docs_processor.cli import process_folder
 from source_docs_processor.document_processor import BaseDocumentProcessor
@@ -32,12 +31,13 @@ class FakeNpdReceiptProcessor(BaseDocumentProcessor):
                     document_date="2026-07-15",
                     document_number="receipt-42",
                     total_amount="1250.00",
-                    recipient_name="ООО Учебный Покупатель",
-                    recipient_inn="0000000000",
+                    issuer_name="Иванов Иван Иванович",
+                    issuer_inn="000000000000",
                     confidence=98,
                 ),
                 image,
             )
+
         return (
             ExtractedDocument(
                 source_path=image_path,
@@ -54,16 +54,33 @@ def _write_test_image(path: Path) -> None:
     assert cv2.imwrite(str(path), image)
 
 
-def test_registered_receipt_workflow_copies_only_receipts_and_writes_registries(tmp_path):
-    """Verify the new document type owns its copy and short-registry behavior.
+def _shared_strings(workbook_path: Path) -> str:
+    """Read shared strings from the generated XLSX workbook."""
+    with ZipFile(workbook_path) as archive:
+        return archive.read("xl/sharedStrings.xml").decode("utf-8")
 
-    Protected risk: the receipt workflow must not copy unrelated images or
-    inherit the detailed UPD registry and continuation-page behavior.
+
+def _external_links(workbook_path: Path) -> str:
+    """Read external file links from the generated XLSX workbook."""
+    with ZipFile(workbook_path) as archive:
+        return archive.read(
+            "xl/worksheets/_rels/sheet1.xml.rels"
+        ).decode("utf-8")
+
+
+def test_registered_receipt_workflow_uses_current_output_contract(tmp_path):
+    """Verify the registered NPD workflow copies images and writes its XLSX registry.
+
+    Protected risk: the registered workflow must preserve source subfolders,
+    rename recognized receipts using the current filename convention, copy
+    unrecognized images unchanged, and use the compact linked XLSX registry.
     """
     source_dir = tmp_path / "source"
     output_dir = tmp_path / "output"
-    _write_test_image(source_dir / "nested" / "incoming.JPG")
-    _write_test_image(source_dir / "nested" / "other.png")
+    source_subdir = source_dir / "nested"
+
+    _write_test_image(source_subdir / "incoming.JPG")
+    _write_test_image(source_subdir / "other.png")
 
     found, all_documents = process_folder(
         source_dir=source_dir,
@@ -73,33 +90,46 @@ def test_registered_receipt_workflow_copies_only_receipts_and_writes_registries(
         document_processor=FakeNpdReceiptProcessor(),
     )
 
-    target_dir = output_dir / "чеки_к_загрузке"
-    copied_name = "2026-07-15_1250-00_receipt-42.JPG"
+    target_root = output_dir / "чеки_нпд"
+    target_subdir = target_root / "nested"
+    copied_name = (
+        "2026-07-15_1250.00_"
+        "ИвановИванИванович_receipt-42.jpg"
+    )
+    copied_receipt = target_subdir / copied_name
+    copied_unrecognized = target_subdir / "other.png"
+    registry_path = target_root / "реестр_чеков_нпд.xlsx"
+    report_path = target_root / "чеки_нпд_report.txt"
+
     assert len(found) == 1
     assert len(all_documents) == 2
-    assert (target_dir / copied_name).exists()
-    assert not (target_dir / "other.png").exists()
+    assert copied_receipt.exists()
+    assert copied_unrecognized.exists()
+    assert registry_path.exists()
+    assert report_path.exists()
+    assert found[0].destination_path == copied_receipt
 
-    csv_path = target_dir / "чеки_к_загрузке.csv"
-    with csv_path.open("r", encoding="utf-8-sig", newline="") as file:
-        rows = list(csv.DictReader(file, delimiter=";"))
-
-    expected_columns = [
-        "document_date",
-        "total_amount",
-        "recipient_name",
-        "document_number",
-        "copied_file_name",
+    shared_strings = _shared_strings(registry_path)
+    expected_headers = [
+        "target_file_name",
         "source_file_name",
-        "recipient_inn",
+        "дата",
+        "сумма",
+        "фио получателя суммы",
+        "номер_чека",
+        "ИНН получателя",
+        "комментарии о генерации",
     ]
-    assert list(rows[0]) == expected_columns
-    assert rows[0]["copied_file_name"] == copied_name
-    assert rows[0]["source_file_name"] == "incoming.JPG"
+    positions = [shared_strings.index(header) for header in expected_headers]
 
-    workbook = load_workbook(target_dir / "чеки_к_загрузке.xlsx")
-    worksheet = workbook["Receipts"]
-    assert [cell.value for cell in worksheet[1]] == expected_columns
-    assert worksheet["A2"].value == "2026-07-15"
-    assert worksheet["B2"].value == 1250.0
-    assert worksheet["E2"].value == copied_name
+    assert positions == sorted(positions)
+    assert copied_name in shared_strings
+    assert "incoming.JPG" in shared_strings
+    assert "Иванов Иван Иванович" in shared_strings
+    assert "000000000000" in shared_strings
+    assert "other.png" not in shared_strings
+
+    external_links = _external_links(registry_path)
+    assert copied_name in external_links
+    assert "incoming.JPG" not in external_links
+    

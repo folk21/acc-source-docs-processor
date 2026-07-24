@@ -1,20 +1,27 @@
 from pathlib import Path
 
 from source_docs_processor.models import ExtractedDocument
-from source_docs_processor.npd_receipts.workflow import NpdReceiptsWorkflow
+from source_docs_processor.npd_receipts.workflow import (
+    NpdReceiptRegistryWorkflow,
+)
 
 
-def test_receipt_workflow_builds_date_amount_number_filename():
-    """Verify receipt copies use the required Date_Amount_ReceiptNumber order."""
+def test_receipt_workflow_builds_expected_filename():
+    """Verify receipt copies use the date, amount, payee name, and number."""
     document = ExtractedDocument(
         source_path=Path("scan.JPG"),
         document_type="npd_receipts",
         is_recognized=True,
-        document_date="2026-04-02",
+        document_date="02-04-2026",
         total_amount="22578.00",
+        issuer_name="Иванов Иван Иванович",
         document_number="204hy1b28u",
     )
 
-    stem = NpdReceiptsWorkflow().build_output_filename_stem(document)
+    stem = NpdReceiptRegistryWorkflow().build_output_filename_stem(document)
 
-    assert stem == "2026-04-02_22578-00_204hy1b28u"
+    assert (
+        stem
+        == "02-04-2026_22578.00_ИвановИванИванович_204hy1b28u"
+    )
+    
