@@ -36,6 +36,28 @@ Status legend:
 - [/] Continue tuning private problematic examples outside the repository.
 - [ ] Add field-level confidence values.
 
+## Incoming purchase documents
+
+- [x] Add `incoming_purchase_documents` without renaming existing document types.
+- [x] Limit the initial implementation to UPD status `1`; acts remain out of scope.
+- [x] Support native-text PDF and DOCX inputs.
+- [x] Use OCR fallback for image-only PDF pages.
+- [x] Extract document number, date, status, seller, buyer, and totals.
+- [x] Add first-class goods and service item rows.
+- [x] Generate one workbook with `Documents`, `Items`, `Review`, and `_metadata`.
+- [x] Add binary document-level processing dropdowns.
+- [x] Link to original source files without copying unchanged PDF/DOCX inputs.
+- [x] Write directly into an explicitly selected output directory.
+- [x] Add stable hidden task UUIDs for future task aggregation.
+- [x] Ignore official UPD column-designator rows during item extraction.
+- [x] Separate numeric OKEI codes from textual unit names.
+- [x] Add arithmetic validation and explicit review warnings.
+- [ ] Tune PDF table extraction against private supplier layouts.
+- [ ] Add optional support for more PDF table reconstruction strategies.
+- [ ] Add field-level confidence for each extracted item value.
+- [ ] Add workbook update mode that preserves existing processed values.
+- [ ] Add an aggregate task summary across UPD and NPD workbooks.
+
 ## NPD receipts
 
 - [x] Add `source_docs_processor/npd_receipts/` as a separate processor package.
@@ -63,7 +85,7 @@ Status legend:
 - [x] Generate formatted XLSX with portable file hyperlinks for NPD receipts.
 - [x] Keep absolute paths out of current registry cells.
 - [x] Generate text reports for both current workflows.
-- [ ] Reuse XLSX output in additional workflows where native hyperlinks are preferable.
+- [x] Reuse XLSX output for electronic UPD task workbooks.
 - [ ] Add a review folder for low-confidence documents.
 - [ ] Add machine-readable debug JSON.
 - [ ] Add summary counts by document type and recognition status.

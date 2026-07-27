@@ -4,7 +4,7 @@ This file contains development rules for AI coding agents working on `acc-source
 
 ## Project summary
 
-The project is a local CLI for scanned accounting source documents. A complete document type definition selects three independent parts:
+The project is a local CLI for scanned and electronic accounting source documents. A complete document type definition selects three independent parts:
 
 ```text
 document processor + processing workflow + registry definition
@@ -12,8 +12,9 @@ document processor + processing workflow + registry definition
 
 The registered document types are:
 
-- `upd_invoices_status_1` — the default document type;
-- `npd_receipts`.
+- `upd_invoices_status_1` — the default scan-oriented document type;
+- `npd_receipts`;
+- `incoming_purchase_documents` — incoming purchase-document tasks for 1C entry; the current implementation supports PDF/DOCX UPD status `1` only.
 
 ## Language rules
 
@@ -23,7 +24,8 @@ The registered document types are:
 ## Architecture rules
 
 - Keep `main.py` minimal.
-- A document processor owns only image-level recognition, orientation, OCR, extraction, normalization, and recognition decisions.
+- An image document processor owns only image-level recognition, orientation, OCR, extraction, normalization, and recognition decisions.
+- A source-file processor owns only one-file reading, OCR fallback, extraction, normalization, and recognition decisions.
 - A processor must not own folder traversal, copying, output folders, filename policy, report generation, or registry columns.
 - A processing workflow owns recursive folder behavior, file actions, output selection, and the document list passed to a registry writer.
 - A registry definition owns the tabular schema and conversion of one `ExtractedDocument` into one row.
@@ -61,6 +63,25 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Preserve short-number and over-read corrections.
 - Recognize standalone pages before continuation pages.
 - Preserve auto-rotation, debug crops, `УПД_<number>_от_<date>`, and `_2_страница` output names.
+
+## Incoming purchase document rules
+
+- Keep incoming purchase-document logic under `source_docs_processor/incoming_purchase_documents/`.
+- Keep native file reading in `readers.py`, extraction in `extractor.py`, file recognition in `processor.py`, folder behavior in `workflow.py`, and workbook rows in `registry.py`.
+- Support UPD status `1` in `.pdf` and `.docx`; do not claim act or native `.doc` support.
+- Prefer native PDF text and table extraction before OCR.
+- OCR only PDF pages without a useful text layer unless `--deep-ocr` is enabled.
+- Preserve one task per complete UPD and keep item rows linked through `task_id`.
+- Keep `processed` binary and document-level as a `Нет`/`Да` dropdown; do not add editable item-level processing state.
+- Link directly to source PDF/DOCX files; do not copy unchanged source files by default.
+- Write directly into an explicit `--output` directory unless `--target-dir-name` is also provided.
+- Keep `task_id` columns hidden and document their internal linking purpose.
+- Keep unrecognized or incomplete files visible in `Documents` and `Review`.
+- Reject explicit UPD status `2`.
+- Keep workbook sheets `Documents`, `Items`, `Review`, and hidden `_metadata`.
+- Reject the official UPD column-designator row (`1`, `1а`, `1б`, `2`, `2а`, and similar values) as item data.
+- Keep numeric OKEI codes separate from textual unit names; never export a numeric code as `unit`.
+- Validate item arithmetic and document totals without silently replacing conflicting values.
 
 ## NPD receipt rules
 
@@ -109,7 +130,7 @@ python -m pytest -q
 ## Archive checklist
 
 1. Preserve the root folder `acc-source-docs-processor/`.
-2. Keep both registered document types and the default UPD selection intact.
+2. Keep all registered document types and the default scan UPD selection intact.
 3. Include no private accounting fixtures or generated private output.
 4. Confirm README commands and output descriptions match current behavior.
 5. Confirm processors contain no workflow or registry policy.

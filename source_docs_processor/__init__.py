@@ -1,15 +1,14 @@
-"""Local processing of scanned accounting source documents.
+"""Local processing of scanned and electronic accounting source documents.
 
 The package separates three independently selected responsibilities:
 
-1. a document processor recognizes and extracts one image;
+1. a processor recognizes and extracts one image or source file;
 2. a processing workflow decides how a source folder and its files are handled;
-3. a registry definition controls the tabular output schema and row mapping.
+3. a registry definition controls tabular output schemas and row mapping.
 
-A complete document type definition binds these parts together for CLI use. The
-current released definition is ``upd_invoices_status_1``. Future receipt, act,
-or other definitions can select different folder actions and CSV schemas without
-adding conditional business logic to the OCR processor or CLI.
+A complete document type definition binds these parts together for CLI use.
+Existing scan and receipt workflows remain independent from the incoming purchase
+document workflow, whose current scope is PDF/DOCX UPD status 1 files.
 """
 
-__version__ = "0.9.0"
+__version__ = "0.10.2"

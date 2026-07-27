@@ -1,37 +1,43 @@
 # Architecture
 
-`acc-source-docs-processor` is a local OCR-based CLI for scanned accounting source documents.
+`acc-source-docs-processor` is a local CLI for scanned and electronic accounting source documents.
 
-Each CLI-selectable document type combines three independent components:
+Each CLI-selectable type combines independently selected behavior:
 
 ```text
 CLI arguments
   -> DocumentTypeDefinition
-      -> DocumentProcessor
+      -> Processor
       -> ProcessingWorkflow
       -> RegistryDefinition
 ```
 
-The registered document types are `upd_invoices_status_1` and `npd_receipts`. The default is `upd_invoices_status_1`.
+Registered document types:
+
+- `upd_invoices_status_1` — scan-oriented UPD status `1` processing and tax-report preparation;
+- `npd_receipts` — scanned NPD receipt processing;
+- `incoming_purchase_documents` — incoming purchase-document extraction for manual entry into 1C; the current scope is PDF/DOCX UPD status `1`.
+
+The default remains `upd_invoices_status_1`.
 
 ## Component boundaries
 
-Different document types can require different actions after recognition.
+A processor owns recognition and extraction for one input file. Two specialized protocols are available:
 
-The UPD workflow performs:
+- `DocumentProcessor` for images, orientation candidates, OCR, and continuation recognition;
+- `SourceFileProcessor` for structured or paged source files such as PDF and DOCX.
 
-```text
-scan -> recognize -> rotate -> copy -> rename -> register all files -> report
-```
+A processor does not own recursive traversal, output directories, copying, reports, or registry serialization.
 
-The NPD receipt workflow performs:
+A workflow owns:
 
-```text
-scan -> recognize -> copy all images -> rename recognized receipts
-     -> register recognized receipts in XLSX -> report
-```
+- recursive source-file selection;
+- output-directory policy;
+- copying and naming;
+- selection of documents written to registries;
+- report generation.
 
-These are folder-level business rules. They belong to workflows rather than OCR processors.
+A registry definition owns tabular shape and row mapping. Generic writers own CSV/XLSX serialization.
 
 ## Project structure
 
@@ -46,13 +52,12 @@ source_docs_processor/
 ├── ocr.py
 ├── processors.py
 ├── registry/
-│   ├── __init__.py
 │   ├── base.py
 │   ├── common.py
 │   ├── csv_writer.py
-│   └── xlsx_writer.py
+│   ├── xlsx_writer.py
+│   └── task_workbook.py
 ├── workflows/
-│   ├── __init__.py
 │   ├── base.py
 │   └── copy_and_register.py
 ├── upd_invoices_status_1/
@@ -60,6 +65,12 @@ source_docs_processor/
 │   ├── image_processing.py
 │   ├── ocr.py
 │   ├── processor.py
+│   ├── registry.py
+│   └── workflow.py
+├── incoming_purchase_documents/
+│   ├── extractor.py
+│   ├── processor.py
+│   ├── readers.py
 │   ├── registry.py
 │   └── workflow.py
 └── npd_receipts/
@@ -71,20 +82,9 @@ source_docs_processor/
     └── workflow.py
 ```
 
-## Document type definition
+## Document type registry
 
-`source_docs_processor/document_types.py` contains the complete CLI-selectable definition:
-
-```python
-@dataclass(frozen=True)
-class DocumentTypeDefinition:
-    document_type: str
-    processor_factory: Callable[[], DocumentProcessor]
-    workflow_factory: Callable[[], ProcessingWorkflow]
-    registry_definition_factory: Callable[[], RegistryDefinition]
-```
-
-The explicit registry binds one CLI value to all required behavior:
+`source_docs_processor/document_types.py` binds one CLI value to a complete definition:
 
 ```text
 upd_invoices_status_1
@@ -96,304 +96,177 @@ npd_receipts
   -> NpdReceiptProcessor
   -> NpdReceiptRegistryWorkflow
   -> NpdReceiptRegistryDefinition
+
+incoming_purchase_documents
+  -> IncomingPurchaseDocumentsProcessor
+  -> IncomingPurchaseDocumentsWorkflow
+  -> IncomingPurchaseDocumentsRegistryDefinition
 ```
 
-The registry remains explicit because external processor packages and plugin discovery are not currently required.
+The explicit registry remains preferable to plugin discovery while all processors live in the same package.
 
-`source_docs_processor/processors.py` is a backward-compatible processor-only factory for callers that need only a recognizer.
-
-## Document processor
-
-`DocumentProcessor` handles one image. It owns:
-
-- orientation candidates;
-- targeted and optional full-page OCR;
-- document detection;
-- field extraction and normalization;
-- confidence and warnings;
-- optional continuation-page recognition.
-
-It does not own:
-
-- source folder traversal;
-- output directory selection;
-- copying or renaming;
-- filename generation;
-- registry columns or row mapping;
-- CSV/XLSX serialization;
-- report generation.
-
-`BaseDocumentProcessor` provides common recognition checks and a no-op continuation analyzer for ordinary single-page document types.
-
-## Processing workflow
-
-`source_docs_processor/workflows/base.py` defines:
-
-- `ProcessingOptions` — runtime options received from the CLI;
-- `ProcessingResult` — extracted documents and produced artifact paths;
-- `ProcessingWorkflow` — the folder-level protocol;
-- common logging, sorting, and target-name helpers.
-
-`CopyAndRegisterWorkflow` is reusable for scenarios that require:
-
-- recursive image discovery;
-- natural ordering;
-- optional continuation handling;
-- copying recognized and unrecognized files;
-- corrected-orientation output;
-- workflow-defined filenames;
-- relative output subfolder preservation;
-- CSV registry and text report generation.
-
-Its document-specific hooks include:
-
-- `default_target_dir_name`;
-- `supports_continuation_pages`;
-- `build_primary_filename_stem()`;
-- `build_output_filename_stem()`;
-- `prepare_continuation_document()`.
-
-A workflow may implement `ProcessingWorkflow` directly when its output behavior differs from `CopyAndRegisterWorkflow`. `NpdReceiptRegistryWorkflow` does this to produce a linked XLSX registry while still copying all source images.
-
-## Registry definition
-
-`RegistryDefinition` describes tabular shape and row conversion:
-
-```python
-class RegistryDefinition(Protocol):
-    columns: tuple[str, ...]
-
-    def build_row(
-        self,
-        document: ExtractedDocument,
-        source_root: Path,
-    ) -> Mapping[str, RegistryValue]:
-        ...
-```
-
-The name is intentionally narrower than `OutputProcessor`:
-
-- the workflow decides which documents are written and where artifacts are created;
-- `file_ops.py` handles image copying;
-- a registry definition declares columns and maps one document to one row;
-- a registry writer serializes those rows as CSV or XLSX.
-
-This separation prevents document-specific schemas from leaking into generic writers.
-
-## Registry writers
-
-`registry/csv_writer.py` writes document-neutral CSV output:
-
-- UTF-8 with BOM;
-- semicolon delimiter;
-- declared-column validation;
-- rejection of undeclared row keys.
-
-`registry/xlsx_writer.py` writes formatted XLSX output:
-
-- document-defined column order and optional display headers;
-- frozen header row and autofilter;
-- typed formatting for values such as amounts and INNs;
-- portable external hyperlinks to copied files when requested by the workflow.
-
-`registry/common.py` contains shared validation helpers. Writer validation should remain behaviorally consistent; further deduplication can use this module without changing registry contracts.
-
-The selected workflow decides whether all scanned images or only recognized documents are passed to a writer.
-
-## Generic extracted model
+## Generic models
 
 `ExtractedDocument` contains common accounting concepts:
 
-- document type and recognition state;
-- number, date, and datetime;
-- issuer and recipient names, INNs, and KPPs;
-- amount without tax, tax amount, total amount, and currency;
-- description and status;
-- rotation, confidence, warnings, errors, and OCR preview;
-- continuation metadata;
-- `extra_fields` for document-specific extracted values.
+- document identity and recognition state;
+- issuer and recipient details;
+- net, tax, and gross amounts;
+- currency and description;
+- confidence, warnings, errors, and output path;
+- continuation metadata for scan workflows;
+- `items` for repeating goods or service rows;
+- `extra_fields` for document-specific scalar values.
 
-The model does not define output-folder or filename policy.
+`ExtractedDocumentItem` contains:
 
-### UPD field mapping
+- line number and name;
+- unit, quantity, and unit price;
+- amount without tax, tax rate, tax amount, and total amount;
+- confidence and line-level warnings.
 
-```text
-UPD number          -> document_number
-UPD date            -> document_date
-seller              -> issuer
-buyer               -> recipient
-amount without VAT  -> amount_without_tax
-VAT amount          -> tax_amount
-amount with VAT     -> total_amount
-service text        -> description
-```
+Repeating item data must not be placed in `extra_fields`.
 
-UPD-specific transport and request values remain in `extra_fields`.
+## Registry writers
 
-### NPD receipt field mapping
+`registry/csv_writer.py` writes document-neutral UTF-8 BOM semicolon-separated CSV files.
 
-```text
-receipt number      -> document_number
-receipt date        -> document_date
-self-employed payee -> issuer
-customer            -> recipient
-receipt amount      -> total_amount
-service text        -> description
-```
+`registry/xlsx_writer.py` writes ordinary single-sheet XLSX registries with formatted values and portable external links.
 
-The compact NPD workbook intentionally exports only the business-requested eight columns, even though the generic model can hold additional extracted values.
+`registry/task_workbook.py` writes accountant task workbooks with:
 
-## Low-level file operations
+- a `Documents` sheet;
+- an `Items` sheet;
+- a `Review` sheet;
+- a hidden `_metadata` sheet;
+- list-validated binary processing fields;
+- hidden internal identifier columns with header comments;
+- links to original source documents.
 
-`source_docs_processor/file_ops.py` provides mechanical helpers only:
+The task workbook writer receives sheet columns and row builders from a document-specific definition. It does not contain UPD parsing rules.
 
-- safe filename normalization;
-- duplicate-safe destination paths;
-- image writing to non-ASCII paths;
-- copying a processed image using a workflow-provided filename stem;
-- copying an unrecognized source image unchanged.
-
-The module does not decide which files should be copied or what a document should be called.
-
-## CLI orchestration
-
-`source_docs_processor/cli.py` performs five steps:
-
-1. parse common runtime options;
-2. resolve a `DocumentTypeDefinition`;
-3. create the processor, workflow, and registry definition;
-4. create `ProcessingOptions`;
-5. run the selected workflow.
-
-The CLI contains no UPD- or NPD-specific branch.
-
-`process_folder()` accepts optional component injections for deterministic integration tests and embedded use. Normal CLI execution obtains all components from the registered document type definition.
-
-## UPD status 1 implementation
+## Scan-oriented UPD status 1
 
 ### Processor
 
 `upd_invoices_status_1/processor.py` owns image-level recognition:
 
-- 0°, 90°, 180°, and 270° orientation attempts;
+- 0°, 90°, 180°, and 270° attempts;
 - targeted status, number, date, and shipment-row OCR;
-- field extraction and scoring;
+- field extraction and orientation scoring;
 - conservative continuation recognition.
 
 ### Workflow
 
-`upd_invoices_status_1/workflow.py` owns:
+The workflow preserves:
 
-- default output folder `передаточные_документы`;
-- copy-and-register scenario selection;
-- continuation-page support;
-- `УПД_<number>_от_<date>` naming;
-- `_2_страница` continuation suffix.
-
-### Registry
-
-`upd_invoices_status_1/registry.py` owns the detailed UPD CSV schema, including:
-
-- source and output filenames;
-- document, party, amount, and status fields;
-- recognition and continuation state;
-- confidence, warnings, errors, and OCR preview;
-- request number and date;
-- vehicle;
-- loading and unloading datetime.
-
-Unrecognized rows remain minimal and are still included in the CSV.
+- output folder `передаточные_документы`;
+- corrected and renamed image copies;
+- source subfolders;
+- continuation-page attachment;
+- detailed CSV and text report generation.
 
 ### Preserved OCR rules
 
-- Prefer structured and targeted OCR over one global text pass.
+- Prefer structured targeted crops over one global OCR pass.
 - Use `Документ об отгрузке` as a high-priority number/date source.
 - Replace suspiciously short values such as `4` with reliable values such as `405`.
 - Correct over-read values such as `43007` or `4977` when a shorter reliable candidate exists.
 - Reject the form-template date `02-04-2021` when it comes from regulation text.
 - Recognize a standalone first page before testing continuation markers.
-- Keep auto-rotation and debug-crop support.
+- Preserve auto-rotation and debug-crop support.
 
-## NPD receipt implementation
+This document type is intentionally not part of the accountant task queue because its purpose is scan selection and report preparation rather than entering documents into 1C.
+
+## Incoming purchase documents
+
+### Source readers
+
+`incoming_purchase_documents/readers.py` supports:
+
+- PDF native text extraction with PyMuPDF;
+- PDF table detection with PyMuPDF when table structure is available;
+- OCR fallback for PDF pages without a useful text layer;
+- optional forced PDF OCR with `--deep-ocr`;
+- DOCX paragraphs and table extraction with `python-docx`.
+
+No network calls are used. Legacy `.doc` files are outside the supported input contract.
 
 ### Processor
 
-`npd_receipts/processor.py` owns:
+`IncomingPurchaseDocumentsProcessor` owns one PDF/DOCX file and extracts:
 
-- portrait-first orientation attempts;
-- complete-receipt and sparse-text OCR;
-- receipt recognition scoring;
-- selection of the strongest orientation.
+- UPD status and invoice-transfer markers;
+- number and date;
+- seller and buyer names, INNs, and KPPs;
+- structured goods or service rows;
+- net, VAT, and gross totals;
+- line and document arithmetic warnings.
 
-`npd_receipts/extractor.py` owns:
-
-- receipt date, amount, and explicitly labelled receipt-number extraction;
-- INN extraction in receipt order;
-- self-employed payee name extraction from one-line or split-line layouts;
-- optional recipient organization and service-description extraction;
-- receipt-specific warnings.
+An explicit status `2` document is rejected. A file with incomplete extraction remains visible and is marked for review rather than silently omitted.
 
 ### Workflow
 
-`npd_receipts/workflow.py` owns:
+`IncomingPurchaseDocumentsWorkflow`:
 
-- default output folder `чеки_нпд`;
-- copying every source image;
-- preserving relative subfolders;
-- renaming recognized receipts;
-- copying unrecognized images without renaming;
-- writing `реестр_чеков_нпд.xlsx`;
-- passing only recognized receipts to the workbook writer;
-- text report generation.
+- scans `.pdf` and `.docx` recursively;
+- references original source files without copying unchanged PDF/DOCX inputs;
+- assigns a stable task UUID derived from relative path and file content;
+- writes `реестр_упд_для_ввода_в_1с.xlsx`;
+- writes directly into an explicit `--output` directory unless a target name is requested;
+- uses duplicate-safe workbook and report names on repeated runs;
+- writes a text report.
 
-### Registry
+Without `--output`, the default output folder is `упд_для_ввода_в_1с`.
 
-`npd_receipts/registry.py` owns the exact compact workbook contract:
+### Workbook contract
+
+`Documents` contains one task per source file. `processed` is a binary `Нет`/`Да` dropdown initially set to `Нет`. It belongs to the complete UPD, not to individual goods rows.
+
+`Items` contains one row per extracted goods or service line and links rows to the document through `task_id`. The `task_id` columns are hidden and carry an English header comment explaining that the value is an internal stable identifier.
+
+The item parser rejects the official row of column designators such as `1а` and distinguishes numeric OKEI codes from textual units such as `шт` or `кг`. Numeric codes are not exported as unit names.
+
+`Review` contains document warnings, missing required fields, status conflicts, extraction errors, and line arithmetic conflicts.
+
+`_metadata` contains:
 
 ```text
-target_file_name
-source_file_name
-receipt_date
-amount
-payee_name
-receipt_number
-payee_inn
-generation_comments
+registry_schema = incoming_purchase_documents_tasks
+registry_schema_version = 2
+document_type = incoming_purchase_documents
 ```
 
-Display headers may be Russian. Only `target_file_name` is written as a hyperlink; `source_file_name` remains plain text.
+This metadata is intended for a later task-summary generator that reads multiple working workbooks without relying only on visible sheet labels.
 
-### QR support
+## NPD receipts
 
-`npd_receipts/qr.py` contains local utilities that:
+The NPD processor owns OCR and receipt extraction. Its workflow copies all images, renames recognized receipts, preserves relative subfolders, and writes the compact eight-column `реестр_чеков_нпд.xlsx` workbook.
 
-- decode a QR value with OpenCV;
-- validate official `lknpd.nalog.ru` receipt print URLs;
-- parse issuer INN and receipt number from a valid URL.
+Only `target_file_name` is a hyperlink. Receipt-number extraction requires an explicit label, and the first INN in receipt order is treated as the self-employed issuer INN.
 
-These utilities are not yet integrated into `NpdReceiptProcessor`. Future integration must reconcile QR and OCR values and surface conflicts rather than silently replacing OCR results. No network request is required or permitted.
+Local QR decoding utilities exist but are not integrated into receipt processing.
 
-## Testing architecture
+## CLI orchestration
+
+`source_docs_processor/cli.py` remains document-type-neutral:
+
+1. parse common runtime options;
+2. resolve a `DocumentTypeDefinition`;
+3. create processor, workflow, and registry definition;
+4. create `ProcessingOptions`;
+5. run the selected workflow.
+
+No document-specific branch belongs in the CLI.
+
+## Testing
 
 Tests are separated by responsibility:
 
-- extraction and decision tests use prepared OCR text and fake OCR values;
-- workflow integration tests use fake processors and generated images;
-- filename tests target workflows rather than processors;
-- registry tests verify exact columns, rows, hyperlinks, and writer behavior;
-- factory tests verify that a document type creates all three independent components.
+- prepared OCR/text tests for extraction decisions;
+- synthetic PDF and DOCX reader tests;
+- generated-image and fake-processor integration tests;
+- workbook contract and hyperlink tests;
+- factory tests for all registered definitions.
 
-Real accounting scans and identifiers are not committed. Optional real-OCR tests must be marked and skipped when Tesseract is unavailable.
-
-## Adding a document type
-
-A new type should be added without modifying existing document-specific packages:
-
-1. Create a processor package with OCR and extraction logic.
-2. Reuse or implement a `ProcessingWorkflow`.
-3. Create a registry definition with the exact required columns and row mapping.
-4. Register all three factories in `document_types.py`.
-5. Add processor unit tests and workflow/registry integration tests.
-6. Update public documentation when CLI behavior or output contracts change.
-
-Avoid broader abstractions until at least two real document types require the same extension point.
+Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.

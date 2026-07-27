@@ -1,8 +1,64 @@
 # Changelog
 
-This changelog records project changes by functional milestone. The project is pre-release; only milestones with an established package version are grouped under a version heading.
+This changelog records project changes by functional milestone. The project is pre-release.
 
-## Unreleased
+## 0.10.2 — Incoming UPD workbook usability and table fixes
+
+### Changed
+
+- Explicit `--output` directories receive the workbook and report directly instead of an additional default subfolder.
+- Incoming PDF/DOCX source files are referenced through workbook links and are no longer copied unchanged.
+- Replaced the document processing checkbox with a compatible `Нет`/`Да` dropdown.
+- Hid `task_id` columns and added an English header comment explaining their internal purpose.
+- Bumped the task workbook metadata schema to version `2`.
+
+### Fixed
+
+- Excluded the official UPD column-designator row (`1`, `1а`, `1б`, `2`, `2а`, and similar values) from extracted item rows.
+- Separated numeric OKEI codes from textual unit names and prevented numeric values from being exported as units.
+- Added regression coverage for the output layout, source-link behavior, dropdown validation, hidden task identifiers, header-row filtering, and unit normalization.
+
+## 0.10.1 — Incoming purchase document identifier
+
+### Changed
+
+- Renamed the newly added CLI document type from `upd_invoices_status_1_files` to `incoming_purchase_documents`.
+- Renamed its package, processor, workflow, registry definition, tests, and workbook metadata schema consistently.
+- Kept the implementation scope limited to PDF/DOCX UPD status `1`; acts are not supported.
+
+### Preserved
+
+- Existing `upd_invoices_status_1` and `npd_receipts` identifiers and behavior remain unchanged.
+
+## 0.10.0 — Electronic UPD task workbooks
+
+### Added
+
+- Added the separate `upd_invoices_status_1_files` document type without renaming or changing existing document types.
+- Added local native-text and table reading for PDF files through PyMuPDF.
+- Added OCR fallback for PDF pages without a useful text layer.
+- Added direct DOCX paragraph and table reading through `python-docx`.
+- Added `ExtractedDocumentItem` for repeating goods and service rows.
+- Added extraction of UPD number, date, status, seller/buyer identifiers, item rows, net amount, VAT, and total amount.
+- Added line and document arithmetic validation with explicit review warnings.
+- Added a generic task workbook writer with `Documents`, `Items`, `Review`, and hidden `_metadata` sheets.
+- Added binary document-level processing checkboxes and stable task UUIDs.
+- Added duplicate-safe workbook naming so repeated runs do not overwrite accountant checkbox state.
+- Added synthetic PDF/DOCX and workbook integration regression tests.
+
+### Changed
+
+- Generalized processor identity so workflows can select either image processors or source-file processors.
+- Updated package dependencies with PyMuPDF and `python-docx`.
+- Updated documentation for three independently registered document types.
+
+### Preserved
+
+- `upd_invoices_status_1` remains the default scan-oriented document type.
+- Existing UPD scan filenames, rotation, continuation, CSV, and report behavior remain unchanged.
+- Existing NPD receipt workbook and copy/rename behavior remain unchanged.
+
+## 0.9.1 — NPD receipts
 
 ### Added
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .document_processor import DocumentProcessor
+from .document_processor import Processor
 from .document_types import (
     DEFAULT_DOCUMENT_TYPE,
     SUPPORTED_DOCUMENT_TYPES,
@@ -10,7 +10,7 @@ from .document_types import (
 )
 
 
-def create_document_processor(document_type: str) -> DocumentProcessor:
+def create_document_processor(document_type: str) -> Processor:
     """Create only the recognizer from a complete document type definition."""
     return get_document_type_definition(document_type).create_processor()
 

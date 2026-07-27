@@ -1,4 +1,4 @@
-"""Document processor protocol and reusable recognition defaults."""
+"""Processor protocols and reusable recognition defaults."""
 
 from __future__ import annotations
 
@@ -10,16 +10,15 @@ import numpy as np
 from .models import ExtractedDocument
 
 
-class DocumentProcessor(Protocol):
-    """Recognize and extract one document type from a single image.
-
-    A processor owns only file-level recognition concerns. Folder traversal,
-    copying, renaming, registry generation, and report output belong to a
-    processing workflow and registry definition selected separately.
-    """
+class Processor(Protocol):
+    """Expose common identity shared by image and source-file processors."""
 
     document_type: str
     display_name: str
+
+
+class DocumentProcessor(Processor, Protocol):
+    """Recognize and extract one document type from a single image."""
 
     def analyze_image_orientations(
         self,
@@ -52,8 +51,28 @@ class DocumentProcessor(Protocol):
         ...
 
 
+class SourceFileProcessor(Processor, Protocol):
+    """Recognize one structured or paged source file such as PDF or DOCX."""
+
+    supported_extensions: frozenset[str]
+
+    def analyze_source_file(
+        self,
+        source_path: Path,
+        lang: str,
+        deep_ocr: bool,
+        debug_root: Path | None = None,
+    ) -> ExtractedDocument:
+        """Read and extract one source file without folder-level actions."""
+        ...
+
+    def is_supported_document(self, doc: ExtractedDocument) -> bool:
+        """Return True when the source file is a recognized document."""
+        ...
+
+
 class BaseDocumentProcessor:
-    """Provide recognition defaults for ordinary single-page document types."""
+    """Provide recognition defaults for ordinary single-page image types."""
 
     document_type = "generic_document"
     display_name = "Generic document"
@@ -91,3 +110,25 @@ class BaseDocumentProcessor:
             and doc.is_continuation_page
             and doc.document_type == self.document_type
         )
+
+
+class BaseSourceFileProcessor:
+    """Provide recognition defaults for structured source-file processors."""
+
+    document_type = "generic_source_file"
+    display_name = "Generic source file"
+    supported_extensions: frozenset[str] = frozenset()
+
+    def analyze_source_file(
+        self,
+        source_path: Path,
+        lang: str,
+        deep_ocr: bool,
+        debug_root: Path | None = None,
+    ) -> ExtractedDocument:
+        """Analyze one source file."""
+        raise NotImplementedError
+
+    def is_supported_document(self, doc: ExtractedDocument) -> bool:
+        """Return True for a recognized document of this processor type."""
+        return doc.is_primary_document and doc.document_type == self.document_type

@@ -11,13 +11,30 @@ RegistryValue: TypeAlias = str | int | float | bool | None
 
 
 @dataclass
+class ExtractedDocumentItem:
+    """One extracted goods or service line from an accounting document."""
+
+    line_number: int | None = None
+    name: str | None = None
+    unit: str | None = None
+    quantity: str | None = None
+    unit_price: str | None = None
+    amount_without_tax: str | None = None
+    tax_rate: str | None = None
+    tax_amount: str | None = None
+    total_amount: str | None = None
+    confidence: int = 0
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ExtractedDocument:
-    """Generic metadata and processing state for one input scan.
+    """Generic metadata and processing state for one input document.
 
     Common accounting fields live directly on the model so processors for UPD,
-    receipts, acts, invoices, and other documents can share the same pipeline and
-    CSV registry. Template-specific values belong in ``extra_fields`` and are
-    exposed as additional CSV columns by the selected processor.
+    receipts, acts, invoices, and other documents can share the same pipeline.
+    Repeating goods or service lines live in ``items``. Template-specific scalar
+    values belong in ``extra_fields`` and are exposed by the selected registry.
     """
 
     source_path: Path
@@ -47,6 +64,7 @@ class ExtractedDocument:
     error: str | None = None
     text_preview: str = ""
     warnings: list[str] = field(default_factory=list)
+    items: list[ExtractedDocumentItem] = field(default_factory=list)
     extra_fields: dict[str, RegistryValue] = field(default_factory=dict)
 
     @property

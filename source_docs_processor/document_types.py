@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .document_processor import DocumentProcessor
+from .document_processor import Processor
 from .registry.base import RegistryDefinition
 from .workflows.base import ProcessingWorkflow
 
 
 DEFAULT_DOCUMENT_TYPE = "upd_invoices_status_1"
 NPD_RECEIPT_DOCUMENT_TYPE = "npd_receipts"
+INCOMING_PURCHASE_DOCUMENTS_DOCUMENT_TYPE = "incoming_purchase_documents"
 
 
 @dataclass(frozen=True)
@@ -19,11 +20,11 @@ class DocumentTypeDefinition:
     """Bundle recognition, folder workflow, and registry behavior for one type."""
 
     document_type: str
-    processor_factory: Callable[[], DocumentProcessor]
+    processor_factory: Callable[[], Processor]
     workflow_factory: Callable[[], ProcessingWorkflow]
     registry_definition_factory: Callable[[], RegistryDefinition]
 
-    def create_processor(self) -> DocumentProcessor:
+    def create_processor(self) -> Processor:
         """Create the file-level recognizer configured for this document type."""
         processor = self.processor_factory()
         if processor.document_type != self.document_type:
@@ -42,7 +43,7 @@ class DocumentTypeDefinition:
         return self.registry_definition_factory()
 
 
-def _create_upd_processor() -> DocumentProcessor:
+def _create_upd_processor() -> Processor:
     """Import and create the UPD processor lazily."""
     from .upd_invoices_status_1.processor import UpdInvoicesStatus1Processor
 
@@ -65,7 +66,7 @@ def _create_upd_registry_definition() -> RegistryDefinition:
     return UpdInvoicesStatus1RegistryDefinition()
 
 
-def _create_npd_receipt_processor() -> DocumentProcessor:
+def _create_npd_receipt_processor() -> Processor:
     """Import and create the NPD receipt processor lazily."""
     from .npd_receipts.processor import NpdReceiptProcessor
 
@@ -86,6 +87,33 @@ def _create_npd_receipt_registry_definition() -> RegistryDefinition:
     return NpdReceiptRegistryDefinition()
 
 
+def _create_incoming_purchase_documents_processor() -> Processor:
+    """Import and create the electronic UPD source-file processor lazily."""
+    from .incoming_purchase_documents.processor import (
+        IncomingPurchaseDocumentsProcessor,
+    )
+
+    return IncomingPurchaseDocumentsProcessor()
+
+
+def _create_incoming_purchase_documents_workflow() -> ProcessingWorkflow:
+    """Import and create the electronic UPD folder workflow lazily."""
+    from .incoming_purchase_documents.workflow import (
+        IncomingPurchaseDocumentsWorkflow,
+    )
+
+    return IncomingPurchaseDocumentsWorkflow()
+
+
+def _create_incoming_purchase_documents_registry_definition() -> RegistryDefinition:
+    """Import and create the electronic UPD workbook definition lazily."""
+    from .incoming_purchase_documents.registry import (
+        IncomingPurchaseDocumentsRegistryDefinition,
+    )
+
+    return IncomingPurchaseDocumentsRegistryDefinition()
+
+
 DOCUMENT_TYPE_DEFINITIONS: dict[str, DocumentTypeDefinition] = {
     DEFAULT_DOCUMENT_TYPE: DocumentTypeDefinition(
         document_type=DEFAULT_DOCUMENT_TYPE,
@@ -98,6 +126,14 @@ DOCUMENT_TYPE_DEFINITIONS: dict[str, DocumentTypeDefinition] = {
         processor_factory=_create_npd_receipt_processor,
         workflow_factory=_create_npd_receipt_workflow,
         registry_definition_factory=_create_npd_receipt_registry_definition,
+    ),
+    INCOMING_PURCHASE_DOCUMENTS_DOCUMENT_TYPE: DocumentTypeDefinition(
+        document_type=INCOMING_PURCHASE_DOCUMENTS_DOCUMENT_TYPE,
+        processor_factory=_create_incoming_purchase_documents_processor,
+        workflow_factory=_create_incoming_purchase_documents_workflow,
+        registry_definition_factory=(
+            _create_incoming_purchase_documents_registry_definition
+        ),
     ),
 }
 SUPPORTED_DOCUMENT_TYPES = tuple(DOCUMENT_TYPE_DEFINITIONS)

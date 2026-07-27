@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .document_processor import DocumentProcessor
+from .document_processor import Processor
 from .document_types import (
     DEFAULT_DOCUMENT_TYPE,
     SUPPORTED_DOCUMENT_TYPES,
@@ -29,7 +29,7 @@ def process_folder(
     debug_crops: bool = False,
     document_type: str = DEFAULT_DOCUMENT_TYPE,
     document_type_definition: DocumentTypeDefinition | None = None,
-    document_processor: DocumentProcessor | None = None,
+    document_processor: Processor | None = None,
     processing_workflow: ProcessingWorkflow | None = None,
     registry_definition: RegistryDefinition | None = None,
 ) -> tuple[list[ExtractedDocument], list[ExtractedDocument]]:
@@ -70,14 +70,14 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the command-line argument parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Process scanned accounting documents using a selected document "
+            "Process accounting source documents using a selected document "
             "type workflow."
         ),
     )
     parser.add_argument(
         "--source",
         required=True,
-        help="Source folder with scans. Subfolders are processed recursively.",
+        help="Source folder with documents. Subfolders are processed recursively.",
     )
     parser.add_argument(
         "--output",
@@ -123,14 +123,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-auto-rotate",
         action="store_true",
         help=(
-            "Do not try 90/180/270-degree rotations. Faster, but sideways "
-            "documents may be skipped."
+            "Do not try 90/180/270-degree rotations in image processors. "
+            "This option has no effect on native PDF/DOCX reading."
         ),
     )
     parser.add_argument(
         "--debug-crops",
         action="store_true",
-        help="Save processor-specific OCR crops when supported by the workflow.",
+        help="Save processor-specific local debug data when supported.",
     )
     return parser
 

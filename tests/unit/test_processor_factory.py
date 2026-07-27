@@ -45,3 +45,39 @@ def test_definition_registry_rejects_unknown_document_type():
     """Verify unsupported document types fail before any workflow starts."""
     with pytest.raises(ValueError):
         get_document_type_definition("unknown_document_type")
+
+
+def test_replaced_electronic_upd_identifier_is_not_registered():
+    """Verify the superseded new identifier does not remain as a hidden alias.
+
+    Protected risk: workbook metadata and CLI selection must use one canonical
+    identifier before task aggregation is introduced.
+    """
+    with pytest.raises(ValueError):
+        get_document_type_definition("upd_invoices_status_1_files")
+
+
+def test_electronic_upd_definition_builds_source_file_components():
+    """Verify electronic UPD registration does not replace the scan definition.
+
+    Protected risk: adding PDF and DOCX processing must preserve the existing
+    default scan processor while exposing a separate selectable workflow.
+    """
+    from source_docs_processor.incoming_purchase_documents.registry import (
+        IncomingPurchaseDocumentsRegistryDefinition,
+    )
+    from source_docs_processor.incoming_purchase_documents.workflow import (
+        IncomingPurchaseDocumentsWorkflow,
+    )
+
+    definition = get_document_type_definition("incoming_purchase_documents")
+
+    processor = definition.create_processor()
+    workflow = definition.create_workflow()
+    registry = definition.create_registry_definition()
+
+    assert DEFAULT_DOCUMENT_TYPE == "upd_invoices_status_1"
+    assert processor.document_type == "incoming_purchase_documents"
+    assert processor.supported_extensions == frozenset({".pdf", ".docx"})
+    assert isinstance(workflow, IncomingPurchaseDocumentsWorkflow)
+    assert isinstance(registry, IncomingPurchaseDocumentsRegistryDefinition)

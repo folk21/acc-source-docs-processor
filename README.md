@@ -1,37 +1,37 @@
 # acc-source-docs-processor
 
-`acc-source-docs-processor` is a local Python CLI for processing folders of scanned accounting source documents.
+`acc-source-docs-processor` is a local Python CLI for processing accounting source documents.
 
-All processing is local. Source files are never modified, and scans are not uploaded to external services.
+All processing is local. Source files are never modified and are not uploaded to external services.
 
-The application supports different document types. Each document type combines three independent components:
+Each CLI-selectable document type combines three independent components:
 
 ```text
 CLI arguments
   -> DocumentTypeDefinition
-      -> DocumentProcessor
+      -> Processor
       -> ProcessingWorkflow
       -> RegistryDefinition
 ```
 
-- `DocumentProcessor` recognizes one image, extracts its fields, and determines the correct orientation.
-- `ProcessingWorkflow` scans source folders and controls file processing: which files are copied, how output copies are named and organized, and which documents are included in registries and reports. Shared file-operation helpers perform the actual copying and image writing.
-- `RegistryDefinition` defines registry columns and maps each extracted document to a row. CSV and XLSX writers serialize those rows into registry files.
+- A processor recognizes and extracts one image or source file.
+- A workflow owns recursive folder behavior, copying, output selection, and reports.
+- A registry definition owns tabular schemas and row mapping.
+- Generic CSV and XLSX writers serialize document-specific registry data.
 
 ## Supported document types
 
-| Document type | Purpose | Output |
-|---|---|---|
-| `upd_invoices_status_1` | Russian UPD invoice-transfer documents with status `1` | Corrected (rotated to normal view), copied and renamed images; CSV registry; text report |
-| `npd_receipts` | Russian NPD receipts issued by self-employed persons | Copied and renamed images; linked XLSX registry; text report |
+| Document type | Purpose | Input | Output |
+|---|---|---|---|
+| `upd_invoices_status_1` | Scan-oriented Russian UPD invoice-transfer documents with status `1` | PNG, JPG, TIFF, BMP | Corrected and renamed images; CSV registry; text report |
+| `npd_receipts` | Russian NPD receipts issued by self-employed persons | PNG, JPG, TIFF, BMP | Copied and renamed images; linked XLSX registry; text report |
+| `incoming_purchase_documents` | Incoming purchase documents for 1C entry; current scope is UPD status `1` | PDF, DOCX | Task-oriented XLSX workbook with links to source files; text report |
 
-The default document type is `upd_invoices_status_1`.
-
-Supported source image formats are `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, and `.bmp`. Source folders are scanned recursively.
+The default document type remains `upd_invoices_status_1`.
 
 ## Requirements
 
-Python 3.10 or newer is required. Install Tesseract OCR with Russian and English language data.
+Python 3.10 or newer is required. Tesseract OCR with Russian and English language data is required for image workflows and scanned PDF fallback.
 
 ### macOS
 
@@ -60,47 +60,61 @@ pip install -r requirements.txt
 Run commands from the project root.
 
 ```bash
-python main.py --source "/path/to/scans"
+python main.py --source "/path/to/documents"
 ```
 
-Select a document type explicitly with `--document-type`:
-
-```bash
-python main.py \
-  --source "/path/to/scans" \
-  --document-type upd_invoices_status_1
-```
+Select a document type explicitly with `--document-type`.
 
 Without `--output`, workflow output is created below the current working directory. `--target-dir-name` overrides the selected workflow's default folder name.
 
-### UPD status 1
+### Scanned UPD status 1
 
 ```bash
 python main.py \
   --source "/path/to/upd-scans" \
   --output "/path/to/output" \
-  --target-dir-name "result_2026" \
   --document-type upd_invoices_status_1
 ```
 
-The UPD workflow:
-
-1. recognizes UPD status `1` documents;
-2. corrects orientation;
-3. copies and renames recognized files;
-4. copies unrecognized files unchanged;
-5. attaches continuation pages conservatively;
-6. preserves source subfolders;
-7. writes a detailed semicolon-separated CSV registry and a text report.
+The scan workflow recognizes status `1`, corrects orientation, copies and renames recognized images, preserves source subfolders, attaches continuation pages conservatively, and writes a detailed semicolon-separated CSV plus a report.
 
 The default output folder is `./передаточные_документы`.
-
-Established filename examples:
 
 ```text
 УПД_511_от_21-03-2023.png
 УПД_511_от_21-03-2023_2_страница.png
 ```
+
+### Incoming purchase documents
+
+```bash
+python main.py \
+  --source "/path/to/upd-input" \
+  --output "/path/to/output" \
+  --document-type incoming_purchase_documents
+```
+
+The `incoming_purchase_documents` workflow currently supports only UPD status `1` files:
+
+1. scans PDF and DOCX files recursively;
+2. reads native PDF text and tables before using OCR fallback;
+3. reads DOCX paragraphs and tables directly;
+4. extracts document number, date, seller and buyer details, totals, and goods or service rows;
+5. validates item arithmetic and document totals;
+6. links directly to source PDF/DOCX files without copying them;
+7. writes `реестр_упд_для_ввода_в_1с.xlsx` and a text report;
+8. creates a duplicate-safe workbook name on repeated runs instead of overwriting prior processing state.
+
+When `--output` is provided without `--target-dir-name`, workbook and report files are written directly into that directory. Without `--output`, the default output folder is `./упд_для_ввода_в_1с`.
+
+The workbook contains:
+
+- `Documents` — one accountant task per source document with a binary `обработано` dropdown (`Нет`/`Да`);
+- `Items` — extracted goods and service rows linked through a hidden `task_id`;
+- `Review` — missing fields, recognition warnings, and arithmetic conflicts;
+- `_metadata` — a hidden schema/version sheet for future task aggregation.
+
+The processing dropdown belongs to the complete document, not to individual item rows. `task_id` is an internal stable identifier used to link sheets and future task summaries; its columns are hidden and must not be edited. Files that cannot be confirmed as UPD status `1` remain visible and are marked for review. Legacy binary `.doc` files are not supported; convert them to `.docx` or PDF first.
 
 ### NPD receipts
 
@@ -108,48 +122,25 @@ Established filename examples:
 python main.py \
   --source "/path/to/receipts" \
   --output "/path/to/output" \
-  --target-dir-name "processed_receipts" \
   --document-type npd_receipts
 ```
 
-The NPD receipt workflow:
+The receipt workflow copies every image, renames recognized receipts, preserves source subfolders, and writes `реестр_чеков_нпд.xlsx`. Only recognized receipts are included in the workbook.
 
-1. scans source images recursively;
-2. copies every image while preserving source subfolders;
-3. renames recognized receipts as `<date>_<amount>_<surnameFirstNamePatronymic>_<receiptNumber>.<extension>`;
-4. copies unrecognized images without renaming;
-5. writes `реестр_чеков_нпд.xlsx` and a text report;
-6. includes only recognized receipts in the XLSX registry.
-
-The workbook contains exactly these columns, in order:
-
-```text
-target_file_name
-source_file_name
-дата
-сумма
-фио получателя суммы
-номер_чека
-ИНН получателя
-комментарии о генерации
-```
-
-Only `target_file_name` is a hyperlink to the copied receipt. `source_file_name` remains plain text. The default output folder is `./чеки_нпд`.
+The default output folder is `./чеки_нпд`.
 
 ## Common options
 
 ```bash
-python main.py --source "/path/to/scans" --debug-crops
-python main.py --source "/path/to/scans" --deep-ocr
-python main.py --source "/path/to/scans" --no-auto-rotate
-python main.py --source "/path/to/scans" --dry-run
+python main.py --source "/path/to/documents" --debug-crops
+python main.py --source "/path/to/documents" --deep-ocr
+python main.py --source "/path/to/documents" --no-auto-rotate
+python main.py --source "/path/to/documents" --dry-run
 ```
 
-Each workflow interprets output-related options according to its output policy.
+Each workflow interprets options according to its input and output policy. For `incoming_purchase_documents`, `--deep-ocr` also OCRs PDF pages that already contain native text; normal runs OCR only pages without a useful text layer.
 
 ## Tests
-
-Install development dependencies and run syntax validation plus the test suite:
 
 ```bash
 pip install -r requirements-dev.txt
@@ -157,7 +148,7 @@ python -m compileall -q main.py source_docs_processor tests
 python -m pytest -q
 ```
 
-Most tests use prepared OCR text, fake processors, independent fake workflows, custom registry definitions, and generated images. Real accounting scans and identifiers must not be committed to the repository.
+Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generated images. Real accounting scans, company names, and identifiers must not be committed.
 
 ## Documentation
 

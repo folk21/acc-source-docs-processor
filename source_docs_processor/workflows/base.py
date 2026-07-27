@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from ..document_processor import DocumentProcessor
+from ..document_processor import Processor
 from ..models import ExtractedDocument
 from ..registry.base import RegistryDefinition
 
@@ -43,7 +43,7 @@ class ProcessingWorkflow(Protocol):
 
     def process(
         self,
-        processor: DocumentProcessor,
+        processor: Processor,
         registry_definition: RegistryDefinition,
         options: ProcessingOptions,
     ) -> ProcessingResult:
