@@ -116,3 +116,34 @@ def test_workflow_uses_requested_filename_and_exact_registry_columns(tmp_path):
     links = _external_links(registry_path)
     assert target_name in links
     assert "receipt.jpg" not in links
+
+
+def test_explicit_output_directory_is_used_without_default_nested_folder(tmp_path):
+    """Write receipt artifacts directly into an explicit output directory.
+
+    Protected risk: ``--output receipts_dir`` must not create an additional
+    ``receipts_dir/чеки_нпд`` level when no target directory name is requested.
+    """
+    pytest.importorskip("xlsxwriter")
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "receipts_dir"
+    _write_image(source_dir / "receipt.jpg")
+
+    process_folder(
+        source_dir=source_dir,
+        output_dir=output_dir,
+        lang="rus+eng",
+        document_type="npd_receipts",
+        document_processor=FakeNpdReceiptProcessor(),
+        processing_workflow=NpdReceiptRegistryWorkflow(),
+        registry_definition=NpdReceiptRegistryDefinition(),
+    )
+
+    expected_receipt = (
+        output_dir
+        / "02-04-2026_1250.50_ИвановИванИванович_R-10.jpg"
+    )
+    assert expected_receipt.exists()
+    assert (output_dir / "реестр_чеков_нпд.xlsx").exists()
+    assert (output_dir / "чеки_нпд_report.txt").exists()
+    assert not (output_dir / "чеки_нпд").exists()

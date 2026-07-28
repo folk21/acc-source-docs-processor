@@ -91,6 +91,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Keep NPD-specific code under `source_docs_processor/npd_receipts/`.
 - Keep receipt OCR and extraction inside the NPD package.
 - Keep copy, rename, output-folder, and workbook selection policy in `workflow.py`.
+- Write directly into an explicit `--output` directory unless `--target-dir-name` is also provided.
 - Keep the compact XLSX schema and row mapping in `registry.py`.
 - Preserve copying of every source image and relative subfolder structure.
 - Rename only recognized receipts; copy unrecognized images without renaming.

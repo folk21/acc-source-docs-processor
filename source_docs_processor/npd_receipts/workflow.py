@@ -63,7 +63,12 @@ class NpdReceiptRegistryWorkflow:
         target_name = normalize_target_dir_name(
             options.target_dir_name or self.default_target_dir_name
         )
-        target_root = (options.output_dir or Path.cwd()) / target_name
+        if options.output_dir is None:
+            target_root = Path.cwd() / target_name
+        elif options.target_dir_name:
+            target_root = options.output_dir / target_name
+        else:
+            target_root = options.output_dir
         registry_path = target_root / self.default_registry_name
         report_path = target_root / f"{target_name}_report.txt"
         debug_root = target_root / "_debug" if options.debug_crops else None

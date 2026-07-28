@@ -136,7 +136,7 @@ python main.py process \
 
 The receipt workflow copies every image, renames recognized receipts, preserves source subfolders, and writes `реестр_чеков_нпд.xlsx`. Only recognized receipts are included in the workbook.
 
-The default output folder is `./чеки_нпд`.
+When `--output` is provided without `--target-dir-name`, copied receipts, the workbook, and the report are written directly into that directory. Without `--output`, the default output folder is `./чеки_нпд`.
 
 ## Processing options
 

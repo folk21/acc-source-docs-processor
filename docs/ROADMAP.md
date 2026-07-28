@@ -68,6 +68,7 @@ Status legend:
 - [x] Preserve relative source subfolders in copied output.
 - [x] Copy unrecognized receipt images without renaming.
 - [x] Write `реестр_чеков_нпд.xlsx` inside the target directory.
+- [x] Write NPD artifacts directly into an explicit `--output` directory unless a target name is requested.
 - [x] Include only recognized receipts in the workbook.
 - [x] Keep the exact compact eight-column workbook contract.
 - [x] Add a hyperlink only to `target_file_name`.

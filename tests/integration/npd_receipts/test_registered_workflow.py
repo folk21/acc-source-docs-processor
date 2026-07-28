@@ -90,7 +90,7 @@ def test_registered_receipt_workflow_uses_current_output_contract(tmp_path):
         document_processor=FakeNpdReceiptProcessor(),
     )
 
-    target_root = output_dir / "чеки_нпд"
+    target_root = output_dir
     target_subdir = target_root / "nested"
     copied_name = (
         "2026-07-15_1250.00_"

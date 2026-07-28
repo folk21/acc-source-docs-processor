@@ -2,6 +2,14 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.11.1 — Explicit NPD output directory
+
+### Changed
+
+- Changed the NPD receipt workflow so an explicit `--output` directory receives copied receipts, `реестр_чеков_нпд.xlsx`, and the text report directly.
+- Preserved nested output only when `--target-dir-name` is provided or when the default output directory is used without `--output`.
+- Added integration regression coverage preventing an unexpected `чеки_нпд` subdirectory below an explicit output path.
+
 ## 0.11.0 — Operation subcommands
 
 ### Added
