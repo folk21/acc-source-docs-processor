@@ -24,7 +24,7 @@ class NpdReceiptRegistryWorkflow:
     """Copy all images, rename recognized receipts, and write an XLSX registry."""
 
     default_target_dir_name = "чеки_нпд"
-    default_registry_name = "реестр_чеков_нпд.xlsx"
+    default_registry_name = "npd_receipts_registry.xlsx"
 
     def build_output_filename_stem(self, document: ExtractedDocument) -> str:
         """Build ``date_amount_fullName_receiptNumber`` for a copied receipt."""
@@ -70,9 +70,8 @@ class NpdReceiptRegistryWorkflow:
         else:
             target_root = options.output_dir
         registry_path = target_root / self.default_registry_name
-        report_path = target_root / f"{target_name}_report.txt"
         debug_root = target_root / "_debug" if options.debug_crops else None
-        logger = RunLogger(report_path)
+        logger = RunLogger()
         found_documents: list[ExtractedDocument] = []
         all_documents: list[ExtractedDocument] = []
         files = sorted(
@@ -162,5 +161,5 @@ class NpdReceiptRegistryWorkflow:
             all_documents=all_documents,
             output_root=target_root,
             registry_path=None if options.dry_run else registry_path,
-            report_path=report_path,
+            report_path=None,
         )

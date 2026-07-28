@@ -2,6 +2,14 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.11.2 — Compact NPD output
+
+### Changed
+
+- Renamed the NPD workbook to `npd_receipts_registry.xlsx`.
+- Removed NPD text-report generation; the workflow now writes only copied images and the XLSX registry.
+- Updated integration coverage for the new NPD output contract.
+
 ## 0.11.1 — Explicit NPD output directory
 
 ### Changed

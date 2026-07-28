@@ -98,15 +98,14 @@ def test_registered_receipt_workflow_uses_current_output_contract(tmp_path):
     )
     copied_receipt = target_subdir / copied_name
     copied_unrecognized = target_subdir / "other.png"
-    registry_path = target_root / "реестр_чеков_нпд.xlsx"
-    report_path = target_root / "чеки_нпд_report.txt"
+    registry_path = target_root / "npd_receipts_registry.xlsx"
 
     assert len(found) == 1
     assert len(all_documents) == 2
     assert copied_receipt.exists()
     assert copied_unrecognized.exists()
     assert registry_path.exists()
-    assert report_path.exists()
+    assert not list(target_root.glob("*_report.txt"))
     assert found[0].destination_path == copied_receipt
 
     shared_strings = _shared_strings(registry_path)

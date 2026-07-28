@@ -81,13 +81,14 @@ def test_workflow_uses_requested_filename_and_exact_registry_columns(tmp_path):
     )
 
     target_dir = output_dir / "processed_receipts"
-    registry_path = target_dir / "реестр_чеков_нпд.xlsx"
+    registry_path = target_dir / "npd_receipts_registry.xlsx"
     target_name = "02-04-2026_1250.50_ИвановИванИванович_R-10.jpg"
     renamed_receipt = target_dir / target_name
 
     assert registry_path.exists()
     assert renamed_receipt.exists()
     assert (target_dir / "other.jpg").exists()
+    assert not list(target_dir.glob("*_report.txt"))
     assert len(found) == 1
     assert len(all_documents) == 2
     assert found[0].destination_path == renamed_receipt
@@ -144,6 +145,6 @@ def test_explicit_output_directory_is_used_without_default_nested_folder(tmp_pat
         / "02-04-2026_1250.50_ИвановИванИванович_R-10.jpg"
     )
     assert expected_receipt.exists()
-    assert (output_dir / "реестр_чеков_нпд.xlsx").exists()
-    assert (output_dir / "чеки_нпд_report.txt").exists()
+    assert (output_dir / "npd_receipts_registry.xlsx").exists()
+    assert not list(output_dir.glob("*_report.txt"))
     assert not (output_dir / "чеки_нпд").exists()

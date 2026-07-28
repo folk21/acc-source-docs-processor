@@ -95,7 +95,8 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Keep the compact XLSX schema and row mapping in `registry.py`.
 - Preserve copying of every source image and relative subfolder structure.
 - Rename only recognized receipts; copy unrecognized images without renaming.
-- Include only recognized receipts in `реестр_чеков_нпд.xlsx`.
+- Include only recognized receipts in `npd_receipts_registry.xlsx`.
+- Do not generate a text report for the NPD receipt workflow.
 - Preserve the filename pattern `<date>_<amount>_<surnameFirstNamePatronymic>_<receiptNumber>`.
 - Preserve the exact eight-column workbook contract documented in `README.md`.
 - Keep the hyperlink only in `target_file_name`; `source_file_name` must remain plain text.

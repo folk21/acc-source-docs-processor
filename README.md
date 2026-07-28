@@ -33,7 +33,7 @@ process command
 | Document type | Purpose | Input | Output |
 |---|---|---|---|
 | `upd_invoices_status_1` | Scan-oriented Russian UPD invoice-transfer documents with status `1` | PNG, JPG, TIFF, BMP | Corrected and renamed images; CSV registry; text report |
-| `npd_receipts` | Russian NPD receipts issued by self-employed persons | PNG, JPG, TIFF, BMP | Copied and renamed images; linked XLSX registry; text report |
+| `npd_receipts` | Russian NPD receipts issued by self-employed persons | PNG, JPG, TIFF, BMP | Copied and renamed images; linked XLSX registry |
 | `incoming_purchase_documents` | Incoming purchase documents for 1C entry; current scope is UPD status `1` | PDF, DOCX | Task-oriented XLSX workbook with links to source files; text report |
 
 The default processing document type remains `upd_invoices_status_1`.
@@ -134,9 +134,9 @@ python main.py process \
   --document-type npd_receipts
 ```
 
-The receipt workflow copies every image, renames recognized receipts, preserves source subfolders, and writes `реестр_чеков_нпд.xlsx`. Only recognized receipts are included in the workbook.
+The receipt workflow copies every image, renames recognized receipts, preserves source subfolders, and writes `npd_receipts_registry.xlsx`. Only recognized receipts are included in the workbook.
 
-When `--output` is provided without `--target-dir-name`, copied receipts, the workbook, and the report are written directly into that directory. Without `--output`, the default output folder is `./чеки_нпд`.
+When `--output` is provided without `--target-dir-name`, copied receipts and the workbook are written directly into that directory. Without `--output`, the default output folder is `./чеки_нпд`.
 
 ## Processing options
 

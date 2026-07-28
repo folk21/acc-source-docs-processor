@@ -13,10 +13,6 @@ zip -r "$ARCHIVE_NAME" "$PROJECT_DIR" \
      "*/.venv/*" \
      "*/.idea/*" \
      "*/__pycache__/*" \
-     "*/scans/*" \
-     "*/scans_1/*" \
-     "*/target_scans/*" \
-     "*/receipts_dir/*" \
      "*.zip" \
      "*/.DS_Store" \
      "*/.vscode/*" \

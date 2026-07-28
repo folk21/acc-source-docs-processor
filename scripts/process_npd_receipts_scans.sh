@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-rm -fR ../acc/output/receipts_dir
+rm -fR ../acc-work/output/npd_receipts
 
 # Process scanned NPD receipts from the project root.
 python main.py process \
-  --source ../acc_work/input/npd_receipts \
-  --output ../acc_work/output/receipts_dir \
+  --source ../acc-work/input/npd_receipts \
+  --output ../acc-work/output/npd_receipts \
   --document-type npd_receipts

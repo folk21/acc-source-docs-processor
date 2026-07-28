@@ -67,8 +67,9 @@ Status legend:
 - [x] Add a copy-and-register workflow that renames recognized receipts.
 - [x] Preserve relative source subfolders in copied output.
 - [x] Copy unrecognized receipt images without renaming.
-- [x] Write `реестр_чеков_нпд.xlsx` inside the target directory.
+- [x] Write `npd_receipts_registry.xlsx` inside the target directory.
 - [x] Write NPD artifacts directly into an explicit `--output` directory unless a target name is requested.
+- [x] Keep the NPD output limited to copied images and the XLSX registry without a text report.
 - [x] Include only recognized receipts in the workbook.
 - [x] Keep the exact compact eight-column workbook contract.
 - [x] Add a hyperlink only to `target_file_name`.
@@ -88,7 +89,7 @@ Status legend:
 - [x] Generate UTF-8 BOM semicolon-separated CSV for UPD.
 - [x] Generate formatted XLSX with portable file hyperlinks for NPD receipts.
 - [x] Keep absolute paths out of current registry cells.
-- [x] Generate text reports for both current workflows.
+- [x] Generate text reports for UPD workflows where an audit report is part of the output contract.
 - [x] Reuse XLSX output for electronic UPD task workbooks.
 - [ ] Add a review folder for low-confidence documents.
 - [ ] Add machine-readable debug JSON.

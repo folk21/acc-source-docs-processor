@@ -250,7 +250,7 @@ This metadata is intended for a later task-summary generator that reads multiple
 
 ## NPD receipts
 
-The NPD processor owns OCR and receipt extraction. Its workflow copies all images, renames recognized receipts, preserves relative subfolders, and writes the compact eight-column `реестр_чеков_нпд.xlsx` workbook. An explicit `--output` directory is the final artifact directory unless `--target-dir-name` requests an additional nested folder.
+The NPD processor owns OCR and receipt extraction. Its workflow copies all images, renames recognized receipts, preserves relative subfolders, and writes the compact eight-column `npd_receipts_registry.xlsx` workbook. An explicit `--output` directory is the final artifact directory unless `--target-dir-name` requests an additional nested folder. The NPD workflow does not generate a text report.
 
 Only `target_file_name` is a hyperlink. Receipt-number extraction requires an explicit label, and the first INN in receipt order is treated as the self-employed issuer INN.
 
