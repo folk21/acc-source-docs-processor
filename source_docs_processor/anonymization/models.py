@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Literal, Protocol, Sequence
 
 
 @dataclass(frozen=True, order=True)
@@ -38,6 +39,25 @@ class AnonymizedFileResult:
     def succeeded(self) -> bool:
         """Return True when the anonymized output was created."""
         return self.error is None and self.destination_path is not None
+
+
+@dataclass(frozen=True)
+class AnonymizationProgress:
+    """Privacy-safe progress event for one anonymization run."""
+
+    event: Literal["file_started", "unit_started", "file_finished"]
+    source_path: Path
+    file_index: int
+    file_count: int
+    unit_name: str | None = None
+    unit_index: int | None = None
+    unit_count: int | None = None
+    detected_entities: int = 0
+    error: str | None = None
+
+
+AnonymizationProgressCallback = Callable[[AnonymizationProgress], None]
+UnitProgressCallback = Callable[[str, int, int], None]
 
 
 @dataclass

@@ -8,6 +8,11 @@ from pathlib import Path, PurePosixPath
 
 from lxml import etree
 
+from .config import (
+    AnonymizationConfig,
+    EMPTY_ANONYMIZATION_CONFIG,
+    mask_after_heading,
+)
 from .image import SUPPORTED_IMAGE_EXTENSIONS, anonymize_image_bytes
 from .models import TextEntityAnalyzer
 from .text import mask_text
@@ -93,11 +98,13 @@ def _sanitize_content_types(root: etree._Element) -> None:
 def _mask_text_nodes(
     root: etree._Element,
     analyzer: TextEntityAnalyzer,
+    config: AnonymizationConfig,
 ) -> int:
     """Mask text across paragraph runs and then sanitize remaining text nodes."""
     detected = 0
     processed: set[int] = set()
 
+    redact_remaining_paragraphs = False
     for paragraph in root.iter():
         if _local_name(paragraph.tag) not in _PARAGRAPH_LOCAL_NAMES:
             continue
@@ -111,6 +118,20 @@ def _mask_text_nodes(
         combined = "".join(node.text or "" for node in nodes)
         masked, entities = mask_text(combined, analyzer)
         detected += len(entities)
+        if redact_remaining_paragraphs:
+            masked = "".join(
+                character if character.isspace() else "█"
+                for character in masked
+            )
+        else:
+            masked, heading_found = mask_after_heading(
+                combined,
+                masked,
+                config.included_paragraphs,
+            )
+            if heading_found:
+                redact_remaining_paragraphs = True
+                detected += 1
         offset = 0
         for node in nodes:
             length = len(node.text or "")
@@ -137,6 +158,7 @@ def _sanitize_xml(
     name: str,
     content: bytes,
     analyzer: TextEntityAnalyzer,
+    config: AnonymizationConfig,
 ) -> tuple[bytes, int]:
     """Sanitize one XML part and return serialized safe content."""
     root = etree.fromstring(content, parser=_xml_parser())
@@ -146,7 +168,7 @@ def _sanitize_xml(
     elif name == "[Content_Types].xml" and root.tag == f"{{{_CONTENT_TYPES_NS}}}Types":
         _sanitize_content_types(root)
     else:
-        detected = _mask_text_nodes(root, analyzer)
+        detected = _mask_text_nodes(root, analyzer, config)
 
     if name in {"docProps/core.xml", "docProps/app.xml"}:
         for element in root.iter():
@@ -202,6 +224,7 @@ def anonymize_docx_file(
     destination: Path,
     analyzer: TextEntityAnalyzer,
     lang: str = "rus+eng",
+    config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
 ) -> int:
     """Anonymize text and raster media while stripping hidden custom data."""
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -229,7 +252,7 @@ def anonymize_docx_file(
                     or name.endswith(".rels")
                     or name == "[Content_Types].xml"
                 ):
-                    content, count = _sanitize_xml(name, content, analyzer)
+                    content, count = _sanitize_xml(name, content, analyzer, config)
                     detected += count
                 elif (
                     name.startswith("word/media/")
@@ -240,6 +263,7 @@ def anonymize_docx_file(
                         suffix=suffix,
                         analyzer=analyzer,
                         lang=lang,
+                        config=config,
                     )
                     detected += count
 

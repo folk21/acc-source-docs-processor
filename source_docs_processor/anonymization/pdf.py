@@ -8,8 +8,9 @@ from pathlib import Path
 import fitz
 from PIL import Image
 
-from .image import redact_pil_image
-from .models import TextEntityAnalyzer
+from .config import AnonymizationConfig, EMPTY_ANONYMIZATION_CONFIG
+from .image import ParagraphRedactionState, redact_pil_image
+from .models import TextEntityAnalyzer, UnitProgressCallback
 
 
 PDF_RENDER_DPI = 220
@@ -28,25 +29,33 @@ def anonymize_pdf_file(
     analyzer: TextEntityAnalyzer,
     lang: str = "rus+eng",
     dpi: int = PDF_RENDER_DPI,
+    config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
+    progress_callback: UnitProgressCallback | None = None,
 ) -> int:
     """Render, redact, and rebuild a PDF without source text layers or metadata."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     output = fitz.open()
     detected = 0
+    paragraph_state = ParagraphRedactionState()
     try:
         with fitz.open(source) as document:
             if document.needs_pass:
                 raise ValueError("Password-protected PDF files are not supported")
             matrix = fitz.Matrix(dpi / 72.0, dpi / 72.0)
-            for page in document:
+            page_count = document.page_count
+            for page_index, page in enumerate(document, start=1):
+                if progress_callback is not None:
+                    progress_callback("page", page_index, page_count)
                 pixmap = page.get_pixmap(matrix=matrix, alpha=False)
                 image = _pixmap_to_image(pixmap)
-                redacted, page_count = redact_pil_image(
+                redacted, page_detected = redact_pil_image(
                     image,
                     analyzer=analyzer,
                     lang=lang,
+                    config=config,
+                    paragraph_state=paragraph_state,
                 )
-                detected += page_count
+                detected += page_detected
                 buffer = BytesIO()
                 redacted.save(buffer, format="PNG", optimize=True)
                 output_page = output.new_page(

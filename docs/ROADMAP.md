@@ -109,7 +109,8 @@ Status legend:
 - [x] Implement local directory anonymization behind the `anonymize` subcommand.
 - [x] Add Microsoft Presidio with Russian spaCy NER and accounting/identity recognizers.
 - [x] Add fail-closed PDF, DOCX, TXT, and raster-image output sanitization.
-- [ ] Add configurable allow lists and custom organization/person dictionaries.
+- [x] Add configurable default-mode exclusions, included-only literal redaction, and section-level redaction headings.
+- [ ] Add custom organization/person dictionaries beyond literal matching.
 - [ ] Add an optional machine-readable anonymization audit report without PII values.
 - [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug options.
 - [x] Let each workflow interpret output-related options.

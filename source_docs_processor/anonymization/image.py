@@ -10,7 +10,12 @@ import numpy as np
 import pytesseract
 from PIL import Image, ImageDraw, ImageSequence
 
-from .models import DetectedEntity, TextEntityAnalyzer
+from .config import (
+    AnonymizationConfig,
+    EMPTY_ANONYMIZATION_CONFIG,
+    find_heading_token_range,
+)
+from .models import DetectedEntity, TextEntityAnalyzer, UnitProgressCallback
 from .text import merge_entities
 
 
@@ -40,6 +45,13 @@ class OcrPage:
     rotation_degrees: int
     original_width: int
     original_height: int
+
+
+@dataclass
+class ParagraphRedactionState:
+    """Track whether a configured section continues onto later raster pages."""
+
+    redact_all: bool = False
 
 
 def _rotated_image(image: Image.Image, angle: int) -> Image.Image:
@@ -142,6 +154,7 @@ def _choose_ocr_page(
     image: Image.Image,
     analyzer: TextEntityAnalyzer,
     lang: str,
+    config: AnonymizationConfig,
 ) -> tuple[OcrPage, list[DetectedEntity]]:
     """Choose the orientation with the strongest PII and OCR signal."""
     candidates: list[tuple[OcrPage, list[DetectedEntity]]] = []
@@ -157,6 +170,11 @@ def _choose_ocr_page(
     return max(
         candidates,
         key=lambda candidate: (
+            find_heading_token_range(
+                [word.text for word in candidate[0].words],
+                config.included_paragraphs,
+            )
+            is not None,
             len(candidate[1]),
             sum(word.confidence >= 35 for word in candidate[0].words),
             len(candidate[0].text),
@@ -170,18 +188,55 @@ def _overlaps(word: OcrWord, entity: DetectedEntity) -> bool:
     return word.start < entity.end and word.end > entity.start
 
 
+def _redact_configured_section(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    page: OcrPage,
+    config: AnonymizationConfig,
+    state: ParagraphRedactionState,
+    padding: int,
+) -> bool:
+    """Redact below a configured heading and activate later-page redaction."""
+    token_range = find_heading_token_range(
+        [word.text for word in page.words],
+        config.included_paragraphs,
+    )
+    if token_range is None:
+        return False
+    start, end = token_range
+    matched_words = page.words[start:end]
+    if not matched_words:
+        return False
+    cutoff = min(
+        image.height,
+        max(word.top + word.height for word in matched_words) + padding,
+    )
+    if cutoff < image.height:
+        draw.rectangle((0, cutoff, image.width, image.height), fill=(0, 0, 0))
+    state.redact_all = True
+    return True
+
+
 def redact_pil_image(
     image: Image.Image,
     analyzer: TextEntityAnalyzer,
     lang: str = "rus+eng",
     padding: int = 4,
+    config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
+    paragraph_state: ParagraphRedactionState | None = None,
 ) -> tuple[Image.Image, int]:
-    """Redact detected PII with opaque rectangles on one raster image."""
+    """Redact detected PII and configured page sections on one raster image."""
     rgb = image.convert("RGB")
-    page, entities = _choose_ocr_page(rgb, analyzer=analyzer, lang=lang)
-    if not entities:
-        return rgb, 0
+    state = paragraph_state or ParagraphRedactionState()
+    if state.redact_all:
+        return Image.new("RGB", rgb.size, "black"), 0
 
+    page, entities = _choose_ocr_page(
+        rgb,
+        analyzer=analyzer,
+        lang=lang,
+        config=config,
+    )
     draw = ImageDraw.Draw(rgb)
     for word in page.words:
         if not any(_overlaps(word, entity) for entity in entities):
@@ -191,7 +246,16 @@ def redact_pil_image(
         right = min(rgb.width, word.left + word.width + padding)
         bottom = min(rgb.height, word.top + word.height + padding)
         draw.rectangle((left, top, right, bottom), fill=(0, 0, 0))
-    return rgb, len(entities)
+
+    section_redacted = _redact_configured_section(
+        rgb,
+        draw,
+        page,
+        config,
+        state,
+        padding,
+    )
+    return rgb, len(entities) + int(section_redacted)
 
 
 def _save_frames(frames: list[Image.Image], destination: Path, suffix: str) -> None:
@@ -220,19 +284,27 @@ def anonymize_image_file(
     destination: Path,
     analyzer: TextEntityAnalyzer,
     lang: str = "rus+eng",
+    config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
+    progress_callback: UnitProgressCallback | None = None,
 ) -> int:
     """Anonymize every frame in one supported raster image file."""
     redacted_frames: list[Image.Image] = []
     detected = 0
+    state = ParagraphRedactionState()
     with Image.open(source) as image:
-        for frame in ImageSequence.Iterator(image):
-            redacted, frame_count = redact_pil_image(
+        frame_count = getattr(image, "n_frames", 1)
+        for frame_index, frame in enumerate(ImageSequence.Iterator(image), start=1):
+            if progress_callback is not None:
+                progress_callback("frame", frame_index, frame_count)
+            redacted, frame_detected = redact_pil_image(
                 frame.copy(),
                 analyzer=analyzer,
                 lang=lang,
+                config=config,
+                paragraph_state=state,
             )
             redacted_frames.append(redacted)
-            detected += frame_count
+            detected += frame_detected
     if not redacted_frames:
         raise ValueError(f"Image has no readable frames: {source}")
     _save_frames(redacted_frames, destination, source.suffix.lower())
@@ -244,19 +316,23 @@ def anonymize_image_bytes(
     suffix: str,
     analyzer: TextEntityAnalyzer,
     lang: str = "rus+eng",
+    config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
 ) -> tuple[bytes, int]:
     """Anonymize every frame in one embedded raster image."""
     frames: list[Image.Image] = []
     detected = 0
+    state = ParagraphRedactionState()
     with Image.open(BytesIO(content)) as image:
         for frame in ImageSequence.Iterator(image):
-            redacted, frame_count = redact_pil_image(
+            redacted, frame_detected = redact_pil_image(
                 frame.copy(),
                 analyzer=analyzer,
                 lang=lang,
+                config=config,
+                paragraph_state=state,
             )
             frames.append(redacted)
-            detected += frame_count
+            detected += frame_detected
     if not frames:
         raise ValueError("Embedded image has no readable frames")
 

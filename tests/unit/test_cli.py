@@ -48,6 +48,7 @@ def test_anonymize_subcommand_accepts_directory_paths_only() -> None:
     assert args.command == "anonymize"
     assert args.source == "/tmp/source"
     assert args.output == "/tmp/output"
+    assert args.config == "config/anonymization.ini"
     assert not hasattr(args, "document_type")
 
 

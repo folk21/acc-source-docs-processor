@@ -36,7 +36,7 @@ def test_pdf_anonymization_rebuilds_pages_without_text_layer(
     document.save(source)
     document.close()
 
-    def fake_redact(image: Image.Image, analyzer, lang: str):
+    def fake_redact(image: Image.Image, analyzer, lang: str, **kwargs):
         return Image.new("RGB", image.size, "black"), 1
 
     monkeypatch.setattr(pdf_module, "redact_pil_image", fake_redact)

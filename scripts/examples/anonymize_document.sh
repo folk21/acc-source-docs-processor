@@ -4,4 +4,5 @@ set -euo pipefail
 # Anonymize supported files recursively while preserving names and subfolders.
 python main.py anonymize \
   --source "/path/to/private-documents" \
-  --output "/path/to/anonymized-documents"
+  --output "/path/to/anonymized-documents" \
+  --config "config/anonymization.ini"

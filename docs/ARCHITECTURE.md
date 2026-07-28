@@ -56,6 +56,7 @@ source_docs_processor/
 │   ├── process.py
 │   └── anonymize.py
 ├── anonymization/
+│   ├── config.py
 │   ├── docx.py
 │   ├── image.py
 │   ├── models.py
@@ -107,12 +108,14 @@ source_docs_processor/
 ```text
 source directory
   -> recursive supported-file selection
-      -> Presidio Russian NER and pattern recognition
+      -> configured literal-only analyzer or Presidio Russian NER
           -> format-specific sanitizer
               -> same relative path and file name below output directory
 ```
 
 `text.py` configures `ru_core_news_sm` through Presidio's `SpacyNlpEngine`, maps Russian spaCy labels to Presidio entities, and registers Russian accounting and identity patterns. Detected spans are normalized into the project-owned `DetectedEntity` model so tests do not require real NLP models.
+
+`config.py` loads literal `excluded`, `included`, and `includedParagraphs` rules from an INI file. A non-empty `included` list enables literal-only mode, bypasses Presidio and `excluded`, and supports flexible whitespace inside multiword entries. With an empty `included`, Presidio remains the base analyzer and `excluded` subtracts explicit false-positive ranges. Section headings operate independently and activate full redaction below the heading and across later raster pages.
 
 `image.py` runs local Tesseract OCR against four orientation candidates, maps detected text spans back to original pixel coordinates, draws opaque rectangles, and writes images without source metadata.
 
@@ -120,7 +123,7 @@ source directory
 
 `docx.py` processes the OOXML ZIP package directly. It masks paragraph text across run boundaries, sanitizes remaining XML text and author attributes, strips core/custom metadata, removes external relationships and custom XML, and redacts supported embedded raster images. It rejects opaque embedded or active content instead of copying it unchanged.
 
-`workflow.py` preserves relative paths and file names, writes each output atomically, excludes an output directory placed below the source tree, and records failures without logging recognized values. Unsupported files remain absent from output and cause a non-zero command result.
+`workflow.py` preserves relative paths and file names, writes each output atomically, excludes an output directory placed below the source tree, emits privacy-safe file/page progress events, and records failures without logging recognized values. Unsupported files remain absent from output and cause a non-zero command result.
 
 ## Document type registry
 

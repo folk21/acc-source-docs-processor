@@ -116,6 +116,11 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Strip image metadata and sanitize DOCX metadata, external relationships, custom XML, and supported embedded raster images.
 - Reject DOCX macros, OLE/ActiveX objects, embedded workbooks, and unsupported vector media until a reliable sanitizer exists.
 - Never log recognized PII values. Logs may contain only relative file paths, counts, and errors.
+- Keep user configuration under `config/anonymization.ini` with literal `excluded`, `included`, and `includedParagraphs` rules.
+- Treat a non-empty `included` list as literal-only mode: do not run the default analyzer and ignore `excluded`.
+- Use `excluded` only to refine default detections when `included` is empty.
+- Treat `includedParagraphs` as an independent, stronger section-level rule once its heading has matched.
+- Preserve immediate privacy-safe progress output for long OCR runs.
 - Document that OCR and NER are heuristic and that output requires manual review before external sharing.
 
 ## Testing rules

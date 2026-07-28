@@ -2,6 +2,34 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.13.1 — Included-only anonymization mode
+
+### Changed
+
+- Changed a non-empty `included` list to become the only literal redaction source.
+- Bypassed default Presidio detections and ignored `excluded` while included-only mode is active.
+- Skipped Presidio and spaCy model loading in included-only mode.
+- Kept `includedParagraphs` independent and active in both analyzer modes.
+- Allowed multiword literal rules to match across spaces, tabs, and line breaks.
+- Updated the default local configuration with the requested included-only values.
+- Bumped the package version to `0.13.1`.
+
+## 0.13.0 — Configurable anonymization rules and progress
+
+### Added
+
+- Added `config/anonymization.ini` with `excluded`, `included`, and `includedParagraphs` lists.
+- Added case-insensitive literal inclusion and exclusion around default Presidio detections.
+- Added section-level redaction below configured headings and across all following PDF/TIFF pages.
+- Added immediate file progress plus PDF page and image-frame progress in the CLI.
+- Added regression coverage for configuration parsing, literal overrides, section masking, later-page coverage, and progress callbacks.
+
+### Changed
+
+- Added optional `--config`, defaulting to `config/anonymization.ini`.
+- Included configured headings in OCR orientation scoring.
+- Bumped the package version to `0.13.0`.
+
 ## 0.12.0 — Local folder anonymization
 
 ### Added

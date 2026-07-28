@@ -7,38 +7,85 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ..anonymization import anonymize_folder, create_presidio_analyzer
+from ..anonymization import (
+    AnonymizationProgress,
+    ConfiguredTextAnalyzer,
+    DEFAULT_CONFIG_PATH,
+    anonymize_folder,
+    create_presidio_analyzer,
+    load_anonymization_config,
+)
+
+
+def _print_progress(progress: AnonymizationProgress, source_root: Path) -> None:
+    """Print one immediate privacy-safe progress line."""
+    relative_path = progress.source_path.relative_to(source_root)
+    prefix = f"[{progress.file_index}/{progress.file_count}]"
+    if progress.event == "file_started":
+        print(f"{prefix} START: {relative_path}", flush=True)
+        return
+    if progress.event == "unit_started":
+        unit_name = (progress.unit_name or "unit").upper()
+        print(
+            f"{prefix} {unit_name} {progress.unit_index}/{progress.unit_count}: "
+            f"{relative_path}",
+            flush=True,
+        )
+        return
+    if progress.error is None:
+        print(
+            f"{prefix} DONE: {relative_path} "
+            f"(detected entities: {progress.detected_entities})",
+            flush=True,
+        )
+    else:
+        print(
+            f"{prefix} FAILED: {relative_path}: {progress.error}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def _run_anonymize_command(args: argparse.Namespace) -> int:
     """Anonymize one source directory and print a privacy-safe summary."""
     source_dir = Path(args.source).expanduser().resolve()
     output_dir = Path(args.output).expanduser().resolve()
-    analyzer = create_presidio_analyzer()
+    config_path = Path(args.config).expanduser().resolve()
+
+    config = load_anonymization_config(config_path)
+    print(
+        "Anonymization config loaded: "
+        f"{config_path} "
+        f"(excluded={len(config.excluded)}, "
+        f"included={len(config.included)}, "
+        f"includedParagraphs={len(config.included_paragraphs)})",
+        flush=True,
+    )
+    if config.included_only:
+        print(
+            "Included-only mode enabled: default Presidio detections and "
+            "excluded rules are ignored.",
+            flush=True,
+        )
+        analyzer = ConfiguredTextAnalyzer(None, config)
+    else:
+        print("Loading local Presidio and spaCy models...", flush=True)
+        analyzer = ConfiguredTextAnalyzer(create_presidio_analyzer(), config)
+    print("Scanning source directory...", flush=True)
     summary = anonymize_folder(
         source_dir=source_dir,
         output_dir=output_dir,
         analyzer=analyzer,
+        config=config,
+        progress_callback=lambda progress: _print_progress(progress, source_dir),
     )
-
-    for result in summary.results:
-        relative_path = result.source_path.relative_to(summary.source_root)
-        if result.succeeded:
-            print(
-                f"ANONYMIZED: {relative_path} "
-                f"(detected entities: {result.detected_entities})"
-            )
-        else:
-            print(
-                f"FAILED: {relative_path}: {result.error}",
-                file=sys.stderr,
-            )
 
     print(
         "Anonymization finished: "
         f"successful={summary.succeeded_count}, "
         f"failed={summary.failed_count}, "
-        f"detected_entities={summary.detected_entities}"
+        f"detected_entities={summary.detected_entities}",
+        flush=True,
     )
     return 0 if summary.failed_count == 0 else 1
 
@@ -49,7 +96,7 @@ def register_anonymize_command(subparsers: Any) -> None:
         "anonymize",
         help="Create anonymized local copies of supported document files.",
         description=(
-            "Anonymize supported files recursively with Microsoft Presidio, "
+            "Anonymize supported files recursively with configured local rules, "
             "preserving relative folders and source file names."
         ),
     )
@@ -62,5 +109,13 @@ def register_anonymize_command(subparsers: Any) -> None:
         "--output",
         required=True,
         help="Output directory for anonymized files.",
+    )
+    parser.add_argument(
+        "--config",
+        default=str(DEFAULT_CONFIG_PATH),
+        help=(
+            "INI configuration file with included-only, excluded, and "
+            "includedParagraphs rules. Default: config/anonymization.ini"
+        ),
     )
     parser.set_defaults(command_handler=_run_anonymize_command)

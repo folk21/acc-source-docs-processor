@@ -49,3 +49,28 @@ def test_folder_anonymization_preserves_relative_names_and_reports_unsupported_f
     assert not (output / "raw.bin").exists()
     assert summary.succeeded_count == 1
     assert summary.failed_count == 1
+
+
+def test_folder_anonymization_emits_file_progress_events(tmp_path: Path) -> None:
+    """Verify callers can display progress before a long file finishes.
+
+    Protected risk: buffering all status output until the complete folder ends
+    makes long OCR runs appear stalled.
+    """
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+    events = []
+
+    anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        progress_callback=events.append,
+    )
+
+    assert [event.event for event in events] == ["file_started", "file_finished"]
+    assert events[0].file_index == 1
+    assert events[0].file_count == 1
+    assert events[-1].error is None

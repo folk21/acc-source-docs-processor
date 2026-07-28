@@ -159,8 +159,26 @@ The anonymization operation accepts directories, not individual file paths:
 ```bash
 python main.py anonymize \
   --source "/path/to/private-documents" \
-  --output "/path/to/anonymized-documents"
+  --output "/path/to/anonymized-documents" \
+  --config "config/anonymization.ini"
 ```
+
+The command prints immediate file progress and page/frame progress for scanned PDFs and multi-page images. Configuration uses the `[anonymization]` INI section:
+
+```ini
+[anonymization]
+excluded =
+included =
+    Учебная организация
+    Иван Петров
+includedParagraphs = 9. Реквизиты и подписи сторон
+```
+
+- A non-empty `included` enables included-only mode: only its case-insensitive literal fragments are redacted. Default Presidio detections and `excluded` are ignored, and Presidio/spaCy models are not loaded.
+- When `included` is empty, default Presidio detection is enabled. `excluded` then contains case-insensitive literal fragments which remain visible inside default detections.
+- `includedParagraphs` is independent from both modes. On raster images and PDFs, everything below a matched heading is covered and all following pages are fully covered. In TXT and DOCX text, all following text is masked.
+
+Comma-separated and multiline values are supported. Multiword literals tolerate spaces, tabs, or line breaks between their words. The default file is `config/anonymization.ini`; another file can be selected with `--config`.
 
 The command scans `--source` recursively and writes anonymized files below `--output` with the same relative folders and file names. It does not use `--document-type`.
 
