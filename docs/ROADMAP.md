@@ -111,8 +111,8 @@ Status legend:
 
 - [x] Keep runtime and developer dependencies separate.
 - [x] Add deterministic unit and integration tests.
+- [x] Group document-specific tests by production package while keeping shared tests at the unit/integration root.
 - [x] Keep comments, docstrings, and software documentation in English.
-- [ ] Fix the stale `NpdReceiptsWorkflow` import in `tests/unit/test_npd_receipt_filename.py`.
 - [ ] Add missing English docstrings to NPD regression tests.
 - [ ] Add `ruff` configuration.
 - [ ] Add CI.

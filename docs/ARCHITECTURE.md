@@ -261,12 +261,22 @@ No document-specific branch belongs in the CLI.
 
 ## Testing
 
-Tests are separated by responsibility:
+Tests are separated first by responsibility and then by document type:
 
-- prepared OCR/text tests for extraction decisions;
-- synthetic PDF and DOCX reader tests;
-- generated-image and fake-processor integration tests;
-- workbook contract and hyperlink tests;
-- factory tests for all registered definitions.
+```text
+tests/
+├── unit/
+│   ├── incoming_purchase_documents/
+│   ├── npd_receipts/
+│   ├── upd_invoices_status_1/
+│   └── test_*.py
+└── integration/
+    ├── incoming_purchase_documents/
+    ├── npd_receipts/
+    ├── upd_invoices_status_1/
+    └── test_pipeline_with_fake_processor.py
+```
 
-Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.
+Document-specific folders contain extraction, reader, filename, registry, and registered-workflow tests for the matching production package. Generic model, OCR container, factory, writer, and synthetic cross-component tests remain directly under the corresponding `unit` or `integration` folder.
+
+The suite uses prepared OCR/text tests, synthetic PDF and DOCX files, generated images, fake processors, workbook contract checks, and factory tests for all registered definitions. Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.

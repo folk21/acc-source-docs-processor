@@ -148,7 +148,7 @@ python -m compileall -q main.py source_docs_processor tests
 python -m pytest -q
 ```
 
-Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generated images. Real accounting scans, company names, and identifiers must not be committed.
+Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generated images. Document-specific tests are grouped under folders matching their production packages, while shared behavior remains at the unit or integration root. Real accounting scans, company names, and identifiers must not be committed.
 
 ## Documentation
 

@@ -104,6 +104,8 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 - Use `pytest`.
 - Put pure logic tests under `tests/unit/` and pipeline/filesystem tests under `tests/integration/`.
+- Group document-specific tests under folders matching the production package name, such as `tests/unit/npd_receipts/` and `tests/integration/incoming_purchase_documents/`.
+- Keep generic model, factory, writer, and synthetic cross-component tests directly under `tests/unit/` or `tests/integration/`.
 - Every test must have an English docstring explaining the verified behavior and protected risk.
 - Test processors, workflows, registry definitions, and writers independently where useful.
 - Prefer fake OCR, fake processors, synthetic workflows, prepared text, and generated images.

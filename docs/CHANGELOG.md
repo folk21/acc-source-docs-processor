@@ -2,6 +2,15 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.10.3 — Test package organization
+
+### Changed
+
+- Grouped document-specific unit and integration tests under folders matching `incoming_purchase_documents`, `npd_receipts`, and `upd_invoices_status_1`.
+- Kept generic model, OCR, document-type factory, and synthetic cross-component tests at the unit or integration root.
+- Shortened document-specific test filenames because their package folder now provides the document-type context.
+- Added package markers to nested test folders to prevent duplicate module-name import conflicts.
+
 ## 0.10.2 — Incoming UPD workbook usability and table fixes
 
 ### Changed
