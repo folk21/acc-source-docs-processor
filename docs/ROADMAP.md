@@ -106,8 +106,11 @@ Status legend:
 ## Configuration and usability
 
 - [x] Move launch examples into `scripts/examples/`.
-- [ ] Implement local document anonymization behind the reserved `anonymize` subcommand.
-- [ ] Add Microsoft Presidio recognizers and document-output sanitization.
+- [x] Implement local directory anonymization behind the `anonymize` subcommand.
+- [x] Add Microsoft Presidio with Russian spaCy NER and accounting/identity recognizers.
+- [x] Add fail-closed PDF, DOCX, TXT, and raster-image output sanitization.
+- [ ] Add configurable allow lists and custom organization/person dictionaries.
+- [ ] Add an optional machine-readable anonymization audit report without PII values.
 - [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug options.
 - [x] Let each workflow interpret output-related options.
 - [ ] Add YAML processing profiles when repeated real configurations justify them.

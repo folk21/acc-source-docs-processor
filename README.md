@@ -11,7 +11,7 @@ python main.py process ...
 python main.py anonymize ...
 ```
 
-`process` is implemented. `anonymize` reserves the interface for the next implementation iteration and currently exits without creating output.
+`process` recognizes supported accounting documents. `anonymize` creates local, redacted copies of supported files from one directory tree into another.
 
 Each processable document type combines three independent components:
 
@@ -62,7 +62,10 @@ sudo apt-get install -y tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python -m spacy download ru_core_news_sm
 ```
+
+The Russian spaCy pipeline is required by Microsoft Presidio for person, organization, and location detection. Presidio and the model run locally; the command does not call external services.
 
 ## Processing documents
 
@@ -149,22 +152,41 @@ python main.py process --source "/path/to/documents" --dry-run
 
 Each workflow interprets options according to its input and output policy. For `incoming_purchase_documents`, `--deep-ocr` also OCRs PDF pages that already contain native text; normal runs OCR only pages without a useful text layer.
 
-## Anonymization placeholder
+## Anonymizing document folders
 
-The command interface is reserved for a future Microsoft Presidio-based implementation:
+The anonymization operation accepts directories, not individual file paths:
 
 ```bash
 python main.py anonymize \
-  --source "/path/to/document.pdf" \
-  --output "/path/to/document_anonymized.pdf" \
-  --document-type incoming_purchase_documents
+  --source "/path/to/private-documents" \
+  --output "/path/to/anonymized-documents"
 ```
 
-The current command prints a not-implemented message, creates no output, and exits with code `2`.
+The command scans `--source` recursively and writes anonymized files below `--output` with the same relative folders and file names. It does not use `--document-type`.
+
+Supported input formats:
+
+- PDF;
+- DOCX;
+- TXT encoded as UTF-8 or Windows-1251;
+- PNG, JPG/JPEG, BMP, and single- or multi-page TIFF.
+
+Detection combines the Russian `ru_core_news_sm` spaCy NER pipeline with Microsoft Presidio pattern recognizers for Russian accounting and identity values, including INN, KPP, OGRN, SNILS, passport-like values, bank accounts, BIK, phone numbers, email addresses, vehicle identifiers, and labeled document numbers.
+
+Output safety behavior:
+
+- PDF pages are rendered, redacted, and rebuilt as image-only pages so the original searchable text layer and metadata are not retained.
+- Raster images are OCRed in multiple orientations, covered with opaque rectangles, and saved without source EXIF metadata.
+- DOCX text, headers, footers, tables, drawing text, package metadata, and supported embedded raster images are sanitized. External relationships and custom XML are removed.
+- DOCX files containing OLE/ActiveX objects, embedded workbooks, macros, or unsupported vector images fail instead of copying opaque content unchanged.
+- Unsupported source files fail and are not copied into the output directory.
+- A partial temporary output is removed when one file fails. The command returns exit code `1` when any source file could not be anonymized.
+
+File and directory names are preserved exactly as requested and are not analyzed; rename them separately when names themselves contain private data. OCR and NER are heuristic. Review anonymized files before sharing them, especially low-quality scans, handwritten fields, stamps, signatures, logos containing names, and unusual document layouts.
 
 ## Example scripts
 
-Runnable processing examples and the reserved anonymization invocation are under:
+Runnable processing and anonymization examples are under:
 
 ```text
 scripts/examples/

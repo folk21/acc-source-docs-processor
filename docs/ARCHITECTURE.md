@@ -12,10 +12,12 @@ CLI subcommand
           -> ProcessingWorkflow
           -> RegistryDefinition
   -> anonymize
-      -> reserved interface; implementation pending
+      -> recursive folder workflow
+          -> Presidio text analyzer
+          -> PDF / DOCX / image / text sanitizer
 ```
 
-Document types belong to the `process` operation. Operations such as anonymization are not registered as document types.
+Document types belong to the `process` operation. Anonymization is an independent directory operation and is not registered as a document type.
 
 Registered document types:
 
@@ -53,6 +55,13 @@ source_docs_processor/
 │   ├── __init__.py
 │   ├── process.py
 │   └── anonymize.py
+├── anonymization/
+│   ├── docx.py
+│   ├── image.py
+│   ├── models.py
+│   ├── pdf.py
+│   ├── text.py
+│   └── workflow.py
 ├── document_processor.py
 ├── document_types.py
 ├── file_ops.py
@@ -90,6 +99,28 @@ source_docs_processor/
     ├── registry.py
     └── workflow.py
 ```
+
+## Anonymization pipeline
+
+`source_docs_processor/anonymization/` is independent from the document processing registry:
+
+```text
+source directory
+  -> recursive supported-file selection
+      -> Presidio Russian NER and pattern recognition
+          -> format-specific sanitizer
+              -> same relative path and file name below output directory
+```
+
+`text.py` configures `ru_core_news_sm` through Presidio's `SpacyNlpEngine`, maps Russian spaCy labels to Presidio entities, and registers Russian accounting and identity patterns. Detected spans are normalized into the project-owned `DetectedEntity` model so tests do not require real NLP models.
+
+`image.py` runs local Tesseract OCR against four orientation candidates, maps detected text spans back to original pixel coordinates, draws opaque rectangles, and writes images without source metadata.
+
+`pdf.py` renders each page, delegates pixel redaction to the image sanitizer, and creates a new image-only PDF. It intentionally does not preserve the source text layer, annotations, attachments, forms, or metadata because those channels may contain recoverable private data.
+
+`docx.py` processes the OOXML ZIP package directly. It masks paragraph text across run boundaries, sanitizes remaining XML text and author attributes, strips core/custom metadata, removes external relationships and custom XML, and redacts supported embedded raster images. It rejects opaque embedded or active content instead of copying it unchanged.
+
+`workflow.py` preserves relative paths and file names, writes each output atomically, excludes an output directory placed below the source tree, and records failures without logging recognized values. Unsupported files remain absent from output and cause a non-zero command result.
 
 ## Document type registry
 
@@ -268,7 +299,7 @@ Local QR decoding utilities exist but are not integrated into receipt processing
 
 `source_docs_processor/commands/process.py` owns processing arguments and preserves `process_folder()` as the reusable programmatic API. It resolves a `DocumentTypeDefinition`, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow.
 
-`source_docs_processor/commands/anonymize.py` reserves the future anonymization interface. It accepts source, output, and an optional document type, but creates no output and exits with code `2` until the anonymization pipeline is implemented.
+`source_docs_processor/commands/anonymize.py` accepts source and output directories, creates the local Presidio analyzer, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument.
 
 No document-specific branch belongs in the CLI or command handlers. Document-type behavior remains in the explicit document-type registry and its selected components.
 
@@ -284,7 +315,7 @@ scripts/examples/
 └── anonymize_document.sh
 ```
 
-The folder contains replaceable path templates, not environment-specific production configuration. The anonymization script documents the reserved command and currently receives the expected not-implemented exit code.
+The folder contains replaceable path templates, not environment-specific production configuration. The anonymization script uses directory paths and preserves relative file names below the selected output root.
 
 ## Testing
 

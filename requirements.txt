@@ -5,3 +5,6 @@ numpy>=1.24.0
 XlsxWriter>=3.1.0
 PyMuPDF>=1.24.0
 python-docx>=1.1.0
+presidio-analyzer>=2.2.360,<3.0.0
+spacy>=3.8.0,<4.0.0
+lxml>=5.0.0

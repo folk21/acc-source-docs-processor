@@ -29,27 +29,26 @@ def test_process_subcommand_preserves_document_processing_options() -> None:
     assert args.deep_ocr is True
 
 
-def test_anonymize_subcommand_has_a_reserved_interface(capsys) -> None:
-    """Verify anonymization is explicit while its implementation is pending.
+def test_anonymize_subcommand_accepts_directory_paths_only() -> None:
+    """Verify anonymization is independent from processing document types.
 
-    Protected risk: a placeholder command must not silently claim successful
-    anonymization or route the document through the processing workflow.
+    Protected risk: coupling anonymization to the process registry would force
+    unrelated document-specific branches into the operation command.
     """
-    exit_code = main(
+    args = build_parser().parse_args(
         [
             "anonymize",
             "--source",
-            "/tmp/source.pdf",
+            "/tmp/source",
             "--output",
-            "/tmp/output.pdf",
-            "--document-type",
-            "incoming_purchase_documents",
+            "/tmp/output",
         ]
     )
 
-    captured = capsys.readouterr()
-    assert exit_code == 2
-    assert "not implemented yet" in captured.err
+    assert args.command == "anonymize"
+    assert args.source == "/tmp/source"
+    assert args.output == "/tmp/output"
+    assert not hasattr(args, "document_type")
 
 
 def test_cli_requires_an_explicit_subcommand() -> None:

@@ -2,6 +2,33 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.12.0 — Local folder anonymization
+
+### Added
+
+- Implemented recursive directory-to-directory anonymization behind the `anonymize` subcommand.
+- Added Microsoft Presidio configured with the Russian `ru_core_news_sm` spaCy NER pipeline.
+- Added Russian accounting and identity pattern recognizers for INN, KPP, OGRN, SNILS, bank details, contacts, vehicle identifiers, and labeled document numbers.
+- Added image OCR-coordinate redaction with multi-orientation Tesseract analysis.
+- Added rasterized PDF rebuilding which removes source text layers and metadata.
+- Added DOCX package text, metadata, relationship, custom XML, and embedded raster-image sanitization.
+- Added TXT masking for UTF-8 and Windows-1251 files.
+- Added deterministic unit and integration coverage without requiring real Presidio or Tesseract calls.
+
+### Changed
+
+- Changed `anonymize --source` and `--output` to directory-only semantics.
+- Removed `--document-type` from the anonymization operation.
+- Preserved relative subfolders and source file names in anonymized output.
+- Bumped the package version to `0.12.0`.
+
+### Safety
+
+- Unsupported files are not copied unchanged into anonymized output.
+- DOCX files with opaque embedded/active content or unsupported vector media fail closed.
+- Per-file writes are atomic and partial outputs are removed after failures.
+- Documentation requires manual review because OCR and NER detection remain heuristic.
+
 ## 0.11.2 — Compact NPD output
 
 ### Changed

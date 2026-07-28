@@ -1,0 +1,159 @@
+"""Recursive folder workflow for local anonymization."""
+
+from __future__ import annotations
+
+import os
+import tempfile
+from pathlib import Path
+
+from .docx import anonymize_docx_file
+from .image import SUPPORTED_IMAGE_EXTENSIONS, anonymize_image_file
+from .models import (
+    AnonymizationSummary,
+    AnonymizedFileResult,
+    TextEntityAnalyzer,
+)
+from .pdf import anonymize_pdf_file
+from .text import mask_text
+
+
+SUPPORTED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt"}) | SUPPORTED_IMAGE_EXTENSIONS
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    """Return True when path is inside parent, including parent itself."""
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _read_text(source: Path) -> tuple[str, str]:
+    """Read a text file using supported local encodings."""
+    raw = source.read_bytes()
+    encodings = (
+        ("utf-8-sig",) if raw.startswith(b"\xef\xbb\xbf") else ("utf-8", "cp1251")
+    )
+    for encoding in encodings:
+        try:
+            return raw.decode(encoding), encoding
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("Text file is neither UTF-8 nor Windows-1251")
+
+
+def _anonymize_text_file(
+    source: Path,
+    destination: Path,
+    analyzer: TextEntityAnalyzer,
+) -> int:
+    """Anonymize a plain text file while preserving its detected encoding."""
+    text, encoding = _read_text(source)
+    masked, entities = mask_text(text, analyzer)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(masked.encode(encoding))
+    return len(entities)
+
+
+def _anonymize_one_file(
+    source: Path,
+    destination: Path,
+    analyzer: TextEntityAnalyzer,
+    lang: str,
+) -> int:
+    """Dispatch one supported file to its format-specific anonymizer."""
+    suffix = source.suffix.lower()
+    if suffix in SUPPORTED_IMAGE_EXTENSIONS:
+        return anonymize_image_file(source, destination, analyzer, lang=lang)
+    if suffix == ".pdf":
+        return anonymize_pdf_file(source, destination, analyzer, lang=lang)
+    if suffix == ".docx":
+        return anonymize_docx_file(source, destination, analyzer, lang=lang)
+    if suffix == ".txt":
+        return _anonymize_text_file(source, destination, analyzer)
+    raise ValueError(f"Unsupported file type: {suffix or '<no extension>'}")
+
+
+def _atomic_anonymize(
+    source: Path,
+    destination: Path,
+    analyzer: TextEntityAnalyzer,
+    lang: str,
+) -> int:
+    """Write one anonymized file atomically so failures leave no partial output."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+        dir=destination.parent,
+    )
+    os.close(file_descriptor)
+    temporary_path = Path(temporary_name)
+    try:
+        detected = _anonymize_one_file(
+            source,
+            temporary_path,
+            analyzer=analyzer,
+            lang=lang,
+        )
+        temporary_path.replace(destination)
+        return detected
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def anonymize_folder(
+    source_dir: Path,
+    output_dir: Path,
+    analyzer: TextEntityAnalyzer,
+    lang: str = "rus+eng",
+) -> AnonymizationSummary:
+    """Anonymize supported files recursively while preserving names and folders."""
+    source_root = source_dir.expanduser().resolve()
+    output_root = output_dir.expanduser().resolve()
+    if not source_root.exists() or not source_root.is_dir():
+        raise ValueError(
+            f"Source directory does not exist or is not a directory: {source_root}"
+        )
+    if output_root.exists() and not output_root.is_dir():
+        raise ValueError(f"Output path is not a directory: {output_root}")
+    if source_root == output_root:
+        raise ValueError("Source and output directories must be different")
+
+    summary = AnonymizationSummary(
+        source_root=source_root,
+        output_root=output_root,
+    )
+    files = sorted(
+        (
+            path
+            for path in source_root.rglob("*")
+            if path.is_file()
+            and not path.is_symlink()
+            and not _is_relative_to(path.resolve(), output_root)
+        ),
+        key=lambda path: path.relative_to(source_root).as_posix().lower(),
+    )
+
+    for source_path in files:
+        relative_path = source_path.relative_to(source_root)
+        destination = output_root / relative_path
+        result = AnonymizedFileResult(source_path=source_path)
+        try:
+            if source_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                raise ValueError(
+                    f"Unsupported file type: {source_path.suffix or '<no extension>'}"
+                )
+            result.detected_entities = _atomic_anonymize(
+                source_path,
+                destination,
+                analyzer=analyzer,
+                lang=lang,
+            )
+            result.destination_path = destination
+        except Exception as exc:
+            destination.unlink(missing_ok=True)
+            result.error = str(exc)
+        summary.results.append(result)
+    return summary

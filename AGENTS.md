@@ -105,6 +105,19 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Preserve one-line and split-line full-name recognition.
 - QR decoding and official NPD URL parsing must remain local. When integrated, reconcile QR and OCR values explicitly and report conflicts instead of silently replacing data.
 
+## Anonymization rules
+
+- Keep anonymization as an operation under `source_docs_processor/anonymization/`; do not register it as a document type.
+- Require source and output directories and preserve relative subfolders plus source file names.
+- Keep all detection and redaction local. Do not add external APIs or cloud OCR.
+- Use Microsoft Presidio with the Russian spaCy pipeline and explicit Russian accounting/identity pattern recognizers.
+- Treat anonymization as fail-closed: unsupported source formats or opaque embedded content must not be copied unchanged into the anonymized output.
+- Rebuild PDF files from redacted raster pages so hidden source text and metadata are removed.
+- Strip image metadata and sanitize DOCX metadata, external relationships, custom XML, and supported embedded raster images.
+- Reject DOCX macros, OLE/ActiveX objects, embedded workbooks, and unsupported vector media until a reliable sanitizer exists.
+- Never log recognized PII values. Logs may contain only relative file paths, counts, and errors.
+- Document that OCR and NER are heuristic and that output requires manual review before external sharing.
+
 ## Testing rules
 
 - Use `pytest`.
