@@ -2,6 +2,26 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.11.0 — Operation subcommands
+
+### Added
+
+- Added the `process` subcommand for all existing document-processing workflows.
+- Added a reserved `anonymize` subcommand with source, output, and optional document-type arguments.
+- Added `source_docs_processor/commands/` to separate command-specific parsing and execution from top-level CLI dispatch.
+- Added `scripts/examples/` with processing examples for all registered document types and a future anonymization invocation.
+- Added CLI regression tests for command selection, process options, the anonymization placeholder, and rejection of the obsolete flat syntax.
+
+### Changed
+
+- Changed all documented processing commands from `python main.py --source ...` to `python main.py process --source ...`.
+- Kept `process_folder()` available through `source_docs_processor.cli` for existing programmatic and integration-test imports.
+- Removed root-level `run.sh` and `run_example.sh` in favor of explicit examples grouped by operation and document type.
+
+### Pending
+
+- The `anonymize` command does not yet run Microsoft Presidio or create output; it exits with code `2` and a clear message.
+
 ## 0.10.3 — Test package organization
 
 ### Changed

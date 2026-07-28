@@ -24,6 +24,9 @@ The registered document types are:
 ## Architecture rules
 
 - Keep `main.py` minimal.
+- Keep top-level operation selection in `source_docs_processor/cli.py`.
+- Keep command-specific parsing and execution in `source_docs_processor/commands/`.
+- Use CLI subcommands for distinct operations such as `process` and `anonymize`; do not model operations as document types.
 - An image document processor owns only image-level recognition, orientation, OCR, extraction, normalization, and recognition decisions.
 - A source-file processor owns only one-file reading, OCR fallback, extraction, normalization, and recognition decisions.
 - A processor must not own folder traversal, copying, output folders, filename policy, report generation, or registry columns.
@@ -33,7 +36,7 @@ The registered document types are:
 - `source_docs_processor/document_types.py` binds processor, workflow, and registry factories into one CLI-selectable definition.
 - Keep low-level file operations in `file_ops.py`.
 - Keep template crops and OCR heuristics in the corresponding processor package.
-- Do not add document-type conditionals to `cli.py`.
+- Do not add document-type conditionals to `cli.py` or command handlers.
 - Do not add external network calls. Processing must remain local.
 
 `RegistryDefinition` is intentionally narrower than an output processor. It defines columns and row mapping; workflows, file operations, and CSV/XLSX writers handle the remaining output behavior.
@@ -113,6 +116,8 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Real OCR tests must be optional, marked `ocr` or `slow`, and skipped when Tesseract is unavailable.
 - Do not commit real scans, names, INNs/KPPs, addresses, shipment data, or debug crops from private documents.
 
+Example launch scripts belong under `scripts/examples/`. They must use placeholder paths, run from the project root, and contain English comments only.
+
 Run validation from the project root:
 
 ```bash
@@ -134,7 +139,7 @@ python -m pytest -q
 1. Preserve the root folder `acc-source-docs-processor/`.
 2. Keep all registered document types and the default scan UPD selection intact.
 3. Include no private accounting fixtures or generated private output.
-4. Confirm README commands and output descriptions match current behavior.
+4. Confirm README commands, subcommands, example scripts, and output descriptions match current behavior.
 5. Confirm processors contain no workflow or registry policy.
 6. Confirm registry writers remain document-type-neutral.
 7. Run compile and test validation.

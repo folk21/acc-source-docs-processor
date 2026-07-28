@@ -4,10 +4,19 @@
 
 All processing is local. Source files are never modified and are not uploaded to external services.
 
-Each CLI-selectable document type combines three independent components:
+The CLI is organized by operation:
 
 ```text
-CLI arguments
+python main.py process ...
+python main.py anonymize ...
+```
+
+`process` is implemented. `anonymize` reserves the interface for the next implementation iteration and currently exits without creating output.
+
+Each processable document type combines three independent components:
+
+```text
+process command
   -> DocumentTypeDefinition
       -> Processor
       -> ProcessingWorkflow
@@ -27,7 +36,7 @@ CLI arguments
 | `npd_receipts` | Russian NPD receipts issued by self-employed persons | PNG, JPG, TIFF, BMP | Copied and renamed images; linked XLSX registry; text report |
 | `incoming_purchase_documents` | Incoming purchase documents for 1C entry; current scope is UPD status `1` | PDF, DOCX | Task-oriented XLSX workbook with links to source files; text report |
 
-The default document type remains `upd_invoices_status_1`.
+The default processing document type remains `upd_invoices_status_1`.
 
 ## Requirements
 
@@ -55,22 +64,22 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Usage
+## Processing documents
 
-Run commands from the project root.
+Run commands from the project root:
 
 ```bash
-python main.py --source "/path/to/documents"
+python main.py process \
+  --source "/path/to/documents" \
+  --document-type upd_invoices_status_1
 ```
-
-Select a document type explicitly with `--document-type`.
 
 Without `--output`, workflow output is created below the current working directory. `--target-dir-name` overrides the selected workflow's default folder name.
 
 ### Scanned UPD status 1
 
 ```bash
-python main.py \
+python main.py process \
   --source "/path/to/upd-scans" \
   --output "/path/to/output" \
   --document-type upd_invoices_status_1
@@ -88,7 +97,7 @@ The default output folder is `./передаточные_документы`.
 ### Incoming purchase documents
 
 ```bash
-python main.py \
+python main.py process \
   --source "/path/to/upd-input" \
   --output "/path/to/output" \
   --document-type incoming_purchase_documents
@@ -119,7 +128,7 @@ The processing dropdown belongs to the complete document, not to individual item
 ### NPD receipts
 
 ```bash
-python main.py \
+python main.py process \
   --source "/path/to/receipts" \
   --output "/path/to/output" \
   --document-type npd_receipts
@@ -129,16 +138,47 @@ The receipt workflow copies every image, renames recognized receipts, preserves 
 
 The default output folder is `./чеки_нпд`.
 
-## Common options
+## Processing options
 
 ```bash
-python main.py --source "/path/to/documents" --debug-crops
-python main.py --source "/path/to/documents" --deep-ocr
-python main.py --source "/path/to/documents" --no-auto-rotate
-python main.py --source "/path/to/documents" --dry-run
+python main.py process --source "/path/to/documents" --debug-crops
+python main.py process --source "/path/to/documents" --deep-ocr
+python main.py process --source "/path/to/documents" --no-auto-rotate
+python main.py process --source "/path/to/documents" --dry-run
 ```
 
 Each workflow interprets options according to its input and output policy. For `incoming_purchase_documents`, `--deep-ocr` also OCRs PDF pages that already contain native text; normal runs OCR only pages without a useful text layer.
+
+## Anonymization placeholder
+
+The command interface is reserved for a future Microsoft Presidio-based implementation:
+
+```bash
+python main.py anonymize \
+  --source "/path/to/document.pdf" \
+  --output "/path/to/document_anonymized.pdf" \
+  --document-type incoming_purchase_documents
+```
+
+The current command prints a not-implemented message, creates no output, and exits with code `2`.
+
+## Example scripts
+
+Runnable processing examples and the reserved anonymization invocation are under:
+
+```text
+scripts/examples/
+├── process_upd_scans.sh
+├── process_npd_receipts.sh
+├── process_incoming_purchase_documents.sh
+└── anonymize_document.sh
+```
+
+Replace placeholder paths and run a script from the project root, for example:
+
+```bash
+bash scripts/examples/process_incoming_purchase_documents.sh
+```
 
 ## Tests
 

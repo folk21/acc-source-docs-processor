@@ -8,6 +8,9 @@ Status legend:
 
 ## Generic architecture
 
+- [x] Introduce top-level CLI subcommands for independent operations.
+- [x] Keep document processing under the `process` subcommand.
+- [x] Reserve an `anonymize` command without coupling it to document-type registration.
 - [x] Separate shared models from document-specific OCR.
 - [x] Use a document-type-neutral `ExtractedDocument` model.
 - [x] Separate image-level `DocumentProcessor` behavior from folder actions.
@@ -100,6 +103,9 @@ Status legend:
 
 ## Configuration and usability
 
+- [x] Move launch examples into `scripts/examples/`.
+- [ ] Implement local document anonymization behind the reserved `anonymize` subcommand.
+- [ ] Add Microsoft Presidio recognizers and document-output sanitization.
 - [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug options.
 - [x] Let each workflow interpret output-related options.
 - [ ] Add YAML processing profiles when repeated real configurations justify them.

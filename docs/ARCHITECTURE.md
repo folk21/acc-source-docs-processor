@@ -2,15 +2,20 @@
 
 `acc-source-docs-processor` is a local CLI for scanned and electronic accounting source documents.
 
-Each CLI-selectable type combines independently selected behavior:
+The CLI selects an operation first:
 
 ```text
-CLI arguments
-  -> DocumentTypeDefinition
-      -> Processor
-      -> ProcessingWorkflow
-      -> RegistryDefinition
+CLI subcommand
+  -> process
+      -> DocumentTypeDefinition
+          -> Processor
+          -> ProcessingWorkflow
+          -> RegistryDefinition
+  -> anonymize
+      -> reserved interface; implementation pending
 ```
+
+Document types belong to the `process` operation. Operations such as anonymization are not registered as document types.
 
 Registered document types:
 
@@ -44,6 +49,10 @@ A registry definition owns tabular shape and row mapping. Generic writers own CS
 ```text
 source_docs_processor/
 ├── cli.py
+├── commands/
+│   ├── __init__.py
+│   ├── process.py
+│   └── anonymize.py
 ├── document_processor.py
 ├── document_types.py
 ├── file_ops.py
@@ -249,15 +258,33 @@ Local QR decoding utilities exist but are not integrated into receipt processing
 
 ## CLI orchestration
 
-`source_docs_processor/cli.py` remains document-type-neutral:
+`source_docs_processor/cli.py` owns only top-level operation selection:
 
-1. parse common runtime options;
-2. resolve a `DocumentTypeDefinition`;
-3. create processor, workflow, and registry definition;
-4. create `ProcessingOptions`;
-5. run the selected workflow.
+1. create the root parser;
+2. register command parsers;
+3. parse the selected subcommand;
+4. invoke its command handler;
+5. convert unexpected failures into a stable non-zero exit code.
 
-No document-specific branch belongs in the CLI.
+`source_docs_processor/commands/process.py` owns processing arguments and preserves `process_folder()` as the reusable programmatic API. It resolves a `DocumentTypeDefinition`, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow.
+
+`source_docs_processor/commands/anonymize.py` reserves the future anonymization interface. It accepts source, output, and an optional document type, but creates no output and exits with code `2` until the anonymization pipeline is implemented.
+
+No document-specific branch belongs in the CLI or command handlers. Document-type behavior remains in the explicit document-type registry and its selected components.
+
+## Example scripts
+
+Example command wrappers live under `scripts/examples/` rather than the project root:
+
+```text
+scripts/examples/
+├── process_upd_scans.sh
+├── process_npd_receipts.sh
+├── process_incoming_purchase_documents.sh
+└── anonymize_document.sh
+```
+
+The folder contains replaceable path templates, not environment-specific production configuration. The anonymization script documents the reserved command and currently receives the expected not-implemented exit code.
 
 ## Testing
 
