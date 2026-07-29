@@ -58,7 +58,9 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
         f"{config_path} "
         f"(excluded={len(config.excluded)}, "
         f"included={len(config.included)}, "
-        f"includedParagraphs={len(config.included_paragraphs)})",
+        f"includedParagraphs={len(config.included_paragraphs)}, "
+        f"includedFuzzy={config.included_fuzzy}, "
+        f"includedFuzzyMaxErrors={config.included_fuzzy_max_errors})",
         flush=True,
     )
     if config.included_only:
@@ -115,7 +117,8 @@ def register_anonymize_command(subparsers: Any) -> None:
         default=str(DEFAULT_CONFIG_PATH),
         help=(
             "INI configuration file with included-only, excluded, and "
-            "includedParagraphs rules. Default: config/anonymization.ini"
+            "includedParagraphs rules plus optional OCR fuzzy matching. "
+            "Default: config/anonymization.ini"
         ),
     )
     parser.set_defaults(command_handler=_run_anonymize_command)

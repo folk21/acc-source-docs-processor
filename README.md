@@ -171,10 +171,15 @@ excluded =
 included =
     Учебная организация
     Иван Петров
+includedFuzzy = true
+includedFuzzyMaxErrors = 1
 includedParagraphs = 9. Реквизиты и подписи сторон
 ```
 
 - A non-empty `included` enables included-only mode: only its case-insensitive literal fragments are redacted. Default Presidio detections and `excluded` are ignored, and Presidio/spaCy models are not loaded.
+- `includedFuzzy = true` enables OCR-only tolerant matching for `included` values on raster images, scanned PDFs, and embedded raster images in DOCX files. Native TXT and DOCX text remains exact.
+- `includedFuzzyMaxErrors` sets the maximum total insertions, deletions, or substitutions for one configured value. The accepted range is `0` to `3`; `1` is the recommended conservative value.
+- OCR fuzzy matching normalizes `ё`/`е`, punctuation, whitespace, and common visually identical Latin/Cyrillic characters. Values shorter than five normalized characters remain exact to reduce false matches.
 - When `included` is empty, default Presidio detection is enabled. `excluded` then contains case-insensitive literal fragments which remain visible inside default detections.
 - `includedParagraphs` is independent from both modes. On raster images and PDFs, everything below a matched heading is covered and all following pages are fully covered. In TXT and DOCX text, all following text is masked.
 

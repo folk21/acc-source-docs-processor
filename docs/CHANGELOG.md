@@ -2,6 +2,26 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.13.2 — OCR-tolerant included matching
+
+### Added
+
+- Added `includedFuzzy` to enable bounded fuzzy matching for configured `included` values in OCR-derived text.
+- Added `includedFuzzyMaxErrors` with a validated range of `0` to `3` and a conservative default of `1`.
+- Added normalization for punctuation, whitespace, `ё`/`е`, and common Latin/Cyrillic OCR lookalikes.
+- Added regression coverage for one-character OCR substitutions, Latin/Cyrillic lookalikes, raster redaction, and invalid error limits.
+
+### Preserved
+
+- Native TXT and DOCX text continues to use exact literal matching.
+- `includedParagraphs` remains independent from fuzzy included matching.
+- Included-only mode continues to bypass Presidio and spaCy loading.
+
+### Changed
+
+- Updated the default configuration to enable OCR fuzzy matching with one permitted edit.
+- Bumped the package version to `0.13.2`.
+
 ## 0.13.1 — Included-only anonymization mode
 
 ### Changed

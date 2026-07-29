@@ -115,7 +115,7 @@ source directory
 
 `text.py` configures `ru_core_news_sm` through Presidio's `SpacyNlpEngine`, maps Russian spaCy labels to Presidio entities, and registers Russian accounting and identity patterns. Detected spans are normalized into the project-owned `DetectedEntity` model so tests do not require real NLP models.
 
-`config.py` loads literal `excluded`, `included`, and `includedParagraphs` rules from an INI file. A non-empty `included` list enables literal-only mode, bypasses Presidio and `excluded`, and supports flexible whitespace inside multiword entries. With an empty `included`, Presidio remains the base analyzer and `excluded` subtracts explicit false-positive ranges. Section headings operate independently and activate full redaction below the heading and across later raster pages.
+`config.py` loads literal `excluded`, `included`, and `includedParagraphs` rules from an INI file. A non-empty `included` list enables literal-only mode, bypasses Presidio and `excluded`, and supports flexible whitespace inside multiword entries. Optional `includedFuzzy` and `includedFuzzyMaxErrors` settings add bounded OCR-only edit-distance matching for raster content while native TXT and DOCX text remains exact. OCR matching also normalizes common Latin/Cyrillic lookalikes. With an empty `included`, Presidio remains the base analyzer and `excluded` subtracts explicit false-positive ranges. Section headings operate independently and activate full redaction below the heading and across later raster pages.
 
 `image.py` runs local Tesseract OCR against four orientation candidates, maps detected text spans back to original pixel coordinates, draws opaque rectangles, and writes images without source metadata.
 

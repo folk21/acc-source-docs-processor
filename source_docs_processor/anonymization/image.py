@@ -163,7 +163,13 @@ def _choose_ocr_page(
             page = _ocr_page(image, lang=lang, angle=angle)
         except RuntimeError:
             continue
-        entities = merge_entities(analyzer.analyze(page.text), len(page.text))
+        analyze_ocr = getattr(analyzer, "analyze_ocr", None)
+        raw_entities = (
+            analyze_ocr(page.text)
+            if callable(analyze_ocr)
+            else analyzer.analyze(page.text)
+        )
+        entities = merge_entities(raw_entities, len(page.text))
         candidates.append((page, entities))
     if not candidates:
         raise RuntimeError("Tesseract OCR did not return a usable result")

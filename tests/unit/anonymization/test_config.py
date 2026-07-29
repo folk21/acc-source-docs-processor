@@ -46,6 +46,8 @@ def test_config_loader_reads_comma_separated_and_multiline_rules(
         "included =\n"
         "    Иван Петров\n"
         "    Учебная корпорация развития области\n"
+        "includedFuzzy = true\n"
+        "includedFuzzyMaxErrors = 1\n"
         "includedParagraphs = 9. Реквизиты и подписи сторон\n",
         encoding="utf-8",
     )
@@ -58,6 +60,8 @@ def test_config_loader_reads_comma_separated_and_multiline_rules(
         "Учебная корпорация развития области",
     )
     assert config.included_paragraphs == ("9. Реквизиты и подписи сторон",)
+    assert config.included_fuzzy is True
+    assert config.included_fuzzy_max_errors == 1
     assert config.included_only is True
 
 
@@ -104,6 +108,72 @@ def test_included_literal_matches_across_whitespace_changes() -> None:
     assert "области" not in masked
     assert "\n" in masked
     assert len(entities) == 1
+
+
+def test_ocr_fuzzy_included_matches_one_recognition_error_only_for_ocr() -> None:
+    """Verify fuzzy included matching repairs one OCR error without changing text rules.
+
+    Protected risk: a low-quality scan may recognize `Квантовая` as
+    `Кванговая`, while native TXT and DOCX content must remain exact.
+    """
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included=("Квантовая",),
+            included_fuzzy=True,
+            included_fuzzy_max_errors=1,
+        ),
+    )
+
+    assert analyzer.analyze("Кванговая") == []
+    ocr_entities = analyzer.analyze_ocr("Кванговая")
+
+    assert len(ocr_entities) == 1
+    assert ocr_entities[0].start == 0
+    assert ocr_entities[0].end == len("Кванговая")
+
+
+def test_ocr_fuzzy_included_normalizes_latin_cyrillic_lookalikes() -> None:
+    """Verify OCR matching tolerates visually identical Latin characters.
+
+    Protected risk: Tesseract may emit a Latin `K` inside an otherwise Russian
+    word and exact matching would leave the configured value visible.
+    """
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included=("Квантовая",),
+            included_fuzzy=True,
+            included_fuzzy_max_errors=1,
+        ),
+    )
+
+    entities = analyzer.analyze_ocr("Kвантовая")
+
+    assert len(entities) == 1
+
+
+def test_config_rejects_excessive_fuzzy_error_limit(tmp_path: Path) -> None:
+    """Verify unsafe broad fuzzy limits are rejected during configuration loading.
+
+    Protected risk: a large edit-distance allowance could redact unrelated OCR
+    words and make the output unusable.
+    """
+    path = tmp_path / "anonymization.ini"
+    path.write_text(
+        "[anonymization]\n"
+        "included = Квантовая\n"
+        "includedFuzzy = true\n"
+        "includedFuzzyMaxErrors = 4\n",
+        encoding="utf-8",
+    )
+
+    try:
+        load_anonymization_config(path)
+    except ValueError as exc:
+        assert "between 0 and 3" in str(exc)
+    else:
+        raise AssertionError("Expected invalid fuzzy error limit to fail")
 
 
 def test_empty_included_list_uses_default_analyzer_and_exclusions() -> None:

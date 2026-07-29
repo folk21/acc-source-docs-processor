@@ -16,6 +16,24 @@ DEFAULT_CONFIG_PATH = Path("config/anonymization.ini")
 _SECTION_NAME = "anonymization"
 _TOKEN_PATTERN = re.compile(r"[0-9A-Za-zА-Яа-яЁё]+")
 _HEADING_FUZZY_THRESHOLD = 0.84
+_MAX_INCLUDED_FUZZY_ERRORS = 3
+_MIN_FUZZY_LITERAL_LENGTH = 5
+_OCR_CONFUSABLES = str.maketrans(
+    {
+        "a": "а",
+        "b": "в",
+        "c": "с",
+        "e": "е",
+        "h": "н",
+        "k": "к",
+        "m": "м",
+        "o": "о",
+        "p": "р",
+        "t": "т",
+        "x": "х",
+        "y": "у",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -25,6 +43,8 @@ class AnonymizationConfig:
     excluded: tuple[str, ...] = ()
     included: tuple[str, ...] = ()
     included_paragraphs: tuple[str, ...] = ()
+    included_fuzzy: bool = False
+    included_fuzzy_max_errors: int = 1
 
     @property
     def included_only(self) -> bool:
@@ -71,11 +91,29 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
     excluded = _split_values(section.get("excluded", ""))
     included = _split_values(section.get("included", ""))
     included_paragraphs = _split_values(section.get("includedparagraphs", ""))
+    try:
+        included_fuzzy = section.getboolean("includedfuzzy", fallback=False)
+    except ValueError as exc:
+        raise ValueError("includedFuzzy must be true or false") from exc
+    try:
+        included_fuzzy_max_errors = section.getint(
+            "includedfuzzymaxerrors",
+            fallback=1,
+        )
+    except ValueError as exc:
+        raise ValueError("includedFuzzyMaxErrors must be an integer") from exc
+    if not 0 <= included_fuzzy_max_errors <= _MAX_INCLUDED_FUZZY_ERRORS:
+        raise ValueError(
+            "includedFuzzyMaxErrors must be between 0 and "
+            f"{_MAX_INCLUDED_FUZZY_ERRORS}"
+        )
 
     return AnonymizationConfig(
         excluded=excluded,
         included=included,
         included_paragraphs=included_paragraphs,
+        included_fuzzy=included_fuzzy,
+        included_fuzzy_max_errors=included_fuzzy_max_errors,
     )
 
 
@@ -97,6 +135,74 @@ def _literal_spans(text: str, values: Sequence[str]) -> list[tuple[int, int]]:
         for match in pattern.finditer(text):
             spans.append((match.start(), match.end()))
     return sorted(set(spans))
+
+
+def _normalize_ocr_token(value: str) -> str:
+    """Normalize OCR text and common Latin/Cyrillic lookalikes."""
+    return _normalize_token(value).translate(_OCR_CONFUSABLES)
+
+
+def _bounded_edit_distance(left: str, right: str, maximum: int) -> int | None:
+    """Return Levenshtein distance when it does not exceed the bound."""
+    if abs(len(left) - len(right)) > maximum:
+        return None
+    if left == right:
+        return 0
+    previous = list(range(len(right) + 1))
+    for left_index, left_character in enumerate(left, start=1):
+        current = [left_index]
+        row_minimum = left_index
+        for right_index, right_character in enumerate(right, start=1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[right_index] + 1,
+                    previous[right_index - 1]
+                    + (left_character != right_character),
+                )
+            )
+            row_minimum = min(row_minimum, current[-1])
+        if row_minimum > maximum:
+            return None
+        previous = current
+    distance = previous[-1]
+    return distance if distance <= maximum else None
+
+
+def _fuzzy_literal_spans(
+    text: str,
+    values: Sequence[str],
+    maximum_errors: int,
+) -> list[tuple[int, int]]:
+    """Return OCR-tolerant literal spans with a bounded total edit distance."""
+    tokens = [
+        (match, normalized)
+        for match in _TOKEN_PATTERN.finditer(text)
+        if (normalized := _normalize_ocr_token(match.group(0)))
+    ]
+    spans = set(_literal_spans(text, values))
+    if maximum_errors <= 0 or not tokens:
+        return sorted(spans)
+
+    for value in values:
+        target_tokens = tuple(
+            normalized
+            for token in _TOKEN_PATTERN.findall(value)
+            if (normalized := _normalize_ocr_token(token))
+        )
+        if not target_tokens:
+            continue
+        target = "".join(target_tokens)
+        if len(target) < _MIN_FUZZY_LITERAL_LENGTH:
+            continue
+        window_size = len(target_tokens)
+        for start in range(0, len(tokens) - window_size + 1):
+            window = tokens[start : start + window_size]
+            candidate = "".join(normalized for _match, normalized in window)
+            if _bounded_edit_distance(candidate, target, maximum_errors) is None:
+                continue
+            spans.add((window[0][0].start(), window[-1][0].end()))
+    return sorted(spans)
 
 
 def _subtract_spans(
@@ -161,6 +267,19 @@ class ConfiguredTextAnalyzer:
         for entity in entities:
             filtered.extend(_subtract_spans(entity, excluded_spans))
         return filtered
+
+    def analyze_ocr(self, text: str) -> Sequence[DetectedEntity]:
+        """Analyze OCR text with optional included-only fuzzy matching."""
+        if not self._config.included_only or not self._config.included_fuzzy:
+            return self.analyze(text)
+        return [
+            DetectedEntity(start, end, "CONFIG_INCLUDED_FUZZY", 1.0)
+            for start, end in _fuzzy_literal_spans(
+                text,
+                self._config.included,
+                self._config.included_fuzzy_max_errors,
+            )
+        ]
 
 
 def _normalize_token(value: str) -> str:

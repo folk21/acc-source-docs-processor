@@ -99,3 +99,61 @@ def test_configured_heading_redacts_page_remainder_and_later_pages(monkeypatch) 
     assert first.getpixel((100, 20)) == (255, 255, 255)
     assert second_detected == 0
     assert second.getbbox() is None
+
+
+def test_raster_redaction_uses_fuzzy_included_ocr_matching(monkeypatch) -> None:
+    """Verify one OCR substitution still redacts a configured included word.
+
+    Protected risk: low-quality scans may recognize `Квантовая` as
+    `Кванговая`, which must not remain visible when fuzzy OCR matching is enabled.
+    """
+    from PIL import Image
+
+    from source_docs_processor.anonymization.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+    )
+    from source_docs_processor.anonymization.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    recognized = "Кванговая"
+    page = OcrPage(
+        text=recognized,
+        words=(
+            OcrWord(
+                text=recognized,
+                start=0,
+                end=len(recognized),
+                left=20,
+                top=30,
+                width=90,
+                height=20,
+                confidence=72.0,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=160,
+        original_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.anonymization.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+    config = AnonymizationConfig(
+        included=("Квантовая",),
+        included_fuzzy=True,
+        included_fuzzy_max_errors=1,
+    )
+    analyzer = ConfiguredTextAnalyzer(None, config)
+
+    redacted, detected = redact_pil_image(
+        Image.new("RGB", (160, 100), "white"),
+        analyzer,
+        config=config,
+    )
+
+    assert detected == 1
+    assert redacted.getpixel((60, 40)) == (0, 0, 0)
