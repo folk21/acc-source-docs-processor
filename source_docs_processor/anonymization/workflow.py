@@ -8,6 +8,11 @@ from pathlib import Path
 
 from .config import AnonymizationConfig, EMPTY_ANONYMIZATION_CONFIG, mask_after_heading
 from .docx import anonymize_docx_file
+from .editable import (
+    anonymize_image_to_docx,
+    anonymize_pdf_to_docx,
+    anonymize_text_to_docx,
+)
 from .image import SUPPORTED_IMAGE_EXTENSIONS, anonymize_image_file
 from .models import (
     AnonymizationProgress,
@@ -73,9 +78,29 @@ def _anonymize_one_file(
     lang: str,
     config: AnonymizationConfig,
     progress_callback: UnitProgressCallback | None,
+    output_document_type: str | None,
+    output_layout: str | None,
 ) -> int:
     """Dispatch one supported file to its format-specific anonymizer."""
     suffix = source.suffix.lower()
+    if output_document_type == "docx":
+        if suffix in SUPPORTED_IMAGE_EXTENSIONS:
+            return anonymize_image_to_docx(
+                source, destination, analyzer, lang, config, progress_callback,
+                output_layout=output_layout,
+            )
+        if suffix == ".pdf":
+            return anonymize_pdf_to_docx(
+                source, destination, analyzer, lang, config, progress_callback,
+                output_layout=output_layout,
+            )
+        if suffix == ".docx":
+            return anonymize_docx_file(
+                source, destination, analyzer, lang=lang, config=config
+            )
+        if suffix == ".txt":
+            text, _encoding = _read_text(source)
+            return anonymize_text_to_docx(text, destination, analyzer, config)
     if suffix in SUPPORTED_IMAGE_EXTENSIONS:
         return anonymize_image_file(
             source,
@@ -114,6 +139,8 @@ def _atomic_anonymize(
     lang: str,
     config: AnonymizationConfig,
     progress_callback: UnitProgressCallback | None,
+    output_document_type: str | None,
+    output_layout: str | None,
 ) -> int:
     """Write one anonymized file atomically so failures leave no partial output."""
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -132,6 +159,8 @@ def _atomic_anonymize(
             lang=lang,
             config=config,
             progress_callback=progress_callback,
+            output_document_type=output_document_type,
+            output_layout=output_layout,
         )
         temporary_path.replace(destination)
         return detected
@@ -148,6 +177,60 @@ def _emit_progress(
         callback(progress)
 
 
+def _unique_relative_path(candidate: Path, used_paths: set[Path]) -> Path:
+    """Return a deterministic unused relative output path."""
+    if candidate not in used_paths:
+        return candidate
+    counter = 2
+    while True:
+        numbered = candidate.with_name(
+            f"{candidate.stem}_{counter}{candidate.suffix}"
+        )
+        if numbered not in used_paths:
+            return numbered
+        counter += 1
+
+
+def _plan_docx_destinations(
+    files: list[Path],
+    source_root: Path,
+    also_output_source_format: bool,
+) -> dict[Path, Path]:
+    """Plan collision-safe DOCX destinations for every supported source path."""
+    candidate_counts: dict[Path, int] = {}
+    for source_path in files:
+        relative_path = source_path.relative_to(source_root)
+        if also_output_source_format and relative_path.suffix.lower() == ".docx":
+            continue
+        candidate = relative_path.with_suffix(".docx")
+        candidate_counts[candidate] = candidate_counts.get(candidate, 0) + 1
+
+    used_paths = (
+        {source_path.relative_to(source_root) for source_path in files}
+        if also_output_source_format
+        else set()
+    )
+    destinations: dict[Path, Path] = {}
+    for source_path in files:
+        relative_path = source_path.relative_to(source_root)
+        if also_output_source_format and relative_path.suffix.lower() == ".docx":
+            destinations[source_path] = relative_path
+            continue
+
+        candidate = relative_path.with_suffix(".docx")
+        if candidate_counts.get(candidate, 0) > 1 or (
+            candidate in used_paths and candidate != relative_path
+        ):
+            source_type = relative_path.suffix.lower().lstrip(".") or "file"
+            candidate = candidate.with_name(
+                f"{candidate.stem}__{source_type}.docx"
+            )
+        candidate = _unique_relative_path(candidate, used_paths)
+        destinations[source_path] = candidate
+        used_paths.add(candidate)
+    return destinations
+
+
 def anonymize_folder(
     source_dir: Path,
     output_dir: Path,
@@ -155,8 +238,26 @@ def anonymize_folder(
     lang: str = "rus+eng",
     config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
     progress_callback: AnonymizationProgressCallback | None = None,
+    output_document_type: str | None = None,
+    output_layout: str | None = None,
+    also_output_source_format: bool = False,
 ) -> AnonymizationSummary:
-    """Anonymize supported files recursively while preserving names and folders."""
+    """Anonymize supported files recursively and write requested output variants."""
+    if output_document_type not in {None, "docx"}:
+        raise ValueError(
+            f"Unsupported output document type: {output_document_type}"
+        )
+    if output_layout not in {None, "preserve"}:
+        raise ValueError(f"Unsupported output layout: {output_layout}")
+    if output_layout is not None and output_document_type != "docx":
+        raise ValueError(
+            "--outputLayout requires --outputDocumentType docx"
+        )
+    if also_output_source_format and output_document_type is None:
+        raise ValueError(
+            "--alsoOutputSourceFormat requires --outputDocumentType"
+        )
+
     source_root = source_dir.expanduser().resolve()
     output_root = output_dir.expanduser().resolve()
     if not source_root.exists() or not source_root.is_dir():
@@ -183,10 +284,47 @@ def anonymize_folder(
         key=lambda path: path.relative_to(source_root).as_posix().lower(),
     )
     file_count = len(files)
+    docx_destinations = (
+        _plan_docx_destinations(
+            files,
+            source_root,
+            also_output_source_format=also_output_source_format,
+        )
+        if output_document_type == "docx"
+        else {}
+    )
 
     for file_index, source_path in enumerate(files, start=1):
         relative_path = source_path.relative_to(source_root)
-        destination = output_root / relative_path
+        target_relative = docx_destinations.get(source_path, relative_path)
+        target_destination = output_root / target_relative
+        source_format_destination = output_root / relative_path
+
+        jobs: list[tuple[Path, str | None, str | None, str | None]]
+        if also_output_source_format and target_relative != relative_path:
+            jobs = [
+                (source_format_destination, None, None, "source"),
+                (
+                    target_destination,
+                    output_document_type,
+                    output_layout,
+                    output_document_type,
+                ),
+            ]
+            primary_destination = target_destination
+            additional_destinations = [source_format_destination]
+        else:
+            jobs = [
+                (
+                    target_destination,
+                    output_document_type,
+                    output_layout,
+                    None,
+                )
+            ]
+            primary_destination = target_destination
+            additional_destinations = []
+
         result = AnonymizedFileResult(source_path=source_path)
         _emit_progress(
             progress_callback,
@@ -198,7 +336,15 @@ def anonymize_folder(
             ),
         )
 
-        def unit_progress(unit_name: str, unit_index: int, unit_count: int) -> None:
+        def unit_progress(
+            variant_name: str | None,
+            unit_name: str,
+            unit_index: int,
+            unit_count: int,
+        ) -> None:
+            display_name = (
+                f"{variant_name} {unit_name}" if variant_name else unit_name
+            )
             _emit_progress(
                 progress_callback,
                 AnonymizationProgress(
@@ -206,28 +352,61 @@ def anonymize_folder(
                     source_path=source_path,
                     file_index=file_index,
                     file_count=file_count,
-                    unit_name=unit_name,
+                    unit_name=display_name,
                     unit_index=unit_index,
                     unit_count=unit_count,
                 ),
             )
 
+        def progress_for_variant(
+            variant_name: str | None,
+        ) -> UnitProgressCallback:
+            """Bind unit progress to one output variant label."""
+
+            def report(
+                unit_name: str,
+                unit_index: int,
+                unit_count: int,
+            ) -> None:
+                unit_progress(
+                    variant_name,
+                    unit_name,
+                    unit_index,
+                    unit_count,
+                )
+
+            return report
+
+        created_destinations: list[Path] = []
+        detected_counts: list[int] = []
         try:
             if source_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 raise ValueError(
                     f"Unsupported file type: {source_path.suffix or '<no extension>'}"
                 )
-            result.detected_entities = _atomic_anonymize(
-                source_path,
-                destination,
-                analyzer=analyzer,
-                lang=lang,
-                config=config,
-                progress_callback=unit_progress,
-            )
-            result.destination_path = destination
+            for destination, document_type, layout, variant_name in jobs:
+                detected_counts.append(
+                    _atomic_anonymize(
+                        source_path,
+                        destination,
+                        analyzer=analyzer,
+                        lang=lang,
+                        config=config,
+                        progress_callback=progress_for_variant(variant_name),
+                        output_document_type=document_type,
+                        output_layout=layout,
+                    )
+                )
+                created_destinations.append(destination)
+
+            result.detected_entities = max(detected_counts, default=0)
+            result.destination_path = primary_destination
+            result.additional_destination_paths = additional_destinations
         except Exception as exc:
-            destination.unlink(missing_ok=True)
+            for destination, _document_type, _layout, _variant_name in jobs:
+                destination.unlink(missing_ok=True)
+            for destination in created_destinations:
+                destination.unlink(missing_ok=True)
             result.error = str(exc)
         summary.results.append(result)
         _emit_progress(
@@ -238,6 +417,7 @@ def anonymize_folder(
                 file_index=file_index,
                 file_count=file_count,
                 detected_entities=result.detected_entities,
+                output_count=len(result.output_paths),
                 error=result.error,
             ),
         )

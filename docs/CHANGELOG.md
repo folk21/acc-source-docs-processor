@@ -2,6 +2,64 @@
 
 This changelog records project changes by functional milestone. The project is pre-release.
 
+## 0.13.5 — Dual anonymized output
+
+### Added
+
+- Added `--also-output-source-format` with the requested `--alsoOutputSourceFormat` alias.
+- Added generation of both anonymized source-format and requested DOCX artifacts in one run.
+- Added deterministic collision handling when converted DOCX names overlap source-format files.
+- Added generated-artifact counts to privacy-safe console progress and the final summary.
+- Added regression coverage for dual TXT/DOCX output, matching DOCX formats, required option validation, aliases, and output-name collisions.
+
+### Preserved
+
+- Omitting the new flag keeps the existing single-output behavior.
+- A source already matching the requested format produces one artifact instead of a redundant duplicate.
+- If either requested variant fails, partial artifacts for that source file are removed.
+
+### Changed
+
+- Bumped the package version to `0.13.5`.
+
+## 0.13.4 — Approximate editable layout preservation
+
+### Added
+
+- Added `--output-layout preserve` with the requested `--outputLayout` alias.
+- Added OCR line grouping and approximate reconstruction of page size, orientation, horizontal placement, vertical spacing, and font sizes.
+- Added upright layout coordinates alongside original-image redaction coordinates.
+- Added regression coverage for page geometry, rotated scans, positioned masked text, CLI aliases, and the no-background-image privacy guarantee.
+
+### Preserved
+
+- The original scan is never embedded in editable DOCX output.
+- Native DOCX input continues to retain sanitized source formatting.
+- Omitting `--output-layout` keeps the simpler editable paragraph output.
+
+### Changed
+
+- Bumped the package version to `0.13.4`.
+
+## 0.13.3 — Editable DOCX anonymization output
+
+### Added
+
+- Added `--output-document-type docx` with the requested `--outputDocumentType` alias.
+- Added editable OCR-to-DOCX reconstruction for PDF and raster inputs.
+- Added TXT-to-DOCX conversion and preserved sanitized DOCX output for DOCX sources.
+- Added deterministic collision-safe names when different source formats share one stem.
+- Added regression coverage for CLI aliases, editable text masking, scanned PDF conversion, and output-name collisions.
+
+### Preserved
+
+- Omitting the option keeps each source file in its original format.
+- Existing included-only, fuzzy OCR, includedParagraphs, metadata removal, and progress behavior remain unchanged.
+
+### Changed
+
+- Bumped the package version to `0.13.3`.
+
 ## 0.13.2 — OCR-tolerant included matching
 
 ### Added

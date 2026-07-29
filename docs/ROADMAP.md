@@ -112,6 +112,9 @@ Status legend:
 - [x] Add configurable default-mode exclusions, included-only literal redaction, and section-level redaction headings.
 - [x] Add conservative OCR-only fuzzy matching for configured included values.
 - [ ] Add custom organization/person dictionaries beyond literal matching.
+- [x] Add optional editable DOCX anonymization output for OCR-backed inputs.
+- [x] Add approximate page-layout preservation for editable OCR-to-DOCX output.
+- [x] Add optional dual anonymized output in source format and requested editable format.
 - [ ] Add an optional machine-readable anonymization audit report without PII values.
 - [x] Support source, output, target name, document type, deep OCR, dry run, rotation, and debug options.
 - [x] Let each workflow interpret output-related options.

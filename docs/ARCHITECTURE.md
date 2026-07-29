@@ -110,20 +110,22 @@ source directory
   -> recursive supported-file selection
       -> configured literal-only analyzer or Presidio Russian NER
           -> format-specific sanitizer
-              -> same relative path and file name below output directory
+              -> source-format output and/or requested editable output below the same relative folder
 ```
 
 `text.py` configures `ru_core_news_sm` through Presidio's `SpacyNlpEngine`, maps Russian spaCy labels to Presidio entities, and registers Russian accounting and identity patterns. Detected spans are normalized into the project-owned `DetectedEntity` model so tests do not require real NLP models.
 
 `config.py` loads literal `excluded`, `included`, and `includedParagraphs` rules from an INI file. A non-empty `included` list enables literal-only mode, bypasses Presidio and `excluded`, and supports flexible whitespace inside multiword entries. Optional `includedFuzzy` and `includedFuzzyMaxErrors` settings add bounded OCR-only edit-distance matching for raster content while native TXT and DOCX text remains exact. OCR matching also normalizes common Latin/Cyrillic lookalikes. With an empty `included`, Presidio remains the base analyzer and `excluded` subtracts explicit false-positive ranges. Section headings operate independently and activate full redaction below the heading and across later raster pages.
 
-`image.py` runs local Tesseract OCR against four orientation candidates, maps detected text spans back to original pixel coordinates, draws opaque rectangles, and writes images without source metadata.
+`image.py` runs local Tesseract OCR against four orientation candidates, retains both original redaction coordinates and upright layout coordinates, maps detected text spans back to original pixels, draws opaque rectangles, and writes images without source metadata.
+
+`editable.py` creates editable DOCX output. Its default mode writes plain masked OCR text. The optional `preserve` layout mode groups Tesseract words into lines and approximates source page dimensions, orientation, horizontal placement, vertical spacing, and font sizes. It never embeds the source scan as a background image. Native DOCX input continues through the OOXML sanitizer so existing formatting is retained where possible.
 
 `pdf.py` renders each page, delegates pixel redaction to the image sanitizer, and creates a new image-only PDF. It intentionally does not preserve the source text layer, annotations, attachments, forms, or metadata because those channels may contain recoverable private data.
 
 `docx.py` processes the OOXML ZIP package directly. It masks paragraph text across run boundaries, sanitizes remaining XML text and author attributes, strips core/custom metadata, removes external relationships and custom XML, and redacts supported embedded raster images. It rejects opaque embedded or active content instead of copying it unchanged.
 
-`workflow.py` preserves relative paths and file names, writes each output atomically, excludes an output directory placed below the source tree, emits privacy-safe file/page progress events, and records failures without logging recognized values. Unsupported files remain absent from output and cause a non-zero command result.
+`workflow.py` preserves relative paths, writes each output atomically, excludes an output directory placed below the source tree, emits privacy-safe file/page progress events, and records failures without logging recognized values. Optional dual-output mode writes the anonymized source format plus the requested editable format, skips a redundant second artifact when both formats match, and resolves converted-name collisions deterministically. If either requested variant fails, all artifacts for that source file are removed. Unsupported files remain absent from output and cause a non-zero command result.
 
 ## Document type registry
 
@@ -302,7 +304,7 @@ Local QR decoding utilities exist but are not integrated into receipt processing
 
 `source_docs_processor/commands/process.py` owns processing arguments and preserves `process_folder()` as the reusable programmatic API. It resolves a `DocumentTypeDefinition`, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow.
 
-`source_docs_processor/commands/anonymize.py` accepts source and output directories, creates the local Presidio analyzer, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument.
+`source_docs_processor/commands/anonymize.py` accepts source and output directories, an optional editable DOCX output type, `preserve` layout mode, and optional dual source-format output, creates the local Presidio analyzer when required, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument. PDF and raster pages are OCRed into masked editable text; preserve mode approximates layout without embedding original page images.
 
 No document-specific branch belongs in the CLI or command handlers. Document-type behavior remains in the explicit document-type registry and its selected components.
 

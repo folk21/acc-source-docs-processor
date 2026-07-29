@@ -160,6 +160,9 @@ The anonymization operation accepts directories, not individual file paths:
 python main.py anonymize \
   --source "/path/to/private-documents" \
   --output "/path/to/anonymized-documents" \
+  --output-document-type docx \
+  --output-layout preserve \
+  --also-output-source-format \
   --config "config/anonymization.ini"
 ```
 
@@ -185,7 +188,9 @@ includedParagraphs = 9. Реквизиты и подписи сторон
 
 Comma-separated and multiline values are supported. Multiword literals tolerate spaces, tabs, or line breaks between their words. The default file is `config/anonymization.ini`; another file can be selected with `--config`.
 
-The command scans `--source` recursively and writes anonymized files below `--output` with the same relative folders and file names. It does not use `--document-type`.
+The command scans `--source` recursively and writes anonymized files below `--output`. Without `--output-document-type`, relative folders, file names, and formats are preserved. `--output-document-type docx` (also accepted as `--outputDocumentType docx`) reconstructs editable anonymized text in DOCX files. Add `--output-layout preserve` (also accepted as `--outputLayout preserve`) to approximate the source page size, orientation, OCR line positions, spacing, and font sizes. Add `--also-output-source-format` (also accepted as `--alsoOutputSourceFormat`) to generate both an anonymized source-format artifact and the requested DOCX artifact. For example, `contract.pdf` produces `contract.pdf` plus `contract.docx`. A DOCX source produces only one DOCX because the requested and source formats already match. The source scan is never embedded as a background image. Native DOCX input keeps its sanitized source formatting; TXT has no page layout to reconstruct. Files with colliding converted names receive a source-format suffix such as `document__pdf.docx`. Dual output performs both format-specific rendering paths and can take longer for scanned PDF or image input. The command does not use `--document-type`.
+
+`preserve` is an OCR-based approximation rather than a lossless PDF-to-Word conversion. Simple paragraphs and aligned text usually remain recognizable, while complex tables, exact fonts, stamps, signatures, and decorative elements may require manual correction.
 
 Supported input formats:
 
@@ -198,7 +203,7 @@ Detection combines the Russian `ru_core_news_sm` spaCy NER pipeline with Microso
 
 Output safety behavior:
 
-- PDF pages are rendered, redacted, and rebuilt as image-only pages so the original searchable text layer and metadata are not retained.
+- PDF pages are rendered, redacted, and rebuilt as image-only pages so the original searchable text layer and metadata are not retained when the source format is preserved. With DOCX output, OCR text is masked and reconstructed without embedding the source page image; `--output-layout preserve` additionally approximates page geometry and text positioning.
 - Raster images are OCRed in multiple orientations, covered with opaque rectangles, and saved without source EXIF metadata.
 - DOCX text, headers, footers, tables, drawing text, package metadata, and supported embedded raster images are sanitized. External relationships and custom XML are removed.
 - DOCX files containing OLE/ActiveX objects, embedded workbooks, macros, or unsupported vector images fail instead of copying opaque content unchanged.

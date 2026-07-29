@@ -121,6 +121,8 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Use `excluded` only to refine default detections when `included` is empty.
 - Treat `includedParagraphs` as an independent, stronger section-level rule once its heading has matched.
 - Preserve immediate privacy-safe progress output for long OCR runs.
+- Keep editable layout reconstruction image-free: approximate page geometry and OCR text positions, but never embed the original scan as a background.
+- When dual output is requested, write one anonymized source-format artifact and one requested-format artifact, avoid duplicate output when the formats already match, and resolve converted-name collisions deterministically.
 - Document that OCR and NER are heuristic and that output requires manual review before external sharing.
 
 ## Testing rules

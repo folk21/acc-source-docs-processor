@@ -24,7 +24,7 @@ SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".tif",
 
 @dataclass(frozen=True)
 class OcrWord:
-    """One OCR word with text offsets and a bounding rectangle."""
+    """One OCR word with redaction and upright-layout coordinates."""
 
     text: str
     start: int
@@ -34,17 +34,26 @@ class OcrWord:
     width: int
     height: int
     confidence: float
+    layout_left: int | None = None
+    layout_top: int | None = None
+    layout_width: int | None = None
+    layout_height: int | None = None
+    block_number: int = 0
+    paragraph_number: int = 0
+    line_number: int = 0
 
 
 @dataclass(frozen=True)
 class OcrPage:
-    """OCR text and positioned words for one image orientation."""
+    """OCR text plus original and upright-layout word coordinates."""
 
     text: str
     words: tuple[OcrWord, ...]
     rotation_degrees: int
     original_width: int
     original_height: int
+    layout_width: int = 0
+    layout_height: int = 0
 
 
 @dataclass
@@ -119,11 +128,15 @@ def _ocr_page(image: Image.Image, lang: str, angle: int) -> OcrPage:
         start = offset
         text_parts.append(value)
         offset += len(value)
+        layout_left = int(data["left"][index])
+        layout_top = int(data["top"][index])
+        layout_width = int(data["width"][index])
+        layout_height = int(data["height"][index])
         mapped = _map_box_to_original(
-            int(data["left"][index]),
-            int(data["top"][index]),
-            int(data["width"][index]),
-            int(data["height"][index]),
+            layout_left,
+            layout_top,
+            layout_width,
+            layout_height,
             angle,
             original_width,
             original_height,
@@ -138,6 +151,13 @@ def _ocr_page(image: Image.Image, lang: str, angle: int) -> OcrPage:
                 width=mapped[2],
                 height=mapped[3],
                 confidence=confidence,
+                layout_left=layout_left,
+                layout_top=layout_top,
+                layout_width=layout_width,
+                layout_height=layout_height,
+                block_number=int(data.get("block_num", [0] * count)[index]),
+                paragraph_number=int(data.get("par_num", [0] * count)[index]),
+                line_number=int(data.get("line_num", [0] * count)[index]),
             )
         )
 
@@ -147,6 +167,8 @@ def _ocr_page(image: Image.Image, lang: str, angle: int) -> OcrPage:
         rotation_degrees=angle,
         original_width=original_width,
         original_height=original_height,
+        layout_width=candidate.width,
+        layout_height=candidate.height,
     )
 
 

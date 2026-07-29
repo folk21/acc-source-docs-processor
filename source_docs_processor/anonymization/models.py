@@ -32,13 +32,21 @@ class AnonymizedFileResult:
 
     source_path: Path
     destination_path: Path | None = None
+    additional_destination_paths: list[Path] = field(default_factory=list)
     detected_entities: int = 0
     error: str | None = None
 
     @property
+    def output_paths(self) -> tuple[Path, ...]:
+        """Return all generated paths with the primary output first."""
+        if self.destination_path is None:
+            return ()
+        return (self.destination_path, *self.additional_destination_paths)
+
+    @property
     def succeeded(self) -> bool:
-        """Return True when the anonymized output was created."""
-        return self.error is None and self.destination_path is not None
+        """Return True when every requested anonymized output was created."""
+        return self.error is None and bool(self.output_paths)
 
 
 @dataclass(frozen=True)
@@ -53,6 +61,7 @@ class AnonymizationProgress:
     unit_index: int | None = None
     unit_count: int | None = None
     detected_entities: int = 0
+    output_count: int = 0
     error: str | None = None
 
 
@@ -82,3 +91,12 @@ class AnonymizationSummary:
     def detected_entities(self) -> int:
         """Return the total number of detected sensitive spans."""
         return sum(result.detected_entities for result in self.results)
+
+    @property
+    def generated_files_count(self) -> int:
+        """Return the number of anonymized artifacts written successfully."""
+        return sum(
+            len(result.output_paths)
+            for result in self.results
+            if result.succeeded
+        )

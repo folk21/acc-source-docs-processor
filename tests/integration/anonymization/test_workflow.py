@@ -74,3 +74,256 @@ def test_folder_anonymization_emits_file_progress_events(tmp_path: Path) -> None
     assert events[0].file_index == 1
     assert events[0].file_count == 1
     assert events[-1].error is None
+
+
+def test_folder_anonymization_can_write_editable_docx(tmp_path: Path) -> None:
+    """Verify explicit DOCX output converts supported text files to editable documents.
+
+    Protected risk: requesting editable output must change the extension and keep
+    anonymized text editable instead of silently producing a raster PDF.
+    """
+    from docx import Document
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    text_path = source / "nested" / "note.txt"
+    text_path.parent.mkdir(parents=True)
+    text_path.write_text("Контакт: Иван Петров", encoding="utf-8")
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        output_document_type="docx",
+    )
+
+    destination = output / "nested" / "note.docx"
+    assert summary.failed_count == 0
+    assert destination.exists()
+    document_text = "\n".join(
+        paragraph.text for paragraph in Document(destination).paragraphs
+    )
+    assert "Иван Петров" not in document_text
+    assert "Контакт:" in document_text
+
+
+def test_docx_output_avoids_same_stem_collisions(tmp_path: Path) -> None:
+    """Verify converted files with the same stem receive deterministic names.
+
+    Protected risk: a PDF and TXT with the same stem must not overwrite each
+    other when both are converted to DOCX in one output folder.
+    """
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+    (source / "note.pdf").write_bytes(b"not a real PDF")
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        output_document_type="docx",
+    )
+
+    assert (output / "note__txt.docx").exists()
+    assert not (output / "note.docx").exists()
+    assert summary.succeeded_count == 1
+    assert summary.failed_count == 1
+
+
+def test_preserve_layout_requires_docx_output(tmp_path: Path) -> None:
+    """Verify layout reconstruction cannot be selected for source-format output.
+
+    Protected risk: silently ignoring preserve mode would make the CLI appear to
+    produce editable layout-preserving documents when it did not.
+    """
+    import pytest
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="requires --outputDocumentType docx"):
+        anonymize_folder(
+            source,
+            output,
+            FictionalNameAnalyzer(),
+            output_layout="preserve",
+        )
+
+
+def test_dual_output_writes_source_format_and_editable_docx(tmp_path: Path) -> None:
+    """Verify one source can produce anonymized source-format and DOCX outputs.
+
+    Protected risk: requesting an editable copy must not remove the safer
+    source-format anonymized artifact needed for visual review.
+    """
+    from docx import Document
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    text_path = source / "nested" / "note.txt"
+    text_path.parent.mkdir(parents=True)
+    text_path.write_text("Контакт: Иван Петров", encoding="utf-8")
+
+    events = []
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        output_document_type="docx",
+        output_layout="preserve",
+        also_output_source_format=True,
+        progress_callback=events.append,
+    )
+
+    source_format = output / "nested" / "note.txt"
+    editable = output / "nested" / "note.docx"
+    assert summary.failed_count == 0
+    assert summary.succeeded_count == 1
+    assert summary.generated_files_count == 2
+    assert source_format.exists()
+    assert editable.exists()
+    assert "Иван Петров" not in source_format.read_text(encoding="utf-8")
+    editable_text = "\n".join(
+        paragraph.text for paragraph in Document(editable).paragraphs
+    )
+    assert "Иван Петров" not in editable_text
+    assert set(summary.results[0].output_paths) == {source_format, editable}
+    assert events[-1].output_count == 2
+
+
+def test_dual_output_does_not_duplicate_matching_docx_format(tmp_path: Path) -> None:
+    """Verify DOCX input creates one artifact when DOCX is also requested.
+
+    Protected risk: dual-output mode must not create two identical DOCX files
+    or invent a confusing duplicate name for an already matching source type.
+    """
+    from docx import Document
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    document = Document()
+    document.add_paragraph("Контакт: Иван Петров")
+    document.save(source / "note.docx")
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        output_document_type="docx",
+        also_output_source_format=True,
+    )
+
+    assert summary.failed_count == 0
+    assert summary.generated_files_count == 1
+    assert (output / "note.docx").exists()
+    assert list(output.glob("*.docx")) == [output / "note.docx"]
+
+
+def test_dual_output_requires_explicit_target_type(tmp_path: Path) -> None:
+    """Verify source-format duplication cannot be enabled without conversion.
+
+    Protected risk: accepting the flag alone would create ambiguous duplicate
+    outputs without a second requested document format.
+    """
+    import pytest
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Контакт", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="requires --outputDocumentType"):
+        anonymize_folder(
+            source,
+            output,
+            FictionalNameAnalyzer(),
+            also_output_source_format=True,
+        )
+
+
+def test_dual_output_avoids_collision_with_existing_docx_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify converted DOCX names do not overwrite source-format DOCX output.
+
+    Protected risk: a PDF and DOCX sharing one stem must both survive dual-output
+    mode without the converted PDF replacing the anonymized DOCX source file.
+    """
+    from docx import Document
+    from source_docs_processor.anonymization import workflow
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    document = Document()
+    document.add_paragraph("Контакт: Иван Петров")
+    document.save(source / "note.docx")
+    (source / "note.pdf").write_bytes(b"synthetic PDF placeholder")
+
+    def fake_atomic_anonymize(source_path, destination, **_kwargs):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(source_path.read_bytes())
+        return 1
+
+    monkeypatch.setattr(workflow, "_atomic_anonymize", fake_atomic_anonymize)
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        output_document_type="docx",
+        also_output_source_format=True,
+    )
+
+    assert (output / "note.docx").exists()
+    assert (output / "note.pdf").exists()
+    assert (output / "note__pdf.docx").exists()
+    assert summary.succeeded_count == 2
+    assert summary.failed_count == 0
+    assert summary.generated_files_count == 3
+
+
+def test_dual_output_removes_both_variants_when_conversion_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify a failed second variant removes the completed first variant.
+
+    Protected risk: a partially successful dual-output run must not leave a
+    source-format artifact that users could mistake for a complete result set.
+    """
+    from source_docs_processor.anonymization import workflow
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+
+    original_atomic = workflow._atomic_anonymize
+
+    def fail_docx_variant(source_path, destination, **kwargs):
+        if kwargs.get("output_document_type") == "docx":
+            raise RuntimeError("synthetic DOCX conversion failure")
+        return original_atomic(source_path, destination, **kwargs)
+
+    monkeypatch.setattr(workflow, "_atomic_anonymize", fail_docx_variant)
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        output_document_type="docx",
+        also_output_source_format=True,
+    )
+
+    assert summary.succeeded_count == 0
+    assert summary.failed_count == 1
+    assert summary.generated_files_count == 0
+    assert not (output / "note.txt").exists()
+    assert not (output / "note.docx").exists()

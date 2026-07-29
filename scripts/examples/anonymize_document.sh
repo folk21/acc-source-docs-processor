@@ -5,4 +5,7 @@ set -euo pipefail
 python main.py anonymize \
   --source "/path/to/private-documents" \
   --output "/path/to/anonymized-documents" \
+  --output-document-type docx \
+  --output-layout preserve \
+  --also-output-source-format \
   --config "config/anonymization.ini"
