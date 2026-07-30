@@ -1,14 +1,14 @@
 import pytest
 
-from source_docs_processor.document_types import (
+from source_docs_processor.features.document_types import (
     DEFAULT_DOCUMENT_TYPE,
     get_document_type_definition,
 )
-from source_docs_processor.processors import create_document_processor
-from source_docs_processor.upd_invoices_status_1.registry import (
+from source_docs_processor.features.document_types.processors import create_document_processor
+from source_docs_processor.features.document_types.upd_invoices_status_1.registry import (
     UpdInvoicesStatus1RegistryDefinition,
 )
-from source_docs_processor.upd_invoices_status_1.workflow import (
+from source_docs_processor.features.document_types.upd_invoices_status_1.workflow import (
     UpdInvoicesStatus1Workflow,
 )
 
@@ -63,10 +63,10 @@ def test_electronic_upd_definition_builds_source_file_components():
     Protected risk: adding PDF and DOCX processing must preserve the existing
     default scan processor while exposing a separate selectable workflow.
     """
-    from source_docs_processor.incoming_purchase_documents.registry import (
+    from source_docs_processor.features.document_types.incoming_purchase_documents.registry import (
         IncomingPurchaseDocumentsRegistryDefinition,
     )
-    from source_docs_processor.incoming_purchase_documents.workflow import (
+    from source_docs_processor.features.document_types.incoming_purchase_documents.workflow import (
         IncomingPurchaseDocumentsWorkflow,
     )
 

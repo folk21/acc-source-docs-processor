@@ -1,14 +1,15 @@
-"""Local processing of scanned and electronic accounting source documents.
+"""Local processing and anonymization of accounting source documents.
 
-The package separates three independently selected responsibilities:
+The package is organized around independent features:
 
-1. a processor recognizes and extracts one image or source file;
-2. a processing workflow decides how a source folder and its files are handled;
-3. a registry definition controls tabular output schemas and row mapping.
+- ``features.anonymization`` owns privacy-safe document redaction;
+- ``features.document_types`` owns document recognition, workflows, registries,
+  and concrete document-type implementations;
+- ``core`` contains only utilities shared by more than one feature;
+- ``commands`` adapts CLI arguments to the selected feature.
 
-A complete document type definition binds these parts together for CLI use.
-Existing scan and receipt workflows remain independent from the incoming purchase
-document workflow, whose current scope is PDF/DOCX UPD status 1 files.
+The public CLI and registered document type identifiers remain stable while the
+internal feature packages evolve independently.
 """
 
-__version__ = "0.13.8"
+__version__ = "0.14.0"

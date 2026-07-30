@@ -9,6 +9,9 @@ Status legend:
 ## Generic architecture
 
 - [x] Introduce top-level CLI subcommands for independent operations.
+- [x] Group independent operations under `source_docs_processor/features/`.
+- [x] Keep cross-feature helpers isolated under `source_docs_processor/core/`.
+- [x] Keep document-processing infrastructure and implementations together under `features/document_types/`.
 - [x] Keep document processing under the `process` subcommand.
 - [x] Reserve an `anonymize` command without coupling it to document-type registration.
 - [x] Separate shared models from document-specific OCR.
@@ -63,7 +66,7 @@ Status legend:
 
 ## NPD receipts
 
-- [x] Add `source_docs_processor/npd_receipts/` as a separate processor package.
+- [x] Add `source_docs_processor/features/document_types/npd_receipts/` as a separate processor package.
 - [x] Add a copy-and-register workflow that renames recognized receipts.
 - [x] Preserve relative source subfolders in copied output.
 - [x] Copy unrecognized receipt images without renaming.

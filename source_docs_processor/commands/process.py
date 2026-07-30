@@ -6,16 +6,19 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from ..document_processor import Processor
-from ..document_types import (
+from ..features.document_types.document_processor import Processor
+from ..features.document_types import (
     DEFAULT_DOCUMENT_TYPE,
     SUPPORTED_DOCUMENT_TYPES,
     DocumentTypeDefinition,
     get_document_type_definition,
 )
-from ..models import ExtractedDocument
-from ..registry.base import RegistryDefinition
-from ..workflows.base import ProcessingOptions, ProcessingWorkflow
+from ..features.document_types.models import ExtractedDocument
+from ..features.document_types.registry.base import RegistryDefinition
+from ..features.document_types.workflows.base import (
+    ProcessingOptions,
+    ProcessingWorkflow,
+)
 
 
 def process_folder(

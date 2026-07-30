@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from source_docs_processor.anonymization.config import (
+from source_docs_processor.features.anonymization.config import (
     AnonymizationConfig,
     ConfiguredTextAnalyzer,
     ReplacementRule,
@@ -12,8 +12,8 @@ from source_docs_processor.anonymization.config import (
     load_anonymization_config,
     mask_after_heading,
 )
-from source_docs_processor.anonymization.models import DetectedEntity
-from source_docs_processor.anonymization.text import mask_text
+from source_docs_processor.features.anonymization.models import DetectedEntity
+from source_docs_processor.features.anonymization.text import mask_text
 
 
 class WholeTextAnalyzer:

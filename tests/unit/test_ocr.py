@@ -1,4 +1,4 @@
-from source_docs_processor.ocr import OcrResult
+from source_docs_processor.features.document_types.ocr import OcrResult
 
 
 def test_ocr_result_accepts_processor_defined_targeted_fields():

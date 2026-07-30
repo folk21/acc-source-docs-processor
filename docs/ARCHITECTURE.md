@@ -50,60 +50,61 @@ A registry definition owns tabular shape and row mapping. Generic writers own CS
 
 ```text
 source_docs_processor/
+├── __init__.py
 ├── cli.py
 ├── commands/
 │   ├── __init__.py
 │   ├── process.py
 │   └── anonymize.py
-├── anonymization/
-│   ├── config.py
-│   ├── docx.py
-│   ├── image.py
-│   ├── models.py
-│   ├── pdf.py
-│   ├── text.py
-│   └── workflow.py
-├── document_processor.py
-├── document_types.py
-├── file_ops.py
-├── image_processing.py
-├── models.py
-├── ocr.py
-├── processors.py
-├── registry/
-│   ├── base.py
-│   ├── common.py
-│   ├── csv_writer.py
-│   ├── xlsx_writer.py
-│   └── task_workbook.py
-├── workflows/
-│   ├── base.py
-│   └── copy_and_register.py
-├── upd_invoices_status_1/
-│   ├── extractor.py
-│   ├── image_processing.py
-│   ├── ocr.py
-│   ├── processor.py
-│   ├── registry.py
-│   └── workflow.py
-├── incoming_purchase_documents/
-│   ├── extractor.py
-│   ├── processor.py
-│   ├── readers.py
-│   ├── registry.py
-│   └── workflow.py
-└── npd_receipts/
-    ├── extractor.py
-    ├── ocr.py
-    ├── processor.py
-    ├── qr.py
-    ├── registry.py
-    └── workflow.py
+├── core/
+│   ├── __init__.py
+│   └── paths.py
+└── features/
+    ├── __init__.py
+    ├── anonymization/
+    │   ├── config.py
+    │   ├── docx.py
+    │   ├── editable.py
+    │   ├── image.py
+    │   ├── models.py
+    │   ├── pdf.py
+    │   ├── text.py
+    │   └── workflow.py
+    └── document_types/
+        ├── __init__.py
+        ├── catalog.py
+        ├── document_processor.py
+        ├── file_ops.py
+        ├── image_processing.py
+        ├── models.py
+        ├── ocr.py
+        ├── processors.py
+        ├── registry/
+        │   ├── base.py
+        │   ├── common.py
+        │   ├── csv_writer.py
+        │   ├── xlsx_writer.py
+        │   └── task_workbook.py
+        ├── workflows/
+        │   ├── base.py
+        │   └── copy_and_register.py
+        ├── upd_invoices_status_1/
+        ├── incoming_purchase_documents/
+        └── npd_receipts/
 ```
+
+The dependency direction is deliberately small and explicit:
+
+```text
+cli -> commands -> features -> core
+core -X-> features
+```
+
+`core/` contains only behavior used by more than one independent feature. At present this is limited to path relationship helpers. Document models, OCR helpers, registry writers, workflows, and file-copying utilities belong to the document-processing feature because anonymization neither depends on nor implements those contracts.
 
 ## Anonymization pipeline
 
-`source_docs_processor/anonymization/` is independent from the document processing registry:
+`source_docs_processor/features/anonymization/` is independent from the document processing registry:
 
 ```text
 source directory
@@ -129,7 +130,7 @@ source directory
 
 ## Document type registry
 
-`source_docs_processor/document_types.py` binds one CLI value to a complete definition:
+`source_docs_processor/features/document_types/catalog.py` binds one CLI value to a complete definition:
 
 ```text
 upd_invoices_status_1
@@ -148,7 +149,7 @@ incoming_purchase_documents
   -> IncomingPurchaseDocumentsRegistryDefinition
 ```
 
-The explicit registry remains preferable to plugin discovery while all processors live in the same package.
+The explicit catalog remains preferable to plugin discovery while all processors live inside the document-processing feature.
 
 ## Generic models
 
@@ -174,11 +175,11 @@ Repeating item data must not be placed in `extra_fields`.
 
 ## Registry writers
 
-`registry/csv_writer.py` writes document-neutral UTF-8 BOM semicolon-separated CSV files.
+`features/document_types/registry/csv_writer.py` writes document-neutral UTF-8 BOM semicolon-separated CSV files.
 
-`registry/xlsx_writer.py` writes ordinary single-sheet XLSX registries with formatted values and portable external links.
+`features/document_types/registry/xlsx_writer.py` writes ordinary single-sheet XLSX registries with formatted values and portable external links.
 
-`registry/task_workbook.py` writes accountant task workbooks with:
+`features/document_types/registry/task_workbook.py` writes accountant task workbooks with:
 
 - a `Documents` sheet;
 - an `Items` sheet;
@@ -194,7 +195,7 @@ The task workbook writer receives sheet columns and row builders from a document
 
 ### Processor
 
-`upd_invoices_status_1/processor.py` owns image-level recognition:
+`features/document_types/upd_invoices_status_1/processor.py` owns image-level recognition:
 
 - 0°, 90°, 180°, and 270° attempts;
 - targeted status, number, date, and shipment-row OCR;
@@ -227,7 +228,7 @@ This document type is intentionally not part of the accountant task queue becaus
 
 ### Source readers
 
-`incoming_purchase_documents/readers.py` supports:
+`features/document_types/incoming_purchase_documents/readers.py` supports:
 
 - PDF native text extraction with PyMuPDF;
 - PDF table detection with PyMuPDF when table structure is available;

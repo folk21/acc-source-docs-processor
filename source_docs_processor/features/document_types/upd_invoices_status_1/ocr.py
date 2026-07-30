@@ -3,7 +3,7 @@
 This module contains OCR logic that depends on the layout of the supported UPD
 form: fixed crop areas, status digit recognition, shipment-row fallback reading,
 and continuation-page marker OCR. Generic Tesseract wrappers remain in
-`source_docs_processor.ocr`.
+`source_docs_processor.features.document_types.ocr`.
 """
 
 from __future__ import annotations

@@ -5,8 +5,8 @@ import cv2
 import numpy as np
 
 from source_docs_processor.cli import process_folder
-from source_docs_processor.document_processor import BaseDocumentProcessor
-from source_docs_processor.models import ExtractedDocument
+from source_docs_processor.features.document_types.document_processor import BaseDocumentProcessor
+from source_docs_processor.features.document_types.models import ExtractedDocument
 
 
 class FakeNpdReceiptProcessor(BaseDocumentProcessor):

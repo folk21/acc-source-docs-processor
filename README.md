@@ -28,6 +28,19 @@ process command
 - A registry definition owns tabular schemas and row mapping.
 - Generic CSV and XLSX writers serialize document-specific registry data.
 
+Internal code is grouped by feature:
+
+```text
+source_docs_processor/
+├── commands/                 # CLI adapters
+├── core/                     # cross-feature utilities only
+└── features/
+    ├── anonymization/        # anonymize operation
+    └── document_types/       # process infrastructure and implementations
+```
+
+The `process` and `anonymize` CLI syntax and all `--document-type` values are unchanged by this internal layout.
+
 ## Supported document types
 
 | Document type | Purpose | Input | Output |

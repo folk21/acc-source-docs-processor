@@ -7,7 +7,7 @@ from pathlib import Path
 import fitz
 from PIL import Image
 
-from source_docs_processor.anonymization import pdf as pdf_module
+from source_docs_processor.features.anonymization import pdf as pdf_module
 
 
 class EmptyAnalyzer:

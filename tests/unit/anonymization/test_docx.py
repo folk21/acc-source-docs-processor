@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from source_docs_processor.anonymization.docx import anonymize_docx_file
-from source_docs_processor.anonymization.models import DetectedEntity
+from source_docs_processor.features.anonymization.docx import anonymize_docx_file
+from source_docs_processor.features.anonymization.models import DetectedEntity
 
 
 class NameAnalyzer:
@@ -69,7 +69,7 @@ def test_docx_anonymization_replaces_text_across_runs(tmp_path: Path) -> None:
     Protected risk: Word may split one surname across runs, and replacing only
     inside individual runs would leave the original private value visible.
     """
-    from source_docs_processor.anonymization.config import (
+    from source_docs_processor.features.anonymization.config import (
         AnonymizationConfig,
         ConfiguredTextAnalyzer,
         ReplacementRule,

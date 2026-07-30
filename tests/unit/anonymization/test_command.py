@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from source_docs_processor.anonymization.models import AnonymizationSummary
+from source_docs_processor.features.anonymization.models import AnonymizationSummary
 from source_docs_processor.commands import anonymize as anonymize_command
 
 

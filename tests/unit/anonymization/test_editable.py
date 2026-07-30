@@ -8,10 +8,10 @@ import fitz
 import pytest
 from docx import Document
 
-from source_docs_processor.anonymization.config import AnonymizationConfig
-from source_docs_processor.anonymization.editable import anonymize_pdf_to_docx
-from source_docs_processor.anonymization.image import OcrPage
-from source_docs_processor.anonymization.models import DetectedEntity
+from source_docs_processor.features.anonymization.config import AnonymizationConfig
+from source_docs_processor.features.anonymization.editable import anonymize_pdf_to_docx
+from source_docs_processor.features.anonymization.image import OcrPage
+from source_docs_processor.features.anonymization.models import DetectedEntity
 
 
 class IncludedAnalyzer:
@@ -53,7 +53,7 @@ def test_scanned_pdf_can_be_reconstructed_as_editable_docx(
         original_height=200,
     )
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.editable._choose_ocr_page",
+        "source_docs_processor.features.anonymization.editable._choose_ocr_page",
         lambda *args, **kwargs: (fake_page, []),
     )
 
@@ -83,7 +83,7 @@ def test_preserve_layout_reconstructs_page_geometry_and_positioned_lines(
     """
     from zipfile import ZipFile
 
-    from source_docs_processor.anonymization.image import OcrWord
+    from source_docs_processor.features.anonymization.image import OcrWord
 
     source = tmp_path / "landscape.pdf"
     destination = tmp_path / "output.docx"
@@ -130,7 +130,7 @@ def test_preserve_layout_reconstructs_page_geometry_and_positioned_lines(
         layout_height=280,
     )
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.editable._choose_ocr_page",
+        "source_docs_processor.features.anonymization.editable._choose_ocr_page",
         lambda *args, **kwargs: (fake_page, []),
     )
 
@@ -167,7 +167,7 @@ def test_preserve_layout_swaps_page_geometry_for_rotated_ocr(
     Protected risk: a sideways scan must not produce upright text on a page whose
     dimensions still describe the sideways source orientation.
     """
-    from source_docs_processor.anonymization.image import OcrWord
+    from source_docs_processor.features.anonymization.image import OcrWord
 
     source = tmp_path / "rotated.pdf"
     destination = tmp_path / "output.docx"
@@ -203,7 +203,7 @@ def test_preserve_layout_swaps_page_geometry_for_rotated_ocr(
         layout_height=280,
     )
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.editable._choose_ocr_page",
+        "source_docs_processor.features.anonymization.editable._choose_ocr_page",
         lambda *args, **kwargs: (fake_page, []),
     )
 
@@ -230,12 +230,12 @@ def test_preserve_layout_writes_replacement_text_instead_of_mask(
     Protected risk: editable output must retain the replacement value rather than
     emitting opaque blocks or the original sensitive OCR token.
     """
-    from source_docs_processor.anonymization.config import (
+    from source_docs_processor.features.anonymization.config import (
         AnonymizationConfig,
         ConfiguredTextAnalyzer,
         ReplacementRule,
     )
-    from source_docs_processor.anonymization.image import OcrWord
+    from source_docs_processor.features.anonymization.image import OcrWord
 
     source = tmp_path / "source.pdf"
     destination = tmp_path / "output.docx"
@@ -272,7 +272,7 @@ def test_preserve_layout_writes_replacement_text_instead_of_mask(
         layout_height=280,
     )
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.editable._choose_ocr_page",
+        "source_docs_processor.features.anonymization.editable._choose_ocr_page",
         lambda *args, **kwargs: (fake_page, []),
     )
     config = AnonymizationConfig(

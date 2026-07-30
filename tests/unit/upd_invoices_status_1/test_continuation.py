@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from source_docs_processor.ocr import OcrResult
-from source_docs_processor.upd_invoices_status_1.extractor import (
+from source_docs_processor.features.document_types.ocr import OcrResult
+from source_docs_processor.features.document_types.upd_invoices_status_1.extractor import (
     _is_probable_continuation_page,
     extract_document,
 )

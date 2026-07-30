@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from source_docs_processor.anonymization.image import _map_box_to_original
+from source_docs_processor.features.anonymization.image import _map_box_to_original
 
 
 def test_clockwise_rotation_box_maps_back_to_original_coordinates() -> None:
@@ -32,8 +32,8 @@ def test_configured_heading_redacts_page_remainder_and_later_pages(monkeypatch) 
     """
     from PIL import Image
 
-    from source_docs_processor.anonymization.config import AnonymizationConfig
-    from source_docs_processor.anonymization.image import (
+    from source_docs_processor.features.anonymization.config import AnonymizationConfig
+    from source_docs_processor.features.anonymization.image import (
         OcrPage,
         OcrWord,
         ParagraphRedactionState,
@@ -64,7 +64,7 @@ def test_configured_heading_redacts_page_remainder_and_later_pages(monkeypatch) 
     )
 
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.image._choose_ocr_page",
+        "source_docs_processor.features.anonymization.image._choose_ocr_page",
         lambda image, analyzer, lang, config: (page, []),
     )
 
@@ -109,11 +109,11 @@ def test_raster_redaction_uses_fuzzy_included_ocr_matching(monkeypatch) -> None:
     """
     from PIL import Image
 
-    from source_docs_processor.anonymization.config import (
+    from source_docs_processor.features.anonymization.config import (
         AnonymizationConfig,
         ConfiguredTextAnalyzer,
     )
-    from source_docs_processor.anonymization.image import (
+    from source_docs_processor.features.anonymization.image import (
         OcrPage,
         OcrWord,
         redact_pil_image,
@@ -139,7 +139,7 @@ def test_raster_redaction_uses_fuzzy_included_ocr_matching(monkeypatch) -> None:
         original_height=100,
     )
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.image._ocr_page",
+        "source_docs_processor.features.anonymization.image._ocr_page",
         lambda image, lang, angle: page,
     )
     config = AnonymizationConfig(
@@ -167,12 +167,12 @@ def test_raster_replacement_covers_source_and_draws_target(monkeypatch) -> None:
     """
     from PIL import Image
 
-    from source_docs_processor.anonymization.config import (
+    from source_docs_processor.features.anonymization.config import (
         AnonymizationConfig,
         ConfiguredTextAnalyzer,
         ReplacementRule,
     )
-    from source_docs_processor.anonymization.image import (
+    from source_docs_processor.features.anonymization.image import (
         OcrPage,
         OcrWord,
         redact_pil_image,
@@ -198,7 +198,7 @@ def test_raster_replacement_covers_source_and_draws_target(monkeypatch) -> None:
         original_height=100,
     )
     monkeypatch.setattr(
-        "source_docs_processor.anonymization.image._ocr_page",
+        "source_docs_processor.features.anonymization.image._ocr_page",
         lambda image, lang, angle: page,
     )
     config = AnonymizationConfig(

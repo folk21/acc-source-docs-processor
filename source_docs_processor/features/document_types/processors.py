@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .document_processor import Processor
-from .document_types import (
+from .catalog import (
     DEFAULT_DOCUMENT_TYPE,
     SUPPORTED_DOCUMENT_TYPES,
     get_document_type_definition,

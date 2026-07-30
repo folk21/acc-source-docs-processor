@@ -26,15 +26,18 @@ The registered document types are:
 - Keep `main.py` minimal.
 - Keep top-level operation selection in `source_docs_processor/cli.py`.
 - Keep command-specific parsing and execution in `source_docs_processor/commands/`.
+- Keep independent operations under `source_docs_processor/features/`.
+- Keep only genuinely cross-feature helpers under `source_docs_processor/core/`; core modules must not import feature modules.
+- Keep document processing infrastructure and concrete processors together under `source_docs_processor/features/document_types/`.
 - Use CLI subcommands for distinct operations such as `process` and `anonymize`; do not model operations as document types.
 - An image document processor owns only image-level recognition, orientation, OCR, extraction, normalization, and recognition decisions.
 - A source-file processor owns only one-file reading, OCR fallback, extraction, normalization, and recognition decisions.
 - A processor must not own folder traversal, copying, output folders, filename policy, report generation, or registry columns.
 - A processing workflow owns recursive folder behavior, file actions, output selection, and the document list passed to a registry writer.
 - A registry definition owns the tabular schema and conversion of one `ExtractedDocument` into one row.
-- Registry writers own serialization. Keep generic CSV and XLSX output in `source_docs_processor/registry/`.
-- `source_docs_processor/document_types.py` binds processor, workflow, and registry factories into one CLI-selectable definition.
-- Keep low-level file operations in `file_ops.py`.
+- Registry writers own serialization. Keep generic CSV and XLSX output in `source_docs_processor/features/document_types/registry/`.
+- `source_docs_processor/features/document_types/catalog.py` binds processor, workflow, and registry factories into one CLI-selectable definition.
+- Keep low-level file operations in `source_docs_processor/features/document_types/file_ops.py`.
 - Keep template crops and OCR heuristics in the corresponding processor package.
 - Do not add document-type conditionals to `cli.py` or command handlers.
 - Do not add external network calls. Processing must remain local.
@@ -57,7 +60,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## UPD rules
 
-- Keep UPD-specific code under `source_docs_processor/upd_invoices_status_1/`.
+- Keep UPD-specific code under `source_docs_processor/features/document_types/upd_invoices_status_1/`.
 - Keep OCR and extraction in `processor.py`, `ocr.py`, `extractor.py`, and `image_processing.py`.
 - Keep UPD copy, naming, and continuation policy in `workflow.py`.
 - Keep UPD CSV columns and row mapping in `registry.py`.
@@ -70,7 +73,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## Incoming purchase document rules
 
-- Keep incoming purchase-document logic under `source_docs_processor/incoming_purchase_documents/`.
+- Keep incoming purchase-document logic under `source_docs_processor/features/document_types/incoming_purchase_documents/`.
 - Keep native file reading in `readers.py`, extraction in `extractor.py`, file recognition in `processor.py`, folder behavior in `workflow.py`, and workbook rows in `registry.py`.
 - Support UPD status `1` in `.pdf` and `.docx`; do not claim act or native `.doc` support.
 - Prefer native PDF text and table extraction before OCR.
@@ -89,7 +92,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## NPD receipt rules
 
-- Keep NPD-specific code under `source_docs_processor/npd_receipts/`.
+- Keep NPD-specific code under `source_docs_processor/features/document_types/npd_receipts/`.
 - Keep receipt OCR and extraction inside the NPD package.
 - Keep copy, rename, output-folder, and workbook selection policy in `workflow.py`.
 - Write directly into an explicit `--output` directory unless `--target-dir-name` is also provided.
@@ -108,7 +111,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## Anonymization rules
 
-- Keep anonymization as an operation under `source_docs_processor/anonymization/`; do not register it as a document type.
+- Keep anonymization as an operation under `source_docs_processor/features/anonymization/`; do not register it as a document type.
 - Require source and output directories and preserve relative subfolders plus source file names.
 - Keep all detection and redaction local. Do not add external APIs or cloud OCR.
 - Use Microsoft Presidio with the Russian spaCy pipeline and explicit Russian accounting/identity pattern recognizers.
@@ -169,4 +172,5 @@ python -m pytest -q
 4. Confirm README commands, subcommands, example scripts, and output descriptions match current behavior.
 5. Confirm processors contain no workflow or registry policy.
 6. Confirm registry writers remain document-type-neutral.
+7. Confirm `source_docs_processor/core/` does not import from `features/`.
 7. Run compile and test validation.

@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from source_docs_processor.document_processor import BaseDocumentProcessor
-from source_docs_processor.models import ExtractedDocument
-from source_docs_processor.workflows.copy_and_register import CopyAndRegisterWorkflow
+from source_docs_processor.features.document_types.document_processor import BaseDocumentProcessor
+from source_docs_processor.features.document_types.models import ExtractedDocument
+from source_docs_processor.features.document_types.workflows.copy_and_register import CopyAndRegisterWorkflow
 
 
 def test_continuation_workflow_inherits_common_and_extra_metadata():

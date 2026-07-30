@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from source_docs_processor.anonymization.models import DetectedEntity
-from source_docs_processor.anonymization.workflow import anonymize_folder
+from source_docs_processor.features.anonymization.models import DetectedEntity
+from source_docs_processor.features.anonymization.workflow import anonymize_folder
 
 
 class FictionalNameAnalyzer:
@@ -256,7 +256,7 @@ def test_dual_output_avoids_collision_with_existing_docx_source(
     mode without the converted PDF replacing the anonymized DOCX source file.
     """
     from docx import Document
-    from source_docs_processor.anonymization import workflow
+    from source_docs_processor.features.anonymization import workflow
 
     source = tmp_path / "source"
     output = tmp_path / "output"
@@ -298,7 +298,7 @@ def test_dual_output_removes_both_variants_when_conversion_fails(
     Protected risk: a partially successful dual-output run must not leave a
     source-format artifact that users could mistake for a complete result set.
     """
-    from source_docs_processor.anonymization import workflow
+    from source_docs_processor.features.anonymization import workflow
 
     source = tmp_path / "source"
     output = tmp_path / "output"
@@ -339,7 +339,7 @@ def test_folder_anonymization_replaces_configured_text_in_both_outputs(
     """
     from docx import Document
 
-    from source_docs_processor.anonymization.config import (
+    from source_docs_processor.features.anonymization.config import (
         AnonymizationConfig,
         ConfiguredTextAnalyzer,
         ReplacementRule,

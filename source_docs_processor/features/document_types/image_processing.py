@@ -2,7 +2,7 @@
 
 This module intentionally contains only document-type-neutral image utilities.
 Template-specific crop coordinates live in the corresponding document processor
-package, for example `source_docs_processor.upd_invoices_status_1`.
+package, for example `source_docs_processor.features.document_types.upd_invoices_status_1`.
 """
 
 from __future__ import annotations
@@ -13,18 +13,11 @@ from typing import Iterable
 import cv2
 import numpy as np
 
+from ...core.paths import is_relative_to
+
 
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 ROTATION_ANGLES = (0, 90, 180, 270)
-
-
-def _is_relative_to(path: Path, parent: Path) -> bool:
-    """Return True when path is inside parent, including parent itself."""
-    try:
-        path.relative_to(parent)
-        return True
-    except ValueError:
-        return False
 
 
 def iter_image_files(source_dir: Path, exclude_dirs: Iterable[Path] = ()) -> Iterable[Path]:
@@ -38,7 +31,7 @@ def iter_image_files(source_dir: Path, exclude_dirs: Iterable[Path] = ()) -> Ite
         if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             continue
         resolved_path = path.resolve()
-        if any(_is_relative_to(resolved_path, excluded) for excluded in resolved_excludes):
+        if any(is_relative_to(resolved_path, excluded) for excluded in resolved_excludes):
             continue
         yield path
 

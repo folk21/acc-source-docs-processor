@@ -1,4 +1,4 @@
-from source_docs_processor.upd_invoices_status_1.extractor import _extract_number_date_from_shipment_document
+from source_docs_processor.features.document_types.upd_invoices_status_1.extractor import _extract_number_date_from_shipment_document
 
 
 def test_extracts_number_and_date_from_explicit_shipment_row():

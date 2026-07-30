@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.14.0 — Feature-oriented package layout
+
+### Changed
+
+- Grouped independent operations under `source_docs_processor/features/`.
+- Moved anonymization to `source_docs_processor/features/anonymization/`.
+- Moved document-processing contracts, models, OCR helpers, workflows, registry writers, and concrete document types to `source_docs_processor/features/document_types/`.
+- Replaced the former document-type registry module with `features/document_types/catalog.py` and package-level re-exports.
+- Added `source_docs_processor/core/paths.py` for the path relationship helper shared by anonymization and document processing.
+- Updated production imports, tests, comments, and architecture documentation without changing CLI commands or registered `--document-type` values.
+- Bumped the package version to `0.14.0`.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`110 passed`)
+
 ## 0.13.8 — Stable output directory cleanup
 
 ### Added
@@ -301,11 +318,11 @@ This changelog records project changes by functional milestone. The project is p
 
 ### Added
 
-- Added `source_docs_processor/document_types.py` with `DocumentTypeDefinition`.
-- Added `source_docs_processor/workflows/` with workflow contracts, runtime options, results, logging helpers, and reusable `CopyAndRegisterWorkflow`.
-- Added `source_docs_processor/registry/` with a registry definition protocol and generic validated CSV writer.
-- Added `upd_invoices_status_1/workflow.py` for UPD copy, rename, continuation, and output-folder behavior.
-- Added `upd_invoices_status_1/registry.py` for the detailed UPD CSV schema and row mapping.
+- Added `source_docs_processor/features/document_types/catalog.py` with `DocumentTypeDefinition`.
+- Added `source_docs_processor/features/document_types/workflows/` with workflow contracts, runtime options, results, logging helpers, and reusable `CopyAndRegisterWorkflow`.
+- Added `source_docs_processor/features/document_types/registry/` with a registry definition protocol and generic validated CSV writer.
+- Added `features/document_types/upd_invoices_status_1/workflow.py` for UPD copy, rename, continuation, and output-folder behavior.
+- Added `features/document_types/upd_invoices_status_1/registry.py` for the detailed UPD CSV schema and row mapping.
 - Added integration tests that inject a fake processor, workflow, and registry definition independently.
 
 ### Changed
@@ -372,7 +389,7 @@ This milestone was superseded by the independent workflow and registry architect
 ### Processor factory and package separation
 
 - Added `--document-type` and a processor factory.
-- Added the `source_docs_processor/upd_invoices_status_1/` package.
+- Added the `source_docs_processor/features/document_types/upd_invoices_status_1/` package.
 - Moved UPD extraction, targeted OCR, and crop coordinates out of shared modules.
 - Renamed the repository to `acc-source-docs-processor` and the import package to `source_docs_processor`.
 

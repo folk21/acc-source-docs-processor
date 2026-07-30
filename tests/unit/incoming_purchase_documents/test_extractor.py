@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from source_docs_processor.incoming_purchase_documents.extractor import (
+from source_docs_processor.features.document_types.incoming_purchase_documents.extractor import (
     extract_document,
 )
-from source_docs_processor.incoming_purchase_documents.readers import (
+from source_docs_processor.features.document_types.incoming_purchase_documents.readers import (
     StructuredSourceContent,
 )
 

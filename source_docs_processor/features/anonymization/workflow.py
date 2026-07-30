@@ -6,6 +6,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from ...core.paths import is_relative_to
+
 from .config import AnonymizationConfig, EMPTY_ANONYMIZATION_CONFIG, mask_after_heading
 from .docx import anonymize_docx_file
 from .editable import (
@@ -27,15 +29,6 @@ from .text import mask_text
 
 
 SUPPORTED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt"}) | SUPPORTED_IMAGE_EXTENSIONS
-
-
-def _is_relative_to(path: Path, parent: Path) -> bool:
-    """Return True when path is inside parent, including parent itself."""
-    try:
-        path.relative_to(parent)
-        return True
-    except ValueError:
-        return False
 
 
 def _clear_output_contents(output_root: Path) -> None:
@@ -295,7 +288,7 @@ def anonymize_folder(
         raise ValueError(f"Output path is not a directory: {output_root}")
     if source_root == output_root:
         raise ValueError("Source and output directories must be different")
-    if clear_output and _is_relative_to(source_root, output_root):
+    if clear_output and is_relative_to(source_root, output_root):
         raise ValueError(
             "--clearOutput cannot be used when the source directory is inside "
             "the output directory because clearing output would delete source files"
@@ -307,7 +300,7 @@ def anonymize_folder(
         source_root=source_root,
         output_root=output_root,
     )
-    output_is_inside_source = _is_relative_to(output_root, source_root)
+    output_is_inside_source = is_relative_to(output_root, source_root)
     files = sorted(
         (
             path
@@ -316,7 +309,7 @@ def anonymize_folder(
             and not path.is_symlink()
             and not (
                 output_is_inside_source
-                and _is_relative_to(path.resolve(), output_root)
+                and is_relative_to(path.resolve(), output_root)
             )
         ),
         key=lambda path: path.relative_to(source_root).as_posix().lower(),

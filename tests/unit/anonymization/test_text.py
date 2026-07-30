@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from source_docs_processor.anonymization.models import DetectedEntity
-from source_docs_processor.anonymization.text import mask_text, merge_entities
+from source_docs_processor.features.anonymization.models import DetectedEntity
+from source_docs_processor.features.anonymization.text import mask_text, merge_entities
 
 
 class FakeAnalyzer:
