@@ -3,9 +3,10 @@
 ## Purpose
 
 This feature implements the `process` operation. It owns shared processing
-contracts, extracted-document models, OCR and image helpers, folder workflows,
-registry writers, the programmatic API, CLI adaptation, and registered document
-type implementations.
+contracts, extracted-document models, OCR containers, strict document-value
+normalizers, folder workflows, registry writers, the programmatic API, CLI
+adaptation, and registered document type implementations. Feature-neutral file,
+image, path, and whitespace primitives live in `source_docs_processor.core`.
 
 ## Public entry points
 
@@ -25,7 +26,11 @@ type unless they are testing or extending that implementation.
   type. Only the catalog composes registered definitions.
 - One concrete document type must not import another concrete document type.
 - A concrete document type may import shared contracts, models, workflows,
-  registry writers, OCR helpers, and file helpers from this feature.
+  registry writers, OCR containers, and strict value normalizers from this
+  feature, plus feature-neutral primitives from `source_docs_processor.core`.
+- Shared normalization must remain strict and format-neutral. OCR aliases,
+  template filtering, source priorities, and positional extraction rules belong
+  to the concrete document type that needs them.
 
 ## Structure
 
@@ -36,8 +41,8 @@ document_processing/
 ├── contracts.py              # DocumentTypeDefinition
 ├── document_processor.py     # processor protocols and base defaults
 ├── models.py                 # shared extracted-document models
-├── file_ops.py
-├── image_processing.py
+├── file_ops.py              # ExtractedDocument copy actions
+├── normalization/          # strict shared date and decimal parsing
 ├── ocr.py
 ├── registry/                 # document-neutral serializers and contracts
 ├── workflows/                # folder workflow contracts and shared workflows

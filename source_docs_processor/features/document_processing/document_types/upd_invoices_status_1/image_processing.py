@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ...image_processing import crop_relative
+from source_docs_processor.core.images import crop_relative
 
 
 def crop_header(image: np.ndarray) -> np.ndarray:

@@ -174,3 +174,37 @@ def test_each_document_type_publishes_definition_and_local_readme() -> None:
         package_root = document_types_root / package_name
         assert (package_root / "definition.py").is_file()
         assert (package_root / "README.md").is_file()
+
+
+def test_core_owns_feature_neutral_file_image_and_text_helpers() -> None:
+    """Verify generic technical primitives stay outside document processing.
+
+    Protected risk: placing filename, OpenCV, or whitespace primitives back into
+    one feature would make their ownership misleading and encourage duplicated
+    implementations in other independent operations.
+    """
+    core_root = _PACKAGE_ROOT / "core"
+    processing_root = _PACKAGE_ROOT / "features" / "document_processing"
+
+    assert {"files.py", "images.py", "paths.py", "text.py"} <= {
+        path.name for path in core_root.glob("*.py")
+    }
+    assert not (processing_root / "image_processing.py").exists()
+
+
+def test_shared_document_normalizers_are_concrete_type_neutral() -> None:
+    """Verify strict value normalizers do not acquire format-specific heuristics.
+
+    Protected risk: common date or decimal modules must not import UPD, receipt,
+    or incoming-document implementations and become unsafe to reuse.
+    """
+    normalization_root = (
+        _PACKAGE_ROOT / "features" / "document_processing" / "normalization"
+    )
+    violations = [
+        (path, module)
+        for path, module in _imported_modules(normalization_root)
+        if any(name in module for name in _DOCUMENT_TYPE_NAMES)
+    ]
+
+    assert violations == []

@@ -50,16 +50,16 @@ def test_focused_extraction_modules_are_present() -> None:
         "date_extraction.py",
         "financial_extraction.py",
         "identity_extraction.py",
-        "normalization.py",
         "number_extraction.py",
         "party_extraction.py",
         "shipment_row.py",
         "transport_extraction.py",
     }
 
-    assert expected_modules <= {
-        path.name for path in _PACKAGE_ROOT.glob("*.py")
-    }
+    module_names = {path.name for path in _PACKAGE_ROOT.glob("*.py")}
+
+    assert expected_modules <= module_names
+    assert "normalization.py" not in module_names
 
 
 def test_extractor_keeps_legacy_helper_reexports() -> None:

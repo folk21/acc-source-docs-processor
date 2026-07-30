@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytesseract
 
-from ...image_processing import create_ocr_variants, crop_relative
+from source_docs_processor.core.images import create_ocr_variants, crop_relative
 from ...ocr import OcrResult, choose_best_text
 
 

@@ -17,22 +17,22 @@ file-level recognizer and `extractor.py` is the single document-assembly entry p
 - `extractor.py` assembles `ExtractedDocument` and must not contain detailed parsing rules.
 - `identity_extraction.py` reconciles header, targeted-crop, and shipment-row identity sources.
 - `number_extraction.py` owns number normalization, short-value replacement, and trailing over-read correction.
-- `date_extraction.py` owns date parsing, crop recovery, source selection, and form-template date rejection.
+- `date_extraction.py` adds noisy OCR month aliases, crop recovery, source selection, and form-template rejection on top of the shared strict date normalizer.
 - `shipment_row.py` parses the repeated `Документ об отгрузке` number/date row.
 - `continuation.py` scores sparse continuation pages while vetoing normal UPD headers.
 - `classification.py` classifies primary and continuation pages.
 - `party_extraction.py` extracts seller and buyer names plus INN/KPP values.
-- `financial_extraction.py` extracts normalized net, VAT, and gross amounts.
+- `financial_extraction.py` applies the UPD table-position rule for net, VAT, and gross amounts while reusing shared strict decimal normalization.
 - `transport_extraction.py` extracts the service row and transport metadata.
 - `confidence.py` owns the practical recognition score.
-- `normalization.py` contains shared OCR whitespace normalization for this package.
 
 Compatibility imports remain available from `extractor.py`, but new tests and code
 should import focused helpers from their owning modules.
 
 ## Allowed dependencies
 
-May import shared modules from `features.document_processing`. Must not import
+May import strict document normalizers from `features.document_processing` and
+feature-neutral primitives from `source_docs_processor.core`. Must not import
 another concrete document type or the anonymization feature. Focused extraction
 modules may import one another only when their responsibility requires it; none may
 import workflow or registry policy.

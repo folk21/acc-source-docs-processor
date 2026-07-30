@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 from ...document_processor import DocumentProcessor
-from ...file_ops import copy_processed_document, copy_unrecognized_document, safe_filename
-from ...image_processing import iter_image_files, read_image
+from source_docs_processor.core.files import safe_filename
+from source_docs_processor.core.images import iter_image_files, read_image
+
+from ...file_ops import copy_processed_document, copy_unrecognized_document
 from ...models import ExtractedDocument
 from ...registry.base import RegistryDefinition
 from ...registry.xlsx_writer import write_xlsx_registry
@@ -28,10 +30,10 @@ class NpdReceiptRegistryWorkflow:
 
     def build_output_filename_stem(self, document: ExtractedDocument) -> str:
         """Build ``date_amount_fullName_receiptNumber`` for a copied receipt."""
-        date = safe_filename(document.document_date or "без_даты")
-        amount = safe_filename(document.total_amount or "без_суммы")
-        full_name = safe_filename(document.issuer_name or "без_фио").replace("_", "")
-        number = safe_filename(document.document_number or "без_номера")
+        date = safe_filename(document.document_date or "без_даты", fallback="document")
+        amount = safe_filename(document.total_amount or "без_суммы", fallback="document")
+        full_name = safe_filename(document.issuer_name or "без_фио", fallback="document").replace("_", "")
+        number = safe_filename(document.document_number or "без_номера", fallback="document")
         return f"{date}_{amount}_{full_name}_{number}"
 
     def _target_subdir(

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.17.0 — Core technical primitives and strict document normalization
+
+### Changed
+
+- Moved safe filename generation and duplicate-safe path selection into `source_docs_processor/core/files.py`.
+- Parameterized `safe_filename()` with a caller-selected fallback while preserving `document` for processed-document copy actions.
+- Moved document-neutral image discovery, non-ASCII image I/O, rotation, relative cropping, and OCR preprocessing variants into `source_docs_processor/core/images.py`.
+- Moved inline and line-preserving whitespace normalization into `source_docs_processor/core/text.py`.
+- Reduced `document_processing/file_ops.py` to `ExtractedDocument` copy actions and destination-state updates.
+- Added strict shared Russian date and decimal normalization under `features/document_processing/normalization/`.
+- Reused the shared strict normalizers from scanned UPD extraction while preserving noisy month aliases, crop recovery, template filtering, and table-position amount rules; other document types retain their existing format contracts until a behavior-neutral migration is justified.
+- Updated architecture documentation, local feature guidance, and AI development rules with explicit admission criteria for `core`.
+- Bumped the package version to `0.17.0`.
+
+### Added
+
+- Added unit coverage for generic filename, path, image, and whitespace helpers.
+- Added unit coverage for strict shared date and decimal normalization.
+- Added architecture regression coverage requiring generic technical primitives to remain in `core` and shared normalizers to remain concrete-type-neutral.
+
+### Preserved
+
+- Preserved CLI behavior, document type identifiers, OCR heuristics, warning codes, output names, registries, and anonymization behavior.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`129 passed`)
+
 ## 0.16.0 — Focused scanned-UPD extraction modules
 
 ### Changed

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..document_processor import DocumentProcessor
 from ..file_ops import copy_processed_document, copy_unrecognized_document
-from ..image_processing import iter_image_files, read_image
+from source_docs_processor.core.images import iter_image_files, read_image
 from ..models import ExtractedDocument
 from ..registry.base import RegistryDefinition
 from ..registry.csv_writer import write_csv_registry

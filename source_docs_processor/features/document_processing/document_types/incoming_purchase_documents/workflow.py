@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ...document_processor import Processor, SourceFileProcessor
-from ...file_ops import unique_path
+from source_docs_processor.core.files import unique_path
 from ...models import ExtractedDocument
 from ...registry.base import RegistryDefinition
 from ...registry.task_workbook import TaskWorkbookDefinition, write_task_workbook

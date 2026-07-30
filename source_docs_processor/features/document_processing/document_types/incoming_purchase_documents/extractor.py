@@ -6,11 +6,18 @@ import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from source_docs_processor.core.text import normalize_inline_whitespace
+
 from ...models import ExtractedDocument, ExtractedDocumentItem
 from .readers import StructuredSourceContent
 
 
 DOCUMENT_TYPE = "incoming_purchase_documents"
+
+def _compact(value: str) -> str:
+    """Collapse whitespace while preserving useful punctuation."""
+    return normalize_inline_whitespace(value)
+
 
 _MONTHS = {
     "января": "01",
@@ -26,11 +33,6 @@ _MONTHS = {
     "ноября": "11",
     "декабря": "12",
 }
-
-
-def _compact(value: str) -> str:
-    """Collapse whitespace while preserving useful punctuation."""
-    return re.sub(r"\s+", " ", value.replace("\u00a0", " ")).strip()
 
 
 def _normalize_date(value: str | None) -> str | None:

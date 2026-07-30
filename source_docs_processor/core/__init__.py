@@ -1,1 +1,1 @@
-"""Cross-feature utilities shared by independent application features."""
+"""Feature-neutral filesystem, image, path, and text primitives."""

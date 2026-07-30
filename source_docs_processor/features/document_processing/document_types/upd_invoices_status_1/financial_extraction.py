@@ -1,18 +1,15 @@
-"""Money normalization and amount extraction for scanned UPD."""
+"""UPD-specific amount extraction using shared decimal normalization."""
 
 from __future__ import annotations
 
 import re
 
+from ...normalization.money import normalize_decimal_value
+
 
 def normalize_money(value: str | None) -> str | None:
-    """Convert Russian money notation into a machine-friendly decimal string."""
-    if not value:
-        return None
-    cleaned = value.replace(" ", "").replace("\u00a0", "").replace(",", ".")
-    if re.fullmatch(r"\d+(?:\.\d{1,2})?", cleaned):
-        return cleaned
-    return None
+    """Normalize one strict UPD money value while preserving its input scale."""
+    return normalize_decimal_value(value, maximum_decimal_places=2)
 
 
 def extract_amounts(

@@ -4,24 +4,16 @@ from __future__ import annotations
 
 import re
 
-
-MONTHS_RU = {
-    "января": "01",
-    "февраля": "02",
-    "марта": "03",
-    "апреля": "04",
-    "мая": "05",
-    "июня": "06",
-    "июля": "07",
-    "августа": "08",
-    "сентября": "09",
-    "октября": "10",
-    "ноября": "11",
-    "декабря": "12",
-}
+from ...normalization.dates import (
+    RUSSIAN_MONTHS_GENITIVE,
+    normalize_date as normalize_strict_date,
+)
 
 
-def _month_from_token(token: str) -> str | None:
+MONTHS_RU = RUSSIAN_MONTHS_GENITIVE
+
+
+def _month_from_ocr_token(token: str) -> str | None:
     """Map a Russian month token or noisy OCR fragment to a two-digit month."""
     cleaned = re.sub(r"[^а-яёa-z0-9]+", "", token.lower())
     if cleaned in MONTHS_RU:
@@ -47,44 +39,30 @@ def _month_from_token(token: str) -> str | None:
 
 
 def normalize_date(raw: str | None) -> str | None:
-    """Normalize numeric or Russian textual dates to DD-MM-YYYY."""
-    if not raw:
-        return None
+    """Normalize a UPD date, including conservative noisy OCR month aliases."""
+    strict = normalize_strict_date(raw)
+    if strict or not raw:
+        return strict
+
     value = raw.strip().lower().replace("г.", "").replace("г", "")
     value = value.replace(",", " ").replace("—", " ").replace("–", " ")
     value = re.sub(r"\s+", " ", value)
-
-    numeric = re.search(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})", value)
-    if numeric:
-        day, month, year = numeric.groups()
-        if len(year) == 2:
-            year = "20" + year
-        day_i = int(day)
-        month_i = int(month)
-        year_i = int(year)
-        if not (
-            1 <= day_i <= 31
-            and 1 <= month_i <= 12
-            and 2020 <= year_i <= 2035
-        ):
-            return None
-        return f"{day_i:02d}-{month_i:02d}-{year_i}"
-
     textual = re.search(
         r"(\d{1,2})\s+([а-яёa-z0-9]{3,20})\s+(\d{4})",
         value,
         flags=re.IGNORECASE,
     )
-    if textual:
-        day, month_name, year = textual.groups()
-        month = _month_from_token(month_name)
-        if month:
-            day_i = int(day)
-            year_i = int(year)
-            if not (1 <= day_i <= 31 and 2020 <= year_i <= 2035):
-                return None
-            return f"{day_i:02d}-{month}-{year_i}"
-    return None
+    if not textual:
+        return None
+    day, month_token, year = textual.groups()
+    month = _month_from_ocr_token(month_token)
+    if month is None:
+        return None
+    day_value = int(day)
+    year_value = int(year)
+    if not (1 <= day_value <= 31 and 2020 <= year_value <= 2035):
+        return None
+    return f"{day_value:02d}-{month}-{year_value}"
 
 
 def extract_date_from_mixed_ocr_text(raw: str | None) -> str | None:
@@ -103,11 +81,11 @@ def extract_date_from_mixed_ocr_text(raw: str | None) -> str | None:
 
     month = None
     for token in re.findall(r"[А-Яа-яЁёA-Za-z0-9]{3,20}", raw):
-        month = _month_from_token(token)
+        month = _month_from_ocr_token(token)
         if month:
             break
     if not month:
-        month = _month_from_token(raw)
+        month = _month_from_ocr_token(raw)
     if not month:
         return None
 

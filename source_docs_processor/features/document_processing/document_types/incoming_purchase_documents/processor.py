@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...document_processor import BaseSourceFileProcessor
-from ...file_ops import safe_filename
+from source_docs_processor.core.files import safe_filename
 from ...models import ExtractedDocument
 from .extractor import DOCUMENT_TYPE, extract_document
 from .readers import read_docx, read_pdf
@@ -28,7 +28,7 @@ class IncomingPurchaseDocumentsProcessor(BaseSourceFileProcessor):
         """Extract one PDF or DOCX source file."""
         suffix = source_path.suffix.lower()
         debug_dir = (
-            debug_root / safe_filename(source_path.stem)
+            debug_root / safe_filename(source_path.stem, fallback="document")
             if debug_root is not None
             else None
         )

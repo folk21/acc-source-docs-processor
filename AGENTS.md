@@ -32,8 +32,18 @@ The registered document types are:
   module. Keep its public API, dependency rules, invariants, and focused tests in
   sync with structural changes.
 - Keep independent operations under `source_docs_processor/features/`.
-- Keep only genuinely cross-feature helpers under `source_docs_processor/core/`;
+- Keep feature-neutral technical primitives under `source_docs_processor/core/`;
   core modules must not import feature modules.
+- Admit code to `core` only when all of these conditions hold:
+  1. it imports nothing from `features`;
+  2. its API contains no UPD, receipt, invoice, registry, workflow, or other
+     feature-specific concepts;
+  3. its behavior remains meaningful without knowing a document type;
+  4. another feature can call it without adapting business rules.
+- Keep strict reusable document-value parsing under
+  `features/document_processing/normalization/`. Keep OCR aliases, source
+  priorities, template filtering, and other format heuristics inside the owning
+  concrete document type.
 - Keep document-processing infrastructure under
   `source_docs_processor/features/document_processing/` and concrete document
   implementations under its `document_types/` package.
@@ -58,7 +68,8 @@ The registered document types are:
   `ExtractedDocument` into one row.
 - Registry writers own serialization. Keep generic CSV and XLSX output in
   `source_docs_processor/features/document_processing/registry/`.
-- Keep low-level processing file operations in
+- Keep generic filename collision and image I/O helpers in `core`; keep only
+  `ExtractedDocument` copy actions and destination-state updates in
   `source_docs_processor/features/document_processing/file_ops.py`.
 - Keep template crops and OCR heuristics in the corresponding concrete document
   package.
@@ -89,8 +100,8 @@ Do not put output-action state into the generic extracted model unless it is nec
 ## UPD rules
 
 - Keep UPD-specific code under `source_docs_processor/features/document_processing/document_types/upd_invoices_status_1/`.
-- Keep orientation and targeted OCR in `processor.py`, `ocr.py`, and `image_processing.py`.
-- Keep `extractor.py` limited to assembling `ExtractedDocument`; detailed identity, number, date, shipment-row, continuation, party, financial, transport, classification, and confidence rules belong in their focused local modules.
+- Keep orientation selection and targeted OCR in `processor.py`, `ocr.py`, and the UPD crop module `image_processing.py`; use generic image I/O, rotation, cropping, and OCR variants from `core.images`.
+- Keep `extractor.py` limited to assembling `ExtractedDocument`; detailed identity, number, date, shipment-row, continuation, party, financial, transport, classification, and confidence rules belong in their focused local modules. Shared strict date/decimal parsing belongs in `document_processing/normalization`, while noisy month aliases, template-date filtering, crop recovery, and UPD amount-position rules remain local.
 - Import focused helpers from their owning modules in new code and tests; `extractor.py` re-exports legacy helper names only for compatibility.
 - Keep UPD copy, naming, and continuation attachment policy in `workflow.py`.
 - Keep UPD CSV columns and row mapping in `registry.py`.

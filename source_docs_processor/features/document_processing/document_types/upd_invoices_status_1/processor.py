@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 
 from ...document_processor import BaseDocumentProcessor
-from ...file_ops import safe_filename
-from ...image_processing import ROTATION_ANGLES, rotate_image
+from source_docs_processor.core.files import safe_filename
+from source_docs_processor.core.images import ROTATION_ANGLES, rotate_image
 from ...models import ExtractedDocument
 from ...ocr import OcrResult
 from .extractor import extract_document
@@ -112,7 +112,7 @@ class UpdInvoicesStatus1Processor(BaseDocumentProcessor):
             if debug_root:
                 debug_dir = (
                     debug_root
-                    / safe_filename(image_path.stem)
+                    / safe_filename(image_path.stem, fallback="document")
                     / f"rotation_{angle}"
                 )
             ocr_result = run_ocr(

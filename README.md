@@ -33,7 +33,7 @@ Internal code is grouped by feature:
 ```text
 source_docs_processor/
 ├── cli.py                    # composes feature entry points
-├── core/                     # cross-feature utilities only
+├── core/                     # feature-neutral file, image, path, text primitives
 └── features/
     ├── anonymization/        # anonymize API, CLI adapter, and implementation
     └── document_processing/  # process API, shared infrastructure, and types

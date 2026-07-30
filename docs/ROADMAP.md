@@ -11,6 +11,9 @@ Status legend:
 - [x] Introduce top-level CLI subcommands for independent operations.
 - [x] Group independent operations under `source_docs_processor/features/`.
 - [x] Keep cross-feature helpers isolated under `source_docs_processor/core/`.
+- [x] Move feature-neutral filename, collision, OpenCV image, and whitespace primitives into `core`.
+- [x] Add strict shared date and decimal normalization under `features/document_processing/normalization/`.
+- [x] Keep OCR aliases, source priorities, template filtering, and positional amount rules inside their concrete document types.
 - [x] Keep document-processing infrastructure under `features/document_processing/` and concrete implementations under `document_processing/document_types/`.
 - [x] Keep document processing under the `process` subcommand.
 - [x] Reserve an `anonymize` command without coupling it to document-type registration.

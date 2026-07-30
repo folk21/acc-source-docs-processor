@@ -52,7 +52,10 @@ A registry definition owns tabular shape and row mapping. Generic writers own CS
 source_docs_processor/
 ├── cli.py
 ├── core/
-│   └── paths.py
+│   ├── files.py
+│   ├── images.py
+│   ├── paths.py
+│   └── text.py
 └── features/
     ├── anonymization/
     │   ├── README.md
@@ -72,8 +75,10 @@ source_docs_processor/
         ├── contracts.py
         ├── document_processor.py
         ├── file_ops.py
-        ├── image_processing.py
         ├── models.py
+        ├── normalization/
+        │   ├── dates.py
+        │   └── money.py
         ├── ocr.py
         ├── processors.py
         ├── registry/
@@ -101,7 +106,6 @@ source_docs_processor/
             │   ├── financial_extraction.py
             │   ├── transport_extraction.py
             │   ├── confidence.py
-            │   ├── normalization.py
             │   ├── image_processing.py
             │   ├── ocr.py
             │   ├── processor.py
@@ -135,7 +139,9 @@ core -X-> features
 one concrete document type -X-> another concrete document type
 ```
 
-`core/` contains only behavior used by more than one independent feature. At present this is limited to path relationship helpers. Document models, OCR helpers, registry writers, workflows, and file-copying utilities belong to the document-processing feature because anonymization neither depends on nor implements those contracts.
+`core/` contains feature-neutral technical primitives whose meaning does not depend on a document type or operation. It owns safe filename and collision helpers, local OpenCV image I/O and geometry, whitespace normalization, and path relationships. A core module never imports a feature and its API contains no processor, workflow, registry, UPD, receipt, or invoice concepts. Current reuse by multiple features is desirable but is not required when the abstraction is already technically neutral and does not encode business policy.
+
+`features/document_processing/normalization/` is a narrower shared domain boundary. It owns strict reusable parsing and formatting of ordinary document values such as Russian dates and decimals. It deliberately excludes OCR aliases, template-date filtering, source priorities, and positional table rules; those remain in the concrete document type that requires them. `file_ops.py` retains only copy actions that receive and update `ExtractedDocument` instances.
 
 Each feature and concrete document type contains a local technical `README.md` with its public entry points, allowed dependencies, invariants, and focused validation command. Architectural tests enforce the dependency direction, prevent cross-feature and cross-document-type imports, keep shared processing modules implementation-neutral, and restrict the catalog to `definition.py` modules.
 

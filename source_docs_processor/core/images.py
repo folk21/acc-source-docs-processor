@@ -1,34 +1,30 @@
-"""Generic image loading, rotation, and OCR preprocessing helpers.
-
-This module intentionally contains only document-type-neutral image utilities.
-Template-specific crop coordinates live in the corresponding document processor
-package, for example `source_docs_processor.features.document_processing.document_types.upd_invoices_status_1`.
-"""
+"""Generic local image I/O, geometry, and OCR preprocessing helpers."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterable
 
 import cv2
 import numpy as np
 
-from ...core.paths import is_relative_to
+from .paths import is_relative_to
 
 
-SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
+SUPPORTED_IMAGE_EXTENSIONS = frozenset(
+    {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
+)
 ROTATION_ANGLES = (0, 90, 180, 270)
 
 
-def iter_image_files(source_dir: Path, exclude_dirs: Iterable[Path] = ()) -> Iterable[Path]:
-    """Yield supported image files from source_dir recursively.
-
-    The exclusion list prevents the program from re-processing its own output
-    folder when the output folder is placed under the source tree.
-    """
+def iter_image_files(
+    source_dir: Path,
+    exclude_dirs: Iterable[Path] = (),
+) -> Iterator[Path]:
+    """Yield supported image files recursively outside excluded directories."""
     resolved_excludes = [directory.resolve() for directory in exclude_dirs]
     for path in source_dir.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        if not path.is_file() or path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS:
             continue
         resolved_path = path.resolve()
         if any(is_relative_to(resolved_path, excluded) for excluded in resolved_excludes):
@@ -45,8 +41,20 @@ def read_image(path: Path) -> np.ndarray:
     return image
 
 
+def write_image(path: Path, image: np.ndarray) -> None:
+    """Write an OpenCV image to a path that may contain non-ASCII characters."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    suffix = path.suffix.lower()
+    if suffix not in SUPPORTED_IMAGE_EXTENSIONS:
+        suffix = ".png"
+    success, encoded = cv2.imencode(suffix, image)
+    if not success:
+        raise ValueError(f"Unable to encode image as {suffix}: {path}")
+    encoded.tofile(str(path))
+
+
 def rotate_image(image: np.ndarray, angle: int) -> np.ndarray:
-    """Rotate image clockwise by 0, 90, 180, or 270 degrees."""
+    """Rotate an image clockwise by 0, 90, 180, or 270 degrees."""
     normalized = angle % 360
     if normalized == 0:
         return image
@@ -59,7 +67,13 @@ def rotate_image(image: np.ndarray, angle: int) -> np.ndarray:
     raise ValueError(f"Unsupported rotation angle: {angle}")
 
 
-def crop_relative(image: np.ndarray, left: float, top: float, right: float, bottom: float) -> np.ndarray:
+def crop_relative(
+    image: np.ndarray,
+    left: float,
+    top: float,
+    right: float,
+    bottom: float,
+) -> np.ndarray:
     """Crop an image using relative coordinates in the 0..1 range."""
     height, width = image.shape[:2]
     x1 = max(0, min(width, int(width * left)))
@@ -72,26 +86,24 @@ def crop_relative(image: np.ndarray, left: float, top: float, right: float, bott
 
 
 def create_ocr_variants(image: np.ndarray) -> list[np.ndarray]:
-    """Create a small set of full-area variants for general OCR.
-
-    The list is intentionally short because full-page OCR is expensive on large
-    scan archives. Document-specific processors may add stronger preprocessing
-    for small targeted crops.
-    """
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    """Create a compact set of document-neutral OCR preprocessing variants."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     variants: list[np.ndarray] = []
 
-    # Normalized grayscale is usually the safest baseline for clean scans.
-    norm = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
-    variants.append(norm)
+    normalized = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+    variants.append(normalized)
 
-    # Upscaling helps Tesseract read small printed text in table cells.
-    upscaled = cv2.resize(norm, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+    upscaled = cv2.resize(
+        normalized,
+        None,
+        fx=1.5,
+        fy=1.5,
+        interpolation=cv2.INTER_CUBIC,
+    )
     variants.append(upscaled)
 
-    # Adaptive thresholding can recover text on low-contrast scans.
     adaptive = cv2.adaptiveThreshold(
-        norm,
+        normalized,
         255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY,

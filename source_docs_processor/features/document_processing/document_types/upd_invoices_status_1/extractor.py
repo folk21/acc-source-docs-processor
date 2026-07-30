@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from source_docs_processor.core.text import (
+    normalize_multiline_whitespace as normalize_spaces,
+)
+
 from ...models import ExtractedDocument
 from ...ocr import OcrResult
 from .classification import (
@@ -30,7 +34,6 @@ from .identity_extraction import (
     extract_document_identity,
     extract_invoice_number_and_date as _extract_invoice_number_and_date,
 )
-from .normalization import normalize_spaces
 from .number_extraction import (
     choose_more_reliable_document_number,
     normalize_number,

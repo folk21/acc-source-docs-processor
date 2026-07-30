@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ...image_processing import create_ocr_variants
+from source_docs_processor.core.images import create_ocr_variants
 from ...ocr import OcrResult, _ocr_text, choose_best_text
 from .image_processing import (
     crop_header,
