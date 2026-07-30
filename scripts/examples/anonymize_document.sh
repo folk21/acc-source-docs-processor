@@ -9,4 +9,4 @@ python main.py anonymize \
   --outputLayout preserve \
   --alsoOutputSourceFormat \
   --clearOutput \
-  --config "config/anonymization.ini"
+  --config "config/examples/anonymization.ini"
