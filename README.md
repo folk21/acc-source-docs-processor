@@ -35,15 +35,26 @@ source_docs_processor/
 ├── cli.py                    # composes feature entry points
 ├── core/                     # feature-neutral file, image, path, text primitives
 └── features/
-    ├── anonymization/        # anonymize API, CLI adapter, and implementation
-    └── document_processing/  # process API, shared infrastructure, and types
+    ├── anonymization/        # public API/CLI plus private implementation
+    │   └── _internal/
+    └── document_processing/  # public API/models and visible framework contracts
+        ├── processor_base.py
+        ├── registry_base.py
+        ├── workflow_base.py
+        ├── document_type_definition.py
+        ├── _internal/        # execution details and serializers
         └── document_types/   # isolated concrete document implementations
 ```
 
 Each feature contains a technical `README.md`. Every concrete document type also
 contains a local guide describing its public definition, dependency rules,
-invariants, and focused test commands. The `process` and `anonymize` CLI syntax
-and all `--document-type` values are unchanged by this internal layout.
+invariants, and focused test commands. A document type root shows only its
+framework-facing `definition.py`, `processor.py`, `workflow.py`, and `registry.py`;
+private OCR, readers, extraction, and validation modules live under `_internal/`.
+Feature implementation tests use `tests/unit/<feature>/_internal/`, while concrete
+document implementation tests use `tests/unit/<document_type>/_internal/`. The
+`process` and `anonymize` CLI syntax and all `--document-type` values are unchanged
+by this internal layout.
 
 ## Supported document types
 

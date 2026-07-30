@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...document_processor import BaseSourceFileProcessor
+from ...processor_base import BaseSourceFileProcessor
 from source_docs_processor.core.files import safe_filename
 from ...models import ExtractedDocument
-from .extractor import DOCUMENT_TYPE, extract_document
-from .readers import read_docx, read_pdf
+from ._internal.extractor import DOCUMENT_TYPE, extract_document
+from ._internal.readers import read_docx, read_pdf
 
 
 class IncomingPurchaseDocumentsProcessor(BaseSourceFileProcessor):

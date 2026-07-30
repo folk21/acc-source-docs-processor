@@ -1,21 +1,22 @@
-"""Local Microsoft Presidio-based document anonymization."""
+"""Public API for local document anonymization."""
 
-from .config import (
+from .api import (
     DEFAULT_CONFIG_PATH,
+    SUPPORTED_EXTENSIONS,
     AnonymizationConfig,
-    ConfiguredTextAnalyzer,
-    ReplacementRule,
-    load_anonymization_config,
-)
-from .models import (
     AnonymizationProgress,
     AnonymizationSummary,
     AnonymizedFileResult,
+    ConfiguredTextAnalyzer,
     DetectedEntity,
+    PresidioTextAnalyzer,
+    ReplacementRule,
     TextEntityAnalyzer,
+    anonymize_folder,
+    create_presidio_analyzer,
+    load_anonymization_config,
+    mask_text,
 )
-from .text import PresidioTextAnalyzer, create_presidio_analyzer, mask_text
-from .workflow import SUPPORTED_EXTENSIONS, anonymize_folder
 
 __all__ = [
     "AnonymizationConfig",

@@ -6,15 +6,27 @@ Read incoming PDF/DOCX purchase documents for accountant entry into 1C. The
 current implementation recognizes UPD status `1`, extracts document and item data,
 links original files, and writes a task-oriented workbook plus report.
 
-## Public definition
+## Framework-facing modules
 
-`definition.py` exports `DOCUMENT_TYPE` and `DEFINITION`. The central catalog must
-not import processor, workflow, or registry classes directly.
+The package root contains only integration modules:
+
+- `definition.py` publishes the complete registered definition;
+- `processor.py` dispatches one PDF or DOCX source file;
+- `workflow.py` owns recursive task-workbook behavior;
+- `registry.py` defines document, item, review, and metadata rows.
+
+## Private implementation
+
+`_internal/readers.py` reads native PDF/DOCX content and OCR fallback pages.
+`_internal/extractor.py` recognizes UPD status `1` and extracts document, party,
+item, total, and validation data. These modules are private to this document type.
 
 ## Allowed dependencies
 
-May import shared modules from `features.document_processing`. Must not import
-another concrete document type or the anonymization feature.
+Private modules may use public document models, root framework contracts,
+shared `document_processing._internal` helpers, and feature-neutral `core`
+primitives. They must not import another document type,
+anonymization, `definition.py`, `workflow.py`, or `registry.py`.
 
 ## Key invariants
 

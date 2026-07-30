@@ -6,13 +6,13 @@ from pathlib import Path
 
 import numpy as np
 
-from ...document_processor import BaseDocumentProcessor
+from ...processor_base import BaseDocumentProcessor
 from source_docs_processor.core.files import safe_filename
 from source_docs_processor.core.images import ROTATION_ANGLES, rotate_image
 from ...models import ExtractedDocument
-from ...ocr import OcrResult
-from .extractor import extract_document
-from .ocr import read_continuation_text_by_crop, run_ocr
+from ..._internal.ocr import OcrResult
+from ._internal.extractor import extract_document
+from ._internal.ocr import read_continuation_text_by_crop, run_ocr
 
 
 class UpdInvoicesStatus1Processor(BaseDocumentProcessor):

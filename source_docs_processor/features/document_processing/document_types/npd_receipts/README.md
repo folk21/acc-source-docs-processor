@@ -5,15 +5,26 @@
 Recognize scanned Russian NPD receipts, copy every source image, rename recognized
 receipts, preserve relative folders, and write the compact linked XLSX registry.
 
-## Public definition
+## Framework-facing modules
 
-`definition.py` exports `DOCUMENT_TYPE` and `DEFINITION`. The central catalog must
-not import processor, workflow, or registry classes directly.
+The package root contains only integration modules:
+
+- `definition.py` publishes the complete registered definition;
+- `processor.py` recognizes one receipt image;
+- `workflow.py` owns copying, naming, output selection, and workbook generation;
+- `registry.py` defines the compact XLSX columns and row mapping.
+
+## Private implementation
+
+`_internal/` contains receipt OCR, field extraction, and local NPD QR parsing.
+These modules are private to NPD receipts and must not be imported by shared
+processing code or another document type.
 
 ## Allowed dependencies
 
-May import shared modules from `features.document_processing`. Must not import
-another concrete document type or the anonymization feature.
+Private modules may use root framework contracts, shared
+`document_processing._internal` helpers, and feature-neutral `core` primitives. They must not import another document type, anonymization,
+`definition.py`, `workflow.py`, or `registry.py`.
 
 ## Key invariants
 

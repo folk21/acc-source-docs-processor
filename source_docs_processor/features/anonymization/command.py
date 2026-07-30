@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import (
+from .api import (
     AnonymizationProgress,
     ConfiguredTextAnalyzer,
     DEFAULT_CONFIG_PATH,

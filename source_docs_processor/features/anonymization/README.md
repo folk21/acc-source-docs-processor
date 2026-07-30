@@ -13,24 +13,38 @@ sanitization, editable DOCX reconstruction, recursive folder processing, and the
 - `source_docs_processor.features.anonymization.load_anonymization_config`
 - `source_docs_processor.features.anonymization.command.register_anonymize_command`
 
-External modules should import the package API rather than private helpers from
-format-specific modules.
+External modules should import the package API. Format handlers, configuration
+matching, workflow machinery, and anonymization-only models are private
+implementation details exposed only through `api.py` when required by callers.
 
 ## Dependency rules
 
-- May import cross-feature helpers from `source_docs_processor.core`.
+- May import feature-neutral helpers from `source_docs_processor.core`.
 - Must not import `features.document_processing`.
-- Format-specific modules may collaborate inside this feature.
+- The feature root contains only `api.py`, `command.py`, and package exports.
+- Configuration, models, workflow, text analysis, and format handlers belong
+  under `_internal/`.
+- Modules outside this feature must not import `anonymization._internal`.
 - No external network or cloud OCR calls are allowed.
 
-## Files and responsibilities
+## Structure
 
-- `command.py` — CLI parsing, analyzer selection, and privacy-safe progress output.
-- `workflow.py` — recursive traversal, output planning, atomic writes, and cleanup.
-- `config.py` — INI parsing and configured mask/replacement matching.
-- `text.py` — Presidio integration and text transformation.
-- `image.py`, `pdf.py`, `docx.py`, `editable.py` — format-specific sanitization.
-- `models.py` — anonymization-only contracts and result models.
+```text
+anonymization/
+├── README.md
+├── __init__.py
+├── api.py                    # public programmatic surface
+├── command.py                # CLI adapter
+└── _internal/
+    ├── config.py
+    ├── models.py
+    ├── workflow.py
+    ├── text.py
+    ├── image.py
+    ├── pdf.py
+    ├── docx.py
+    └── editable.py
+```
 
 ## Invariants
 

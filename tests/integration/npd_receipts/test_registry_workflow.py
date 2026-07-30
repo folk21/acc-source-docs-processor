@@ -5,8 +5,10 @@ import cv2
 import numpy as np
 import pytest
 
-from source_docs_processor.cli import process_folder
-from source_docs_processor.features.document_processing.document_processor import BaseDocumentProcessor
+from source_docs_processor.features.document_processing._internal.service import (
+    process_folder_with_components as process_folder,
+)
+from source_docs_processor.features.document_processing.processor_base import BaseDocumentProcessor
 from source_docs_processor.features.document_processing.models import ExtractedDocument
 from source_docs_processor.features.document_processing.document_types.npd_receipts.registry import NpdReceiptRegistryDefinition
 from source_docs_processor.features.document_processing.document_types.npd_receipts.workflow import NpdReceiptRegistryWorkflow

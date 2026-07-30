@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..contracts import DocumentTypeDefinition
+from ..document_type_definition import DocumentTypeDefinition
 from .incoming_purchase_documents.definition import (
     DEFINITION as INCOMING_PURCHASE_DOCUMENTS_DEFINITION,
 )

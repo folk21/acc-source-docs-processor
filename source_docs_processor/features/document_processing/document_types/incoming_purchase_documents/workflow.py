@@ -7,12 +7,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from ...document_processor import Processor, SourceFileProcessor
+from ...processor_base import Processor, SourceFileProcessor
 from source_docs_processor.core.files import unique_path
 from ...models import ExtractedDocument
-from ...registry.base import RegistryDefinition
-from ...registry.task_workbook import TaskWorkbookDefinition, write_task_workbook
-from ...workflows.base import (
+from ...registry_base import RegistryDefinition
+from ..._internal.registry.task_workbook import TaskWorkbookDefinition, write_task_workbook
+from ...workflow_base import (
     ProcessingOptions,
     ProcessingResult,
     RunLogger,

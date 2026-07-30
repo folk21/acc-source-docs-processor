@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 
-from ...document_processor import BaseDocumentProcessor
+from ...processor_base import BaseDocumentProcessor
 from source_docs_processor.core.files import safe_filename
 from source_docs_processor.core.images import ROTATION_ANGLES, rotate_image
 from ...models import ExtractedDocument
-from .extractor import DOCUMENT_TYPE, extract_document
-from .ocr import run_ocr
+from ._internal.extractor import DOCUMENT_TYPE, extract_document
+from ._internal.ocr import run_ocr
 
 
 class NpdReceiptProcessor(BaseDocumentProcessor):

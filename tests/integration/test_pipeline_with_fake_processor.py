@@ -4,10 +4,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from source_docs_processor.cli import process_folder
-from source_docs_processor.features.document_processing.document_processor import BaseDocumentProcessor
+from source_docs_processor.features.document_processing._internal.service import (
+    process_folder_with_components as process_folder,
+)
+from source_docs_processor.features.document_processing.processor_base import BaseDocumentProcessor
 from source_docs_processor.features.document_processing.models import ExtractedDocument, RegistryValue
-from source_docs_processor.features.document_processing.workflows.copy_and_register import CopyAndRegisterWorkflow
+from source_docs_processor.features.document_processing.workflow_copy_and_register import CopyAndRegisterWorkflow
 
 
 class FakeProcessor(BaseDocumentProcessor):
@@ -133,7 +135,7 @@ def _read_registry(path: Path) -> list[dict[str, str]]:
 
 
 def _run_fake_workflow(source_dir: Path, output_dir: Path, target_name=None):
-    """Run the generic entry point with independently injected components."""
+    """Run the internal composition service with independently injected components."""
     return process_folder(
         source_dir=source_dir,
         output_dir=output_dir,

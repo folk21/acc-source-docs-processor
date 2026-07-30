@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ...contracts import DocumentTypeDefinition
-from ...document_processor import Processor
-from ...registry.base import RegistryDefinition
-from ...workflows.base import ProcessingWorkflow
+from ...document_type_definition import DocumentTypeDefinition
+from ...processor_base import Processor
+from ...registry_base import RegistryDefinition
+from ...workflow_base import ProcessingWorkflow
 
 
 DOCUMENT_TYPE = "upd_invoices_status_1"

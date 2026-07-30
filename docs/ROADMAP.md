@@ -12,7 +12,7 @@ Status legend:
 - [x] Group independent operations under `source_docs_processor/features/`.
 - [x] Keep cross-feature helpers isolated under `source_docs_processor/core/`.
 - [x] Move feature-neutral filename, collision, OpenCV image, and whitespace primitives into `core`.
-- [x] Add strict shared date and decimal normalization under `features/document_processing/normalization/`.
+- [x] Keep strict shared date and decimal normalization under `features/document_processing/_internal/`.
 - [x] Keep OCR aliases, source priorities, template filtering, and positional amount rules inside their concrete document types.
 - [x] Keep document-processing infrastructure under `features/document_processing/` and concrete implementations under `document_processing/document_types/`.
 - [x] Keep document processing under the `process` subcommand.
@@ -32,6 +32,11 @@ Status legend:
 - [x] Restrict the central catalog to complete document-type definitions.
 - [x] Add local technical README files for features and concrete document types.
 - [x] Enforce feature, shared-module, catalog, and concrete-type boundaries with architecture tests.
+- [x] Keep framework-facing document type modules at the package root and move private implementations plus unit tests under `_internal/`.
+- [x] Keep feature roots as public integration maps and move feature implementation modules plus private unit tests under feature `_internal/` packages.
+- [x] Keep public `process_folder()` free of component-injection contracts and provide internal fake-component composition for tests.
+- [x] Keep shared workflow framework modules at the document-processing feature root and low-level workflow dependencies under `_internal/`.
+- [x] Keep processor, registry, workflow, and document-type composition contracts visible at the document-processing feature root.
 - [ ] Split large extractors only along stable reasons for change when focused behavior work justifies it.
 - [ ] Reuse `registry/common.py` consistently to remove duplicated writer validation.
 - [ ] Evaluate whether the existing processors share enough structure for config-driven definitions.

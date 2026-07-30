@@ -1,5 +1,95 @@
 # Changelog
 
+## 0.21.0 — Visible document-processing framework contracts
+
+### Changed
+
+- Renamed and moved processor protocols and reusable defaults from `_internal/processors.py` to `processor_base.py` at the document-processing feature root.
+- Moved the registry schema protocol from `_internal/registry/base.py` to the visible `registry_base.py` framework module while keeping writers and workbook helpers private.
+- Moved `DocumentTypeDefinition` from `_internal/contracts.py` to `document_type_definition.py` at the feature root.
+- Updated concrete processors, workflows, registries, definitions, the catalog, composition service, integration tests, and registry writers to use the visible framework contracts.
+- Moved processor-base unit coverage to `tests/unit/document_processing/test_processor_base.py` and updated architecture tests for the new public/private boundary.
+- Updated feature guidance, AI development rules, architecture documentation, roadmap, and package comments.
+- Bumped the package version to `0.21.0`.
+
+### Preserved
+
+- Preserved CLI commands, public `process_folder()` behavior, registered document-type identifiers, OCR and anonymization behavior, output names, registries, reports, and file-layout behavior.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`136 passed`)
+
+## 0.20.0 — Visible shared workflow framework
+
+### Changed
+
+- Renamed the shared workflow modules to `workflow_base.py` and `workflow_copy_and_register.py`.
+- Moved both workflow framework modules from `document_processing/_internal/workflows/` to the document-processing feature root.
+- Removed the now-empty `_internal/workflows/` package and updated all concrete workflows, definitions, composition services, and synthetic integration tests to use the new paths.
+- Moved shared workflow unit coverage to `tests/unit/document_processing/test_workflows.py` while retaining processor and registry implementation tests under `_internal/`.
+- Updated architecture tests, feature guidance, AI development rules, architecture documentation, and roadmap for the visible workflow extension boundary.
+- Bumped the package version to `0.20.0`.
+
+### Preserved
+
+- Preserved CLI commands, public `process_folder()` behavior, registered document-type identifiers, OCR and anonymization behavior, output names, registries, reports, and file-layout behavior.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`136 passed`)
+
+## 0.19.0 — Feature-private implementation packages
+
+### Changed
+
+- Reduced the anonymization feature root to package exports, `api.py`, and `command.py`; moved configuration, result contracts, recursive workflow, text analysis, and format handlers under `anonymization/_internal/`.
+- Reduced the document-processing feature root to package exports, `api.py`, `command.py`, public extracted-document models, and the visible document-type catalog.
+- Moved `DocumentTypeDefinition`, processor protocols and defaults, component composition, processing-specific file actions, shared OCR, registry writers, and workflow infrastructure under `document_processing/_internal/`.
+- Replaced the two-file `normalization/` package with focused internal `date_normalization.py` and `money_normalization.py` modules.
+- Removed the legacy processor-only compatibility factory; processor creation remains owned by complete document-type definitions.
+- Simplified the public `process_folder()` signature so component injection is available only through the internal composition service used by deterministic integration tests.
+- Mirrored feature-private tests under `tests/unit/anonymization/_internal/` and `tests/unit/document_processing/_internal/`.
+- Updated feature guides, architecture documentation, roadmap, AI development rules, and package comments for the feature-level private API boundary.
+- Bumped the package version to `0.19.0`.
+
+### Added
+
+- Added architecture regression checks for minimal feature roots, grouped document-processing infrastructure, private shared normalizers, and mirrored feature-private test packages.
+
+### Preserved
+
+- Preserved CLI commands, registered document-type identifiers, OCR and anonymization behavior, output names, registries, reports, and file-layout behavior.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`136 passed`)
+
+## 0.18.0 — Private document-type implementation packages
+
+### Changed
+
+- Kept only `definition.py`, `processor.py`, `workflow.py`, and `registry.py` as framework-facing modules at each concrete document type root.
+- Moved UPD OCR, crop, extraction, classification, continuation, confidence, and field-specific modules under `upd_invoices_status_1/_internal/`.
+- Moved NPD receipt OCR, extraction, and QR parsing under `npd_receipts/_internal/`.
+- Moved incoming purchase-document readers and extraction under `incoming_purchase_documents/_internal/`.
+- Mirrored private implementation tests under `tests/unit/<document_type>/_internal/` while keeping framework and integration tests at the document-type test root.
+- Removed top-level compatibility helper modules so the package root remains an explicit framework integration map.
+- Updated feature guides, architecture documentation, AI development rules, and package comments for the private API boundary.
+- Bumped the package version to `0.18.0`.
+
+### Added
+
+- Added architecture regression checks for framework-only document type roots, private-module dependency direction, and mirrored private unit-test layout.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`132 passed`)
+
 ## 0.17.0 — Core technical primitives and strict document normalization
 
 ### Changed

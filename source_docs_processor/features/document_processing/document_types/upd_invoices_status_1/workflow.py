@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ...models import ExtractedDocument
-from ...workflows.copy_and_register import CopyAndRegisterWorkflow
+from ...workflow_copy_and_register import CopyAndRegisterWorkflow
 
 
 class UpdInvoicesStatus1Workflow(CopyAndRegisterWorkflow):

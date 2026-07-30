@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...models import ExtractedDocument, RegistryValue
-from ...registry.task_workbook import WorkbookColumn, WorkbookLink, WorkbookRow
+from ..._internal.registry.task_workbook import WorkbookColumn, WorkbookLink, WorkbookRow
 
 
 class IncomingPurchaseDocumentsRegistryDefinition:
