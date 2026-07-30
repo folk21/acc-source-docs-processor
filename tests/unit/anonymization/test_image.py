@@ -157,3 +157,64 @@ def test_raster_redaction_uses_fuzzy_included_ocr_matching(monkeypatch) -> None:
 
     assert detected == 1
     assert redacted.getpixel((60, 40)) == (0, 0, 0)
+
+
+def test_raster_replacement_covers_source_and_draws_target(monkeypatch) -> None:
+    """Verify source-format raster output visibly replaces a configured value.
+
+    Protected risk: replacement rules must not silently degrade to black masks in
+    PDF and image output, while the original OCR region must still be covered.
+    """
+    from PIL import Image
+
+    from source_docs_processor.anonymization.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.anonymization.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    recognized = "Квантовая"
+    page = OcrPage(
+        text=recognized,
+        words=(
+            OcrWord(
+                text=recognized,
+                start=0,
+                end=len(recognized),
+                left=20,
+                top=30,
+                width=100,
+                height=24,
+                confidence=90.0,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=180,
+        original_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.anonymization.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+    config = AnonymizationConfig(
+        included_and_replaced=(ReplacementRule("Квантовая", "цифровая"),),
+        included_fuzzy=True,
+        included_fuzzy_max_errors=1,
+    )
+
+    transformed, detected = redact_pil_image(
+        Image.new("RGB", (180, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    crop = transformed.crop((16, 26, 124, 58)).convert("L")
+    minimum, maximum = crop.getextrema()
+    assert detected == 1
+    assert minimum < 80
+    assert maximum > 240

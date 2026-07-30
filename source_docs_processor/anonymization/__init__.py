@@ -4,6 +4,7 @@ from .config import (
     DEFAULT_CONFIG_PATH,
     AnonymizationConfig,
     ConfiguredTextAnalyzer,
+    ReplacementRule,
     load_anonymization_config,
 )
 from .models import (
@@ -25,6 +26,7 @@ __all__ = [
     "DEFAULT_CONFIG_PATH",
     "DetectedEntity",
     "PresidioTextAnalyzer",
+    "ReplacementRule",
     "SUPPORTED_EXTENSIONS",
     "TextEntityAnalyzer",
     "anonymize_folder",

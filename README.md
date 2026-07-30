@@ -160,9 +160,9 @@ The anonymization operation accepts directories, not individual file paths:
 python main.py anonymize \
   --source "/path/to/private-documents" \
   --output "/path/to/anonymized-documents" \
-  --output-document-type docx \
-  --output-layout preserve \
-  --also-output-source-format \
+  --outputDocumentType docx \
+  --outputLayout preserve \
+  --alsoOutputSourceFormat \
   --config "config/anonymization.ini"
 ```
 
@@ -174,23 +174,28 @@ excluded =
 included =
     Учебная организация
     Иван Петров
+includedAndReplaced =
+    Учебная организация -> Учебная компания
+    Иван Петров -> Петр Иванов
 includedFuzzy = true
 includedFuzzyMaxErrors = 1
 includedParagraphs = 9. Реквизиты и подписи сторон
 ```
 
-- A non-empty `included` enables included-only mode: only its case-insensitive literal fragments are redacted. Default Presidio detections and `excluded` are ignored, and Presidio/spaCy models are not loaded.
-- `includedFuzzy = true` enables OCR-only tolerant matching for `included` values on raster images, scanned PDFs, and embedded raster images in DOCX files. Native TXT and DOCX text remains exact.
-- `includedFuzzyMaxErrors` sets the maximum total insertions, deletions, or substitutions for one configured value. The accepted range is `0` to `3`; `1` is the recommended conservative value.
+- A non-empty `included` or `includedAndReplaced` enables configured-only mode. Default Presidio detections and `excluded` are ignored, and Presidio/spaCy models are not loaded.
+- `included` masks matching case-insensitive literals.
+- `includedAndReplaced` uses one `source -> replacement` rule per line. The source is matched case-insensitively and the replacement is written exactly as configured. A replacement rule takes priority when the same source is also present in `included`.
+- `includedFuzzy = true` enables OCR-only tolerant matching for both `included` and the source side of `includedAndReplaced` on raster images, scanned PDFs, and embedded raster images in DOCX files. Native TXT and DOCX text remains exact.
+- `includedFuzzyMaxErrors` sets the maximum total insertions, deletions, or substitutions for one configured source value. The accepted range is `0` to `3`; `1` is the recommended conservative value.
 - OCR fuzzy matching normalizes `ё`/`е`, punctuation, whitespace, and common visually identical Latin/Cyrillic characters. Values shorter than five normalized characters remain exact to reduce false matches.
-- When `included` is empty, default Presidio detection is enabled. `excluded` then contains case-insensitive literal fragments which remain visible inside default detections.
+- When both configured include lists are empty, default Presidio detection is enabled. `excluded` then contains case-insensitive literal fragments which remain visible inside default detections.
 - `includedParagraphs` is independent from both modes. On raster images and PDFs, everything below a matched heading is covered and all following pages are fully covered. In TXT and DOCX text, all following text is masked.
 
-Comma-separated and multiline values are supported. Multiword literals tolerate spaces, tabs, or line breaks between their words. The default file is `config/anonymization.ini`; another file can be selected with `--config`.
+Comma-separated and multiline values are supported for ordinary lists. `includedAndReplaced` is multiline and requires `source -> replacement` syntax. Multiword source literals tolerate spaces, tabs, or line breaks between their words. The default file is `config/anonymization.ini`; another file can be selected with `--config`.
 
-The command scans `--source` recursively and writes anonymized files below `--output`. Without `--output-document-type`, relative folders, file names, and formats are preserved. `--output-document-type docx` (also accepted as `--outputDocumentType docx`) reconstructs editable anonymized text in DOCX files. Add `--output-layout preserve` (also accepted as `--outputLayout preserve`) to approximate the source page size, orientation, OCR line positions, spacing, and font sizes. Add `--also-output-source-format` (also accepted as `--alsoOutputSourceFormat`) to generate both an anonymized source-format artifact and the requested DOCX artifact. For example, `contract.pdf` produces `contract.pdf` plus `contract.docx`. A DOCX source produces only one DOCX because the requested and source formats already match. The source scan is never embedded as a background image. Native DOCX input keeps its sanitized source formatting; TXT has no page layout to reconstruct. Files with colliding converted names receive a source-format suffix such as `document__pdf.docx`. Dual output performs both format-specific rendering paths and can take longer for scanned PDF or image input. The command does not use `--document-type`.
+The command scans `--source` recursively and writes anonymized files below `--output`. Without `--outputDocumentType`, relative folders, file names, and formats are preserved. `--outputDocumentType docx` reconstructs editable anonymized text in DOCX files. Add `--outputLayout preserve` to approximate the source page size, orientation, OCR line positions, spacing, and font sizes. Add `--alsoOutputSourceFormat` to generate both an anonymized source-format artifact and the requested DOCX artifact. For example, `contract.pdf` produces `contract.pdf` plus `contract.docx`. A DOCX source produces only one DOCX because the requested and source formats already match. Files with colliding converted names receive a source-format suffix such as `document__pdf.docx`. Dual output performs both format-specific rendering paths and can take longer for scanned PDF or image input. The command does not use `--document-type`.
 
-`preserve` is an OCR-based approximation rather than a lossless PDF-to-Word conversion. Simple paragraphs and aligned text usually remain recognizable, while complex tables, exact fonts, stamps, signatures, and decorative elements may require manual correction.
+`preserve` is an OCR-based approximation rather than a lossless PDF-to-Word conversion. Simple paragraphs and aligned text usually remain recognizable, while complex tables, exact fonts, stamps, signatures, and decorative elements may require manual correction. The source scan is never embedded as a background image.
 
 Supported input formats:
 
@@ -203,8 +208,9 @@ Detection combines the Russian `ru_core_news_sm` spaCy NER pipeline with Microso
 
 Output safety behavior:
 
-- PDF pages are rendered, redacted, and rebuilt as image-only pages so the original searchable text layer and metadata are not retained when the source format is preserved. With DOCX output, OCR text is masked and reconstructed without embedding the source page image; `--output-layout preserve` additionally approximates page geometry and text positioning.
-- Raster images are OCRed in multiple orientations, covered with opaque rectangles, and saved without source EXIF metadata.
+- PDF pages are rendered and rebuilt as image-only pages so the original searchable text layer and metadata are not retained when the source format is preserved. Mask rules create opaque rectangles. Replacement rules cover the source region and draw the configured replacement text.
+- With DOCX output, OCR text is transformed and reconstructed without embedding the source page image; `--outputLayout preserve` additionally approximates page geometry and text positioning.
+- Raster images are OCRed in multiple orientations and saved without source EXIF metadata.
 - DOCX text, headers, footers, tables, drawing text, package metadata, and supported embedded raster images are sanitized. External relationships and custom XML are removed.
 - DOCX files containing OLE/ActiveX objects, embedded workbooks, macros, or unsupported vector images fail instead of copying opaque content unchanged.
 - Unsupported source files fail and are not copied into the output directory.
@@ -246,3 +252,6 @@ Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generate
 - [Changelog](docs/CHANGELOG.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Development rules](AGENTS.md)
+
+All relative `--source`, `--output`, and `--config` paths are resolved from the current working directory. The anonymization command prints the working directory plus the resolved source and output paths before scanning. A scan that finds no source files exits with an error instead of reporting a successful zero-file run.
+

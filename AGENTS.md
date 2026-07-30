@@ -116,12 +116,16 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Strip image metadata and sanitize DOCX metadata, external relationships, custom XML, and supported embedded raster images.
 - Reject DOCX macros, OLE/ActiveX objects, embedded workbooks, and unsupported vector media until a reliable sanitizer exists.
 - Never log recognized PII values. Logs may contain only relative file paths, counts, and errors.
-- Keep user configuration under `config/anonymization.ini` with literal `excluded`, `included`, and `includedParagraphs` rules.
-- Treat a non-empty `included` list as literal-only mode: do not run the default analyzer and ignore `excluded`.
-- Use `excluded` only to refine default detections when `included` is empty.
+- Keep user configuration under `config/anonymization.ini` with `excluded`, `included`, `includedAndReplaced`, and `includedParagraphs` rules.
+- Treat a non-empty `included` or `includedAndReplaced` list as configured-only mode: do not run the default analyzer and ignore `excluded`.
+- Use `excluded` only to refine default detections when both configured include lists are empty.
 - Treat `includedParagraphs` as an independent, stronger section-level rule once its heading has matched.
+- Give `includedAndReplaced` precedence over `included` for identical spans and preserve the configured replacement value in editable and raster outputs.
 - Preserve immediate privacy-safe progress output for long OCR runs.
+- Exclude the output subtree during source traversal only when the output directory is nested inside the source directory; an output directory that contains the source must not suppress input discovery.
+- Treat a zero-file effective scan as an error and include resolved path diagnostics without logging recognized content.
 - Keep editable layout reconstruction image-free: approximate page geometry and OCR text positions, but never embed the original scan as a background.
+- Keep public multiword anonymization options in camelCase: `--outputDocumentType`, `--outputLayout`, and `--alsoOutputSourceFormat`.
 - When dual output is requested, write one anonymized source-format artifact and one requested-format artifact, avoid duplicate output when the formats already match, and resolve converted-name collisions deterministically.
 - Document that OCR and NER are heuristic and that output requires manual review before external sharing.
 

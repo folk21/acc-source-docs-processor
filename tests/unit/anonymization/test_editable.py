@@ -219,3 +219,77 @@ def test_preserve_layout_swaps_page_geometry_for_rotated_ocr(
     output = Document(destination)
     assert output.sections[0].page_width.pt == pytest.approx(420, abs=1)
     assert output.sections[0].page_height.pt == pytest.approx(280, abs=1)
+
+
+def test_preserve_layout_writes_replacement_text_instead_of_mask(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify preserve-layout DOCX contains the configured pseudonym as text.
+
+    Protected risk: editable output must retain the replacement value rather than
+    emitting opaque blocks or the original sensitive OCR token.
+    """
+    from source_docs_processor.anonymization.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.anonymization.image import OcrWord
+
+    source = tmp_path / "source.pdf"
+    destination = tmp_path / "output.docx"
+    pdf = fitz.open()
+    pdf.new_page(width=420, height=280)
+    pdf.save(source)
+    pdf.close()
+
+    source_value = "Квантовая"
+    word = OcrWord(
+        text=source_value,
+        start=0,
+        end=len(source_value),
+        left=40,
+        top=70,
+        width=100,
+        height=20,
+        confidence=90.0,
+        layout_left=40,
+        layout_top=70,
+        layout_width=100,
+        layout_height=20,
+        block_number=1,
+        paragraph_number=1,
+        line_number=1,
+    )
+    fake_page = OcrPage(
+        text=source_value,
+        words=(word,),
+        rotation_degrees=0,
+        original_width=420,
+        original_height=280,
+        layout_width=420,
+        layout_height=280,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.anonymization.editable._choose_ocr_page",
+        lambda *args, **kwargs: (fake_page, []),
+    )
+    config = AnonymizationConfig(
+        included_and_replaced=(ReplacementRule(source_value, "цифровая"),)
+    )
+
+    detected = anonymize_pdf_to_docx(
+        source,
+        destination,
+        ConfiguredTextAnalyzer(None, config),
+        lang="rus+eng",
+        config=config,
+        output_layout="preserve",
+    )
+
+    output = Document(destination)
+    document_text = "\n".join(paragraph.text for paragraph in output.paragraphs)
+    assert detected == 1
+    assert source_value not in document_text
+    assert "цифровая" in document_text

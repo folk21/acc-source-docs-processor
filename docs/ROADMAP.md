@@ -109,8 +109,9 @@ Status legend:
 - [x] Implement local directory anonymization behind the `anonymize` subcommand.
 - [x] Add Microsoft Presidio with Russian spaCy NER and accounting/identity recognizers.
 - [x] Add fail-closed PDF, DOCX, TXT, and raster-image output sanitization.
-- [x] Add configurable default-mode exclusions, included-only literal redaction, and section-level redaction headings.
-- [x] Add conservative OCR-only fuzzy matching for configured included values.
+- [x] Add configurable default-mode exclusions, configured-only masking/replacement rules, and section-level redaction headings.
+- [x] Add conservative OCR-only fuzzy matching for configured mask and replacement source values.
+- [x] Add explicit `includedAndReplaced` pseudonym mappings.
 - [ ] Add custom organization/person dictionaries beyond literal matching.
 - [x] Add optional editable DOCX anonymization output for OCR-backed inputs.
 - [x] Add approximate page-layout preservation for editable OCR-to-DOCX output.
@@ -122,6 +123,9 @@ Status legend:
 - [ ] Add a Tesseract validation command.
 - [ ] Add Windows-oriented setup instructions.
 - [ ] Add a simple local UI.
+
+- [x] Support launching anonymization from an output directory that contains the source directory without suppressing input discovery.
+- [x] Fail clearly when an effective source scan contains no files.
 
 ## Code quality and packaging
 

@@ -16,6 +16,7 @@ class DetectedEntity:
     end: int
     entity_type: str
     score: float = 1.0
+    replacement: str | None = field(default=None, compare=False)
 
 
 class TextEntityAnalyzer(Protocol):

@@ -1,4 +1,4 @@
-"""Presidio-backed Russian PII detection and format-preserving text masking."""
+"""Presidio-backed Russian PII detection and configurable text transformation."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ def merge_entities(
                 end=max(0, min(text_length, entity.end)),
                 entity_type=entity.entity_type,
                 score=entity.score,
+                replacement=entity.replacement,
             )
             for entity in entities
             if entity.end > entity.start
@@ -36,6 +37,12 @@ def merge_entities(
             merged.append(entity)
             continue
         previous = merged[-1]
+        same_span = previous.start == entity.start and previous.end == entity.end
+        if same_span:
+            preferred = entity if entity.replacement is not None else previous
+            replacement = preferred.replacement
+        else:
+            replacement = None
         merged[-1] = DetectedEntity(
             start=previous.start,
             end=max(previous.end, entity.end),
@@ -45,29 +52,105 @@ def merge_entities(
                 else entity.entity_type
             ),
             score=max(previous.score, entity.score),
+            replacement=replacement,
         )
     return merged
+
+
+def _masked_fragment(value: str) -> str:
+    """Mask one source fragment while preserving its whitespace."""
+    return "".join(
+        character if character.isspace() else MASK_CHARACTER
+        for character in value
+    )
+
+
+def transform_entities(
+    text: str,
+    entities: Sequence[DetectedEntity],
+) -> str:
+    """Apply masking or configured replacement to explicit entity spans."""
+    transformed = text
+    for entity in reversed(merge_entities(entities, len(text))):
+        replacement = (
+            entity.replacement
+            if entity.replacement is not None
+            else _masked_fragment(text[entity.start : entity.end])
+        )
+        transformed = (
+            transformed[: entity.start]
+            + replacement
+            + transformed[entity.end :]
+        )
+    return transformed
+
+
+def transform_text(
+    text: str,
+    analyzer: TextEntityAnalyzer,
+) -> tuple[str, list[DetectedEntity]]:
+    """Apply configured masking or replacement to detected text spans."""
+    if not text:
+        return text, []
+    entities = merge_entities(analyzer.analyze(text), len(text))
+    if not entities:
+        return text, []
+    return transform_entities(text, entities), entities
+
+
+def transform_text_parts(
+    parts: Sequence[str],
+    analyzer: TextEntityAnalyzer,
+) -> tuple[list[str], list[DetectedEntity]]:
+    """Transform concatenated text while retaining its original run boundaries."""
+    text = "".join(parts)
+    entities = merge_entities(analyzer.analyze(text), len(text))
+    if not entities:
+        return list(parts), []
+
+    boundaries: list[tuple[int, int]] = []
+    offset = 0
+    for part in parts:
+        boundaries.append((offset, offset + len(part)))
+        offset += len(part)
+    output = ["" for _part in parts]
+
+    def append_range(start: int, end: int, mask: bool = False) -> None:
+        for index, (part_start, part_end) in enumerate(boundaries):
+            overlap_start = max(start, part_start)
+            overlap_end = min(end, part_end)
+            if overlap_start >= overlap_end:
+                continue
+            fragment = text[overlap_start:overlap_end]
+            output[index] += _masked_fragment(fragment) if mask else fragment
+
+    cursor = 0
+    for entity in entities:
+        append_range(cursor, entity.start)
+        if entity.replacement is None:
+            append_range(entity.start, entity.end, mask=True)
+        else:
+            owner_index = next(
+                (
+                    index
+                    for index, (part_start, part_end) in enumerate(boundaries)
+                    if entity.start < part_end and entity.end > part_start
+                ),
+                len(parts) - 1,
+            )
+            if owner_index >= 0:
+                output[owner_index] += entity.replacement
+        cursor = entity.end
+    append_range(cursor, len(text))
+    return output, entities
 
 
 def mask_text(
     text: str,
     analyzer: TextEntityAnalyzer,
 ) -> tuple[str, list[DetectedEntity]]:
-    """Mask detected spans while preserving whitespace and character count."""
-    if not text:
-        return text, []
-    entities = merge_entities(analyzer.analyze(text), len(text))
-    if not entities:
-        return text, []
-
-    characters = list(text)
-    for entity in entities:
-        for index in range(entity.start, entity.end):
-            if not characters[index].isspace():
-                characters[index] = MASK_CHARACTER
-    return "".join(characters), entities
-
-
+    """Backward-compatible alias for configurable text transformation."""
+    return transform_text(text, analyzer)
 class PresidioTextAnalyzer:
     """Adapt Microsoft Presidio results to the project analyzer protocol."""
 

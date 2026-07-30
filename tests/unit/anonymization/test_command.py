@@ -62,76 +62,111 @@ def test_included_only_command_skips_presidio_model_loading(
     assert len(entities) == 1
 
 
-def test_anonymize_parser_accepts_both_output_document_type_spellings() -> None:
-    """Verify the CLI supports the requested camelCase name and project-style alias.
+def test_anonymize_parser_accepts_camel_case_output_options() -> None:
+    """Verify anonymization output options use one consistent camelCase style.
 
-    Protected risk: documented invocations must not fail because argparse only
-    registered one spelling of the new option.
+    Protected risk: documentation and scripts must not alternate between two
+    spellings for the same public CLI option.
     """
     from source_docs_processor.cli import build_parser
 
-    for option in ("--outputDocumentType", "--output-document-type"):
-        args = build_parser().parse_args(
-            [
-                "anonymize",
-                "--source",
-                "/tmp/source",
-                "--output",
-                "/tmp/output",
-                option,
-                "docx",
-            ]
-        )
-        assert args.output_document_type == "docx"
+    args = build_parser().parse_args(
+        [
+            "anonymize",
+            "--source",
+            "/tmp/source",
+            "--output",
+            "/tmp/output",
+            "--outputDocumentType",
+            "docx",
+            "--outputLayout",
+            "preserve",
+            "--alsoOutputSourceFormat",
+        ]
+    )
+
+    assert args.output_document_type == "docx"
+    assert args.output_layout == "preserve"
+    assert args.also_output_source_format is True
 
 
-def test_anonymize_parser_accepts_both_output_layout_spellings() -> None:
-    """Verify preserve layout supports camelCase and project-style CLI names.
+def test_anonymize_parser_rejects_removed_kebab_case_output_options() -> None:
+    """Verify obsolete mixed-style output option spellings are rejected.
 
-    Protected risk: the requested invocation must not depend on one undocumented
-    spelling of the layout option.
+    Protected risk: keeping undocumented aliases would prevent the CLI from
+    converging on the requested single naming convention.
     """
-    from source_docs_processor.cli import build_parser
+    import pytest
 
-    for option in ("--outputLayout", "--output-layout"):
-        args = build_parser().parse_args(
-            [
-                "anonymize",
-                "--source",
-                "/tmp/source",
-                "--output",
-                "/tmp/output",
-                "--outputDocumentType",
-                "docx",
-                option,
-                "preserve",
-            ]
-        )
-        assert args.output_layout == "preserve"
-
-
-def test_anonymize_parser_accepts_both_source_format_output_spellings() -> None:
-    """Verify dual output supports camelCase and project-style CLI names.
-
-    Protected risk: users must be able to request both anonymized variants with
-    the same naming conventions supported by the other anonymization options.
-    """
     from source_docs_processor.cli import build_parser
 
     for option in (
-        "--alsoOutputSourceFormat",
+        "--output-document-type",
+        "--output-layout",
         "--also-output-source-format",
     ):
-        args = build_parser().parse_args(
-            [
-                "anonymize",
-                "--source",
-                "/tmp/source",
-                "--output",
-                "/tmp/output",
-                "--outputDocumentType",
-                "docx",
-                option,
-            ]
+        arguments = [
+            "anonymize",
+            "--source",
+            "/tmp/source",
+            "--output",
+            "/tmp/output",
+            option,
+        ]
+        if option == "--output-document-type":
+            arguments.append("docx")
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(arguments)
+
+
+def test_replacement_only_command_skips_presidio_model_loading(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify replacement-only runs do not initialize Presidio or spaCy.
+
+    Protected risk: pseudonym-only configurations must keep the same fast local
+    startup behavior as ordinary included rules.
+    """
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    config = tmp_path / "anonymization.ini"
+    config.write_text(
+        "[anonymization]\n"
+        "included =\n"
+        "includedAndReplaced = Васильев -> Иванов\n",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def fail_presidio_loading():
+        raise AssertionError("Presidio must not load in configured-only mode")
+
+    def fake_anonymize_folder(**kwargs):
+        captured["analyzer"] = kwargs["analyzer"]
+        return AnonymizationSummary(source_root=source, output_root=output)
+
+    monkeypatch.setattr(
+        anonymize_command,
+        "create_presidio_analyzer",
+        fail_presidio_loading,
+    )
+    monkeypatch.setattr(
+        anonymize_command,
+        "anonymize_folder",
+        fake_anonymize_folder,
+    )
+
+    result = anonymize_command._run_anonymize_command(
+        argparse.Namespace(
+            source=str(source),
+            output=str(output),
+            config=str(config),
         )
-        assert args.also_output_source_format is True
+    )
+
+    transformed = captured["analyzer"].analyze("Контакт: Васильев")
+    assert result == 0
+    assert len(transformed) == 1
+    assert transformed[0].replacement == "Иванов"

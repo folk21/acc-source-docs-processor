@@ -327,3 +327,128 @@ def test_dual_output_removes_both_variants_when_conversion_fails(
     assert summary.generated_files_count == 0
     assert not (output / "note.txt").exists()
     assert not (output / "note.docx").exists()
+
+
+def test_folder_anonymization_replaces_configured_text_in_both_outputs(
+    tmp_path: Path,
+) -> None:
+    """Verify replacement rules are applied to source-format and DOCX artifacts.
+
+    Protected risk: dual output must not apply pseudonyms to only one variant and
+    leave the original sensitive literal in the other artifact.
+    """
+    from docx import Document
+
+    from source_docs_processor.anonymization.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text(
+        "Ответственный: Васильев",
+        encoding="utf-8",
+    )
+    config = AnonymizationConfig(
+        included_and_replaced=(ReplacementRule("Васильев", "Иванов"),)
+    )
+
+    summary = anonymize_folder(
+        source,
+        output,
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+        output_document_type="docx",
+        also_output_source_format=True,
+    )
+
+    source_text = (output / "note.txt").read_text(encoding="utf-8")
+    editable_text = "\n".join(
+        paragraph.text
+        for paragraph in Document(output / "note.docx").paragraphs
+    )
+    assert summary.failed_count == 0
+    assert "Васильев" not in source_text
+    assert "Васильев" not in editable_text
+    assert "Иванов" in source_text
+    assert "Иванов" in editable_text
+
+def test_output_ancestor_does_not_exclude_nested_source_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify a current output directory may contain the source directory.
+
+    Protected risk: treating every file below the output root as generated output
+    previously excluded the complete nested source tree and produced zero files
+    without reporting an error.
+    """
+    workspace = tmp_path / "workspace"
+    source = workspace / "input"
+    source.mkdir(parents=True)
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+    monkeypatch.chdir(workspace)
+
+    summary = anonymize_folder(
+        Path("input"),
+        Path("."),
+        FictionalNameAnalyzer(),
+    )
+
+    destination = workspace / "note.txt"
+    assert summary.succeeded_count == 1
+    assert summary.failed_count == 0
+    assert destination.exists()
+    assert "Иван Петров" not in destination.read_text(encoding="utf-8")
+
+
+def test_empty_source_directory_fails_with_resolved_path_diagnostics(
+    tmp_path: Path,
+) -> None:
+    """Verify an empty scan cannot finish successfully with zero generated files.
+
+    Protected risk: a path or exclusion mistake must produce a clear non-zero
+    failure instead of a misleading successful summary with an empty output.
+    """
+    import pytest
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+
+    with pytest.raises(ValueError, match="No source files were found") as error:
+        anonymize_folder(source, output, FictionalNameAnalyzer())
+
+    message = str(error.value)
+    assert str(source.resolve()) in message
+    assert str(output.resolve()) in message
+
+
+
+def test_nested_output_directory_remains_excluded_from_source_scan(
+    tmp_path: Path,
+) -> None:
+    """Verify generated output below the source tree is not reprocessed.
+
+    Protected risk: fixing ancestor-output traversal must not remove the guard
+    that prevents files already inside a nested output directory from becoming
+    new anonymization inputs.
+    """
+    source = tmp_path / "source"
+    output = source / "output"
+    source.mkdir()
+    output.mkdir()
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+    existing_output = output / "previous.txt"
+    existing_output.write_text("previous result", encoding="utf-8")
+
+    summary = anonymize_folder(source, output, FictionalNameAnalyzer())
+
+    assert summary.succeeded_count == 1
+    assert summary.failed_count == 0
+    assert [result.source_path for result in summary.results] == [source / "note.txt"]
+    assert (output / "note.txt").exists()
+    assert existing_output.read_text(encoding="utf-8") == "previous result"

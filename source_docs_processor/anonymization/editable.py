@@ -22,7 +22,7 @@ from .config import (
 )
 from .image import OcrPage, OcrWord, _choose_ocr_page
 from .models import DetectedEntity, TextEntityAnalyzer, UnitProgressCallback
-from .text import merge_entities
+from .text import merge_entities, transform_entities
 
 
 _PLAIN_LAYOUT = "plain"
@@ -44,13 +44,8 @@ class _LayoutLine:
 
 
 def _mask_entities(text: str, entities: Sequence[DetectedEntity]) -> str:
-    """Mask explicit entity spans while preserving whitespace."""
-    characters = list(text)
-    for entity in merge_entities(entities, len(text)):
-        for index in range(entity.start, entity.end):
-            if not characters[index].isspace():
-                characters[index] = "█"
-    return "".join(characters)
+    """Apply masking or configured replacements to explicit entity spans."""
+    return transform_entities(text, entities)
 
 
 def _analyze_ocr_entities(
@@ -179,20 +174,36 @@ def _mask_word(
     entities: Sequence[DetectedEntity],
     redact_entire_word: bool,
 ) -> str:
-    """Mask the sensitive characters of one OCR word."""
+    """Apply masking or replacement to one positioned OCR word."""
     if redact_entire_word:
-        return "".join("█" if not character.isspace() else character for character in word.text)
-    characters = list(word.text)
+        return "".join(
+            "█" if not character.isspace() else character
+            for character in word.text
+        )
+
+    result: list[str] = []
+    cursor = word.start
     for entity in entities:
         start = max(word.start, entity.start)
         end = min(word.end, entity.end)
         if start >= end:
             continue
-        for absolute_index in range(start, end):
-            relative_index = absolute_index - word.start
-            if 0 <= relative_index < len(characters) and not characters[relative_index].isspace():
-                characters[relative_index] = "█"
-    return "".join(characters)
+        if cursor < start:
+            result.append(word.text[cursor - word.start : start - word.start])
+        source_fragment = word.text[start - word.start : end - word.start]
+        if entity.replacement is None:
+            result.append(
+                "".join(
+                    character if character.isspace() else "█"
+                    for character in source_fragment
+                )
+            )
+        elif word.start <= entity.start < word.end:
+            result.append(entity.replacement)
+        cursor = max(cursor, end)
+    if cursor < word.end:
+        result.append(word.text[cursor - word.start :])
+    return "".join(result)
 
 
 def _page_dimensions_for_ocr(

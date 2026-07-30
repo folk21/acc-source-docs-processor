@@ -15,7 +15,7 @@ from .config import (
 )
 from .image import SUPPORTED_IMAGE_EXTENSIONS, anonymize_image_bytes
 from .models import TextEntityAnalyzer
-from .text import mask_text
+from .text import transform_text, transform_text_parts
 
 
 _RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -115,36 +115,42 @@ def _mask_text_nodes(
         ]
         if not nodes:
             continue
-        combined = "".join(node.text or "" for node in nodes)
-        masked, entities = mask_text(combined, analyzer)
+        original_parts = [node.text or "" for node in nodes]
+        combined = "".join(original_parts)
+        transformed_parts, entities = transform_text_parts(original_parts, analyzer)
+        transformed = "".join(transformed_parts)
         detected += len(entities)
+        heading_found = False
         if redact_remaining_paragraphs:
-            masked = "".join(
+            transformed = "".join(
                 character if character.isspace() else "█"
-                for character in masked
+                for character in transformed
             )
         else:
-            masked, heading_found = mask_after_heading(
+            transformed, heading_found = mask_after_heading(
                 combined,
-                masked,
+                transformed,
                 config.included_paragraphs,
             )
             if heading_found:
                 redact_remaining_paragraphs = True
                 detected += 1
-        offset = 0
-        for node in nodes:
-            length = len(node.text or "")
-            node.text = masked[offset : offset + length]
-            offset += length
-            processed.add(id(node))
+
+        if redact_remaining_paragraphs or heading_found:
+            nodes[0].text = transformed
+            for node in nodes[1:]:
+                node.text = ""
+        else:
+            for node, value in zip(nodes, transformed_parts, strict=True):
+                node.text = value
+        processed.update(id(node) for node in nodes)
 
     for node in root.iter():
         if id(node) in processed or _local_name(node.tag) not in _TEXT_LOCAL_NAMES:
             continue
         if not node.text:
             continue
-        node.text, entities = mask_text(node.text, analyzer)
+        node.text, entities = transform_text(node.text, analyzer)
         detected += len(entities)
 
     for element in root.iter():

@@ -37,19 +37,33 @@ _OCR_CONFUSABLES = str.maketrans(
 
 
 @dataclass(frozen=True)
+class ReplacementRule:
+    """Replace one configured literal with a privacy-safe user value."""
+
+    source: str
+    replacement: str
+
+
+@dataclass(frozen=True)
 class AnonymizationConfig:
-    """User-defined literal and section rules for anonymization."""
+    """User-defined literal, replacement, and section anonymization rules."""
 
     excluded: tuple[str, ...] = ()
     included: tuple[str, ...] = ()
+    included_and_replaced: tuple[ReplacementRule, ...] = ()
     included_paragraphs: tuple[str, ...] = ()
     included_fuzzy: bool = False
     included_fuzzy_max_errors: int = 1
 
     @property
+    def configured_only(self) -> bool:
+        """Return True when explicit mask or replacement rules are enabled."""
+        return bool(self.included or self.included_and_replaced)
+
+    @property
     def included_only(self) -> bool:
-        """Return True when literal-only anonymization mode is enabled."""
-        return bool(self.included)
+        """Return the backward-compatible name for configured-only mode."""
+        return self.configured_only
 
 
 EMPTY_ANONYMIZATION_CONFIG = AnonymizationConfig()
@@ -67,6 +81,39 @@ def _split_values(raw_value: str) -> tuple[str, ...]:
         values.append(value)
         seen.add(normalized)
     return tuple(values)
+
+
+def _split_replacement_rules(raw_value: str) -> tuple[ReplacementRule, ...]:
+    """Parse multiline ``source -> replacement`` configuration rules."""
+    rules: list[ReplacementRule] = []
+    seen: dict[str, str] = {}
+    for line_number, raw_line in enumerate(raw_value.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if "->" not in line:
+            raise ValueError(
+                "includedAndReplaced entries must use 'source -> replacement': "
+                f"line {line_number}: {line}"
+            )
+        source, replacement = (part.strip() for part in line.split("->", 1))
+        if not source or not replacement:
+            raise ValueError(
+                "includedAndReplaced source and replacement must be non-empty: "
+                f"line {line_number}: {line}"
+            )
+        normalized = source.casefold()
+        previous = seen.get(normalized)
+        if previous is not None:
+            if previous != replacement:
+                raise ValueError(
+                    "includedAndReplaced contains conflicting replacements for: "
+                    f"{source}"
+                )
+            continue
+        seen[normalized] = replacement
+        rules.append(ReplacementRule(source=source, replacement=replacement))
+    return tuple(rules)
 
 
 def load_anonymization_config(path: Path) -> AnonymizationConfig:
@@ -90,6 +137,9 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
     section = parser[_SECTION_NAME]
     excluded = _split_values(section.get("excluded", ""))
     included = _split_values(section.get("included", ""))
+    included_and_replaced = _split_replacement_rules(
+        section.get("includedandreplaced", "")
+    )
     included_paragraphs = _split_values(section.get("includedparagraphs", ""))
     try:
         included_fuzzy = section.getboolean("includedfuzzy", fallback=False)
@@ -111,6 +161,7 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
     return AnonymizationConfig(
         excluded=excluded,
         included=included,
+        included_and_replaced=included_and_replaced,
         included_paragraphs=included_paragraphs,
         included_fuzzy=included_fuzzy,
         included_fuzzy_max_errors=included_fuzzy_max_errors,
@@ -125,16 +176,24 @@ def _literal_pattern(value: str) -> re.Pattern[str] | None:
     return re.compile(r"\s+".join(re.escape(part) for part in parts), re.IGNORECASE)
 
 
-def _literal_spans(text: str, values: Sequence[str]) -> list[tuple[int, int]]:
-    """Return case-insensitive spans for configured literal fragments."""
-    spans: list[tuple[int, int]] = []
+def _literal_matches(
+    text: str,
+    values: Sequence[str],
+) -> list[tuple[int, int, str]]:
+    """Return case-insensitive spans and their configured source literals."""
+    matches: list[tuple[int, int, str]] = []
     for value in values:
         pattern = _literal_pattern(value)
         if pattern is None:
             continue
         for match in pattern.finditer(text):
-            spans.append((match.start(), match.end()))
-    return sorted(set(spans))
+            matches.append((match.start(), match.end(), value))
+    return sorted(set(matches), key=lambda item: (item[0], item[1], item[2].casefold()))
+
+
+def _literal_spans(text: str, values: Sequence[str]) -> list[tuple[int, int]]:
+    """Return case-insensitive spans for configured literal fragments."""
+    return sorted({(start, end) for start, end, _value in _literal_matches(text, values)})
 
 
 def _normalize_ocr_token(value: str) -> str:
@@ -169,20 +228,20 @@ def _bounded_edit_distance(left: str, right: str, maximum: int) -> int | None:
     return distance if distance <= maximum else None
 
 
-def _fuzzy_literal_spans(
+def _fuzzy_literal_matches(
     text: str,
     values: Sequence[str],
     maximum_errors: int,
-) -> list[tuple[int, int]]:
-    """Return OCR-tolerant literal spans with a bounded total edit distance."""
+) -> list[tuple[int, int, str]]:
+    """Return OCR-tolerant matches with a bounded total edit distance."""
     tokens = [
         (match, normalized)
         for match in _TOKEN_PATTERN.finditer(text)
         if (normalized := _normalize_ocr_token(match.group(0)))
     ]
-    spans = set(_literal_spans(text, values))
+    matches = set(_literal_matches(text, values))
     if maximum_errors <= 0 or not tokens:
-        return sorted(spans)
+        return sorted(matches, key=lambda item: (item[0], item[1], item[2].casefold()))
 
     for value in values:
         target_tokens = tuple(
@@ -201,8 +260,26 @@ def _fuzzy_literal_spans(
             candidate = "".join(normalized for _match, normalized in window)
             if _bounded_edit_distance(candidate, target, maximum_errors) is None:
                 continue
-            spans.add((window[0][0].start(), window[-1][0].end()))
-    return sorted(spans)
+            matches.add((window[0][0].start(), window[-1][0].end(), value))
+    return sorted(matches, key=lambda item: (item[0], item[1], item[2].casefold()))
+
+
+def _fuzzy_literal_spans(
+    text: str,
+    values: Sequence[str],
+    maximum_errors: int,
+) -> list[tuple[int, int]]:
+    """Return OCR-tolerant literal spans with a bounded total edit distance."""
+    return sorted(
+        {
+            (start, end)
+            for start, end, _value in _fuzzy_literal_matches(
+                text,
+                values,
+                maximum_errors,
+            )
+        }
+    )
 
 
 def _subtract_spans(
@@ -228,14 +305,81 @@ def _subtract_spans(
             end=end,
             entity_type=entity.entity_type,
             score=entity.score,
+            replacement=entity.replacement,
         )
         for start, end in segments
         if end > start
     ]
 
 
+def _configured_entities(
+    text: str,
+    config: AnonymizationConfig,
+    fuzzy: bool,
+) -> list[DetectedEntity]:
+    """Build explicit mask and replacement entities for configured-only mode."""
+    match_function = _fuzzy_literal_matches if fuzzy else _literal_matches
+    match_args = (
+        (config.included_fuzzy_max_errors,)
+        if fuzzy
+        else ()
+    )
+
+    replacements_by_source = {
+        rule.source.casefold(): rule.replacement
+        for rule in config.included_and_replaced
+    }
+    replacement_sources = tuple(rule.source for rule in config.included_and_replaced)
+    replacement_matches = match_function(
+        text,
+        replacement_sources,
+        *match_args,
+    )
+    replacement_entities = [
+        DetectedEntity(
+            start=start,
+            end=end,
+            entity_type=(
+                "CONFIG_REPLACED_FUZZY" if fuzzy else "CONFIG_REPLACED"
+            ),
+            score=1.1,
+            replacement=replacements_by_source[source.casefold()],
+        )
+        for start, end, source in replacement_matches
+    ]
+
+    included_matches = match_function(
+        text,
+        config.included,
+        *match_args,
+    )
+    mask_entities: list[DetectedEntity] = []
+    for start, end, _source in included_matches:
+        exact_replacement = next(
+            (
+                entity
+                for entity in replacement_entities
+                if entity.start == start and entity.end == end
+            ),
+            None,
+        )
+        if exact_replacement is not None:
+            continue
+        mask_entities.append(
+            DetectedEntity(
+                start=start,
+                end=end,
+                entity_type=(
+                    "CONFIG_INCLUDED_FUZZY" if fuzzy else "CONFIG_INCLUDED"
+                ),
+                score=1.0,
+            )
+        )
+    return [*replacement_entities, *mask_entities]
+
+
 class ConfiguredTextAnalyzer:
-    """Select literal-only or default-analyzer anonymization behavior."""
+    """Select configured-only or default-analyzer anonymization behavior."""
 
     def __init__(
         self,
@@ -246,16 +390,13 @@ class ConfiguredTextAnalyzer:
         self._config = config
 
     def analyze(self, text: str) -> Sequence[DetectedEntity]:
-        """Return configured literals only, or filtered default detections."""
-        if self._config.included_only:
-            return [
-                DetectedEntity(start, end, "CONFIG_INCLUDED", 1.0)
-                for start, end in _literal_spans(text, self._config.included)
-            ]
+        """Return configured rules only, or filtered default detections."""
+        if self._config.configured_only:
+            return _configured_entities(text, self._config, fuzzy=False)
 
         if self._base_analyzer is None:
             raise RuntimeError(
-                "A base analyzer is required when the included list is empty"
+                "A base analyzer is required when configured include lists are empty"
             )
 
         entities = list(self._base_analyzer.analyze(text))
@@ -269,17 +410,10 @@ class ConfiguredTextAnalyzer:
         return filtered
 
     def analyze_ocr(self, text: str) -> Sequence[DetectedEntity]:
-        """Analyze OCR text with optional included-only fuzzy matching."""
-        if not self._config.included_only or not self._config.included_fuzzy:
+        """Analyze OCR text with optional fuzzy mask and replacement matching."""
+        if not self._config.configured_only or not self._config.included_fuzzy:
             return self.analyze(text)
-        return [
-            DetectedEntity(start, end, "CONFIG_INCLUDED_FUZZY", 1.0)
-            for start, end in _fuzzy_literal_spans(
-                text,
-                self._config.included,
-                self._config.included_fuzzy_max_errors,
-            )
-        ]
+        return _configured_entities(text, self._config, fuzzy=True)
 
 
 def _normalize_token(value: str) -> str:
@@ -370,15 +504,21 @@ def find_heading_text_span(
 
 def mask_after_heading(
     original_text: str,
-    masked_text: str,
+    transformed_text: str,
     headings: Sequence[str],
 ) -> tuple[str, bool]:
     """Mask all non-whitespace text after the first configured heading."""
-    span = find_heading_text_span(original_text, headings)
-    if span is None:
-        return masked_text, False
-    characters = list(masked_text)
-    for index in range(span[1], len(characters)):
+    original_span = find_heading_text_span(original_text, headings)
+    if original_span is None:
+        return transformed_text, False
+    transformed_span = find_heading_text_span(transformed_text, headings)
+    cutoff = (
+        transformed_span[1]
+        if transformed_span is not None
+        else min(len(transformed_text), original_span[1])
+    )
+    characters = list(transformed_text)
+    for index in range(cutoff, len(characters)):
         if not characters[index].isspace():
             characters[index] = "█"
     return "".join(characters), True

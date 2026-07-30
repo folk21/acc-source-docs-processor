@@ -273,16 +273,27 @@ def anonymize_folder(
         source_root=source_root,
         output_root=output_root,
     )
+    output_is_inside_source = _is_relative_to(output_root, source_root)
     files = sorted(
         (
             path
             for path in source_root.rglob("*")
             if path.is_file()
             and not path.is_symlink()
-            and not _is_relative_to(path.resolve(), output_root)
+            and not (
+                output_is_inside_source
+                and _is_relative_to(path.resolve(), output_root)
+            )
         ),
         key=lambda path: path.relative_to(source_root).as_posix().lower(),
     )
+    if not files:
+        raise ValueError(
+            "No source files were found to anonymize. "
+            f"Resolved source directory: {source_root}. "
+            f"Resolved output directory: {output_root}. "
+            "Check relative paths and the current working directory."
+        )
     file_count = len(files)
     docx_destinations = (
         _plan_docx_destinations(

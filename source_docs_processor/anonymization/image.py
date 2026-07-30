@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytesseract
-from PIL import Image, ImageDraw, ImageSequence
+from PIL import Image, ImageDraw, ImageFont, ImageSequence
 
 from .config import (
     AnonymizationConfig,
@@ -216,6 +216,90 @@ def _overlaps(word: OcrWord, entity: DetectedEntity) -> bool:
     return word.start < entity.end and word.end > entity.start
 
 
+def _replacement_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Load a local Unicode font without packaging or downloading font files."""
+    candidates = (
+        Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+        Path("/Library/Fonts/Arial.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("C:/Windows/Fonts/arial.ttf"),
+    )
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            return ImageFont.truetype(str(candidate), size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _fit_replacement_font(
+    value: str,
+    width: int,
+    height: int,
+) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Choose the largest local font that fits one replacement rectangle."""
+    maximum_size = max(6, min(72, int(height * 0.82)))
+    for size in range(maximum_size, 5, -1):
+        font = _replacement_font(size)
+        left, top, right, bottom = font.getbbox(value)
+        if right - left <= width and bottom - top <= height:
+            return font
+    return _replacement_font(6)
+
+
+def _draw_replacement(
+    image: Image.Image,
+    box: tuple[int, int, int, int],
+    value: str,
+    rotation_degrees: int,
+) -> None:
+    """Cover source pixels and draw a configured replacement in page orientation."""
+    left, top, right, bottom = box
+    box_width = max(1, right - left)
+    box_height = max(1, bottom - top)
+    upright_width = box_height if rotation_degrees in {90, 270} else box_width
+    upright_height = box_width if rotation_degrees in {90, 270} else box_height
+    layer = Image.new("RGB", (upright_width, upright_height), "white")
+    draw = ImageDraw.Draw(layer)
+    font = _fit_replacement_font(value, upright_width, upright_height)
+    text_box = draw.textbbox((0, 0), value, font=font)
+    text_width = text_box[2] - text_box[0]
+    text_height = text_box[3] - text_box[1]
+    x = max(0, (upright_width - text_width) // 2 - text_box[0])
+    y = max(0, (upright_height - text_height) // 2 - text_box[1])
+    try:
+        draw.text((x, y), value, fill="black", font=font)
+    except UnicodeEncodeError as exc:
+        raise ValueError(
+            "No local Unicode font is available for includedAndReplaced output"
+        ) from exc
+    if rotation_degrees:
+        layer = layer.rotate(rotation_degrees, expand=True)
+    if layer.size != (box_width, box_height):
+        layer = layer.resize((box_width, box_height))
+    image.paste(layer, (left, top))
+
+
+def _entity_box(
+    words: tuple[OcrWord, ...],
+    entity: DetectedEntity,
+    image: Image.Image,
+    padding: int,
+) -> tuple[int, int, int, int] | None:
+    """Return a padded union box for OCR words intersecting one entity."""
+    matched = [word for word in words if _overlaps(word, entity)]
+    if not matched:
+        return None
+    return (
+        max(0, min(word.left for word in matched) - padding),
+        max(0, min(word.top for word in matched) - padding),
+        min(image.width, max(word.left + word.width for word in matched) + padding),
+        min(image.height, max(word.top + word.height for word in matched) + padding),
+    )
+
+
 def _redact_configured_section(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
@@ -266,14 +350,19 @@ def redact_pil_image(
         config=config,
     )
     draw = ImageDraw.Draw(rgb)
-    for word in page.words:
-        if not any(_overlaps(word, entity) for entity in entities):
+    for entity in entities:
+        box = _entity_box(page.words, entity, rgb, padding)
+        if box is None:
             continue
-        left = max(0, word.left - padding)
-        top = max(0, word.top - padding)
-        right = min(rgb.width, word.left + word.width + padding)
-        bottom = min(rgb.height, word.top + word.height + padding)
-        draw.rectangle((left, top, right, bottom), fill=(0, 0, 0))
+        if entity.replacement is None:
+            draw.rectangle(box, fill=(0, 0, 0))
+        else:
+            _draw_replacement(
+                rgb,
+                box,
+                entity.replacement,
+                page.rotation_degrees,
+            )
 
     section_redacted = _redact_configured_section(
         rgb,

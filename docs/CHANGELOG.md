@@ -1,6 +1,32 @@
 # Changelog
 
+## 0.13.7 — Output-directory traversal fix
+
+### Fixed
+
+- Fixed anonymization when the output directory is an ancestor of the source directory, including runs launched from the destination directory with `--output .`.
+- Limited generated-output exclusion to the case where the output directory is nested inside the source directory.
+- Changed an empty effective source scan from a silent zero-file success into a clear error with resolved source, output, and working-directory diagnostics.
+
 This changelog records project changes by functional milestone. The project is pre-release.
+
+## 0.13.6 — Configured pseudonym replacement
+
+### Added
+
+- Added multiline `includedAndReplaced` rules using `source -> replacement` syntax.
+- Added exact replacement for native TXT and DOCX text, including values split across DOCX runs.
+- Added OCR-fuzzy replacement for PDF, raster, embedded-image, and OCR-to-DOCX paths.
+- Added raster replacement rendering which covers the source region before drawing the configured target.
+- Added replacement precedence when the same source also appears in `included`.
+- Added regression coverage for configuration parsing, malformed rules, replacement precedence, fuzzy OCR replacement, native DOCX runs, raster output, editable layout, and dual output.
+
+### Changed
+
+- Standardized public multiword anonymization options on camelCase: `--outputDocumentType`, `--outputLayout`, and `--alsoOutputSourceFormat`.
+- Removed the older kebab-case aliases for those three options.
+- Extended configured-only mode so either `included` or `includedAndReplaced` bypasses Presidio and ignores `excluded`.
+- Bumped the package version to `0.13.6`.
 
 ## 0.13.5 — Dual anonymized output
 

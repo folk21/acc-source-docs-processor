@@ -61,3 +61,38 @@ def test_docx_anonymization_rejects_embedded_binary_content(tmp_path: Path) -> N
         anonymize_docx_file(source, output, NameAnalyzer())
 
     assert not output.exists()
+
+
+def test_docx_anonymization_replaces_text_across_runs(tmp_path: Path) -> None:
+    """Verify configured replacement can span multiple formatted DOCX runs.
+
+    Protected risk: Word may split one surname across runs, and replacing only
+    inside individual runs would leave the original private value visible.
+    """
+    from source_docs_processor.anonymization.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+
+    source = tmp_path / "source.docx"
+    output = tmp_path / "output.docx"
+    document = Document()
+    paragraph = document.add_paragraph()
+    paragraph.add_run("Получатель: Васи")
+    paragraph.add_run("льев")
+    document.save(source)
+    config = AnonymizationConfig(
+        included_and_replaced=(ReplacementRule("Васильев", "Иванов"),)
+    )
+
+    detected = anonymize_docx_file(
+        source,
+        output,
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    anonymized = Document(output)
+    assert detected == 1
+    assert anonymized.paragraphs[0].text == "Получатель: Иванов"

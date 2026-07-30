@@ -53,20 +53,25 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
     output_dir = Path(args.output).expanduser().resolve()
     config_path = Path(args.config).expanduser().resolve()
 
+    print(f"Working directory: {Path.cwd().resolve()}", flush=True)
+    print(f"Resolved source directory: {source_dir}", flush=True)
+    print(f"Resolved output directory: {output_dir}", flush=True)
+
     config = load_anonymization_config(config_path)
     print(
         "Anonymization config loaded: "
         f"{config_path} "
         f"(excluded={len(config.excluded)}, "
         f"included={len(config.included)}, "
+        f"includedAndReplaced={len(config.included_and_replaced)}, "
         f"includedParagraphs={len(config.included_paragraphs)}, "
         f"includedFuzzy={config.included_fuzzy}, "
         f"includedFuzzyMaxErrors={config.included_fuzzy_max_errors})",
         flush=True,
     )
-    if config.included_only:
+    if config.configured_only:
         print(
-            "Included-only mode enabled: default Presidio detections and "
+            "Configured-only mode enabled: default Presidio detections and "
             "excluded rules are ignored.",
             flush=True,
         )
@@ -152,7 +157,6 @@ def register_anonymize_command(subparsers: Any) -> None:
         help="Output directory for anonymized files.",
     )
     parser.add_argument(
-        "--output-document-type",
         "--outputDocumentType",
         dest="output_document_type",
         choices=("docx",),
@@ -164,7 +168,6 @@ def register_anonymize_command(subparsers: Any) -> None:
         ),
     )
     parser.add_argument(
-        "--output-layout",
         "--outputLayout",
         dest="output_layout",
         choices=("preserve",),
@@ -176,7 +179,6 @@ def register_anonymize_command(subparsers: Any) -> None:
         ),
     )
     parser.add_argument(
-        "--also-output-source-format",
         "--alsoOutputSourceFormat",
         dest="also_output_source_format",
         action="store_true",
@@ -190,8 +192,9 @@ def register_anonymize_command(subparsers: Any) -> None:
         "--config",
         default=str(DEFAULT_CONFIG_PATH),
         help=(
-            "INI configuration file with included-only, excluded, and "
-            "includedParagraphs rules plus optional OCR fuzzy matching. "
+            "INI configuration file with included, includedAndReplaced, "
+            "excluded, and includedParagraphs rules plus optional OCR fuzzy "
+            "matching. "
             "Default: config/anonymization.ini"
         ),
     )

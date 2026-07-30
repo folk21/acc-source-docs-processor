@@ -7,6 +7,7 @@ from pathlib import Path
 from source_docs_processor.anonymization.config import (
     AnonymizationConfig,
     ConfiguredTextAnalyzer,
+    ReplacementRule,
     find_heading_text_span,
     load_anonymization_config,
     mask_after_heading,
@@ -46,6 +47,9 @@ def test_config_loader_reads_comma_separated_and_multiline_rules(
         "included =\n"
         "    Иван Петров\n"
         "    Учебная корпорация развития области\n"
+        "includedAndReplaced =\n"
+        "    Васильев -> Иванов\n"
+        "    Учебная долина -> Учебная планета\n"
         "includedFuzzy = true\n"
         "includedFuzzyMaxErrors = 1\n"
         "includedParagraphs = 9. Реквизиты и подписи сторон\n",
@@ -58,6 +62,10 @@ def test_config_loader_reads_comma_separated_and_multiline_rules(
     assert config.included == (
         "Иван Петров",
         "Учебная корпорация развития области",
+    )
+    assert config.included_and_replaced == (
+        ReplacementRule("Васильев", "Иванов"),
+        ReplacementRule("Учебная долина", "Учебная планета"),
     )
     assert config.included_paragraphs == ("9. Реквизиты и подписи сторон",)
     assert config.included_fuzzy is True
@@ -210,3 +218,70 @@ def test_included_paragraph_masks_everything_after_heading() -> None:
     assert found is True
     assert "9. Реквизиты и подписи сторон" in masked
     assert "Печать" not in masked
+
+
+
+def test_replacement_rule_takes_priority_over_matching_included_literal() -> None:
+    """Verify replacement wins when the same source is also listed in included.
+
+    Protected risk: retaining the earlier included list must not turn a requested
+    pseudonym replacement back into an opaque block mask.
+    """
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included=("Учебная долина",),
+            included_and_replaced=(
+                ReplacementRule("Учебная долина", "Учебная планета"),
+            ),
+        ),
+    )
+
+    transformed, entities = mask_text("Проект Учебная долина", analyzer)
+
+    assert transformed == "Проект Учебная планета"
+    assert len(entities) == 1
+    assert entities[0].replacement == "Учебная планета"
+
+
+def test_fuzzy_ocr_replacement_uses_configured_target() -> None:
+    """Verify OCR errors in replacement sources still produce the target value.
+
+    Protected risk: a fuzzy match must not merely detect the source and then mask
+    it; the configured pseudonym must be retained in editable and raster output.
+    """
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included_and_replaced=(ReplacementRule("Квантовая", "цифровая"),),
+            included_fuzzy=True,
+            included_fuzzy_max_errors=1,
+        ),
+    )
+
+    assert analyzer.analyze("Кванговая") == []
+    entities = analyzer.analyze_ocr("Кванговая")
+
+    assert len(entities) == 1
+    assert entities[0].replacement == "цифровая"
+
+
+def test_config_rejects_invalid_replacement_rule(tmp_path: Path) -> None:
+    """Verify malformed replacement rules fail during configuration loading.
+
+    Protected risk: silently treating a malformed line as an included literal
+    could leave the intended private value unchanged.
+    """
+    path = tmp_path / "anonymization.ini"
+    path.write_text(
+        "[anonymization]\n"
+        "includedAndReplaced = Васильев Иванов\n",
+        encoding="utf-8",
+    )
+
+    try:
+        load_anonymization_config(path)
+    except ValueError as exc:
+        assert "source -> replacement" in str(exc)
+    else:
+        raise AssertionError("Expected invalid replacement syntax to fail")
