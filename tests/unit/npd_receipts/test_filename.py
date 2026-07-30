@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from source_docs_processor.features.document_types.models import ExtractedDocument
-from source_docs_processor.features.document_types.npd_receipts.workflow import (
+from source_docs_processor.features.document_processing.models import ExtractedDocument
+from source_docs_processor.features.document_processing.document_types.npd_receipts.workflow import (
     NpdReceiptRegistryWorkflow,
 )
 

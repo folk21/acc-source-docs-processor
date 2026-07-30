@@ -3,7 +3,7 @@ from pathlib import Path
 import fitz
 from docx import Document
 
-from source_docs_processor.features.document_types.incoming_purchase_documents.readers import (
+from source_docs_processor.features.document_processing.document_types.incoming_purchase_documents.readers import (
     read_docx,
     read_pdf,
 )

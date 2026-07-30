@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.15.0 — Explicit module boundaries
+
+### Changed
+
+- Renamed the processing feature package to `source_docs_processor/features/document_processing/` and nested concrete implementations under `document_processing/document_types/`.
+- Moved the `process` and `anonymize` CLI adapters into the features that own those operations; `source_docs_processor/cli.py` remains only the composition root.
+- Moved the reusable `process_folder()` entry point into `document_processing/api.py`.
+- Separated the common `DocumentTypeDefinition` contract into `document_processing/contracts.py`.
+- Added one lightweight `definition.py` to every concrete document type and limited the central catalog to importing those complete definitions.
+- Kept document-processing infrastructure outside the concrete type packages and preserved all existing CLI commands and `--document-type` identifiers.
+- Bumped the package version to `0.15.0`.
+
+### Added
+
+- Added technical README files for anonymization, document processing, and every concrete document type with public APIs, dependency rules, invariants, and focused test commands.
+- Expanded architecture regression tests to prevent cross-feature imports, concrete-type cross-imports, shared-module knowledge of concrete implementations, catalog knowledge of internal classes, and top-level CLI imports of feature internals.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`115 passed`)
+
 ## 0.14.0 — Feature-oriented package layout
 
 ### Changed

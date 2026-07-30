@@ -2,14 +2,14 @@
 
 The package is organized around independent features:
 
-- ``features.anonymization`` owns privacy-safe document redaction;
-- ``features.document_types`` owns document recognition, workflows, registries,
-  and concrete document-type implementations;
+- ``features.anonymization`` owns privacy-safe redaction and its CLI adapter;
+- ``features.document_processing`` owns processing contracts, infrastructure,
+  registered document types, its programmatic API, and its CLI adapter;
 - ``core`` contains only utilities shared by more than one feature;
-- ``commands`` adapts CLI arguments to the selected feature.
+- ``cli`` composes feature entry points without importing their internals.
 
-The public CLI and registered document type identifiers remain stable while the
-internal feature packages evolve independently.
+The public CLI and registered document type identifiers remain stable while each
+feature and document implementation can evolve independently.
 """
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"

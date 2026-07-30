@@ -11,7 +11,7 @@ Status legend:
 - [x] Introduce top-level CLI subcommands for independent operations.
 - [x] Group independent operations under `source_docs_processor/features/`.
 - [x] Keep cross-feature helpers isolated under `source_docs_processor/core/`.
-- [x] Keep document-processing infrastructure and implementations together under `features/document_types/`.
+- [x] Keep document-processing infrastructure under `features/document_processing/` and concrete implementations under `document_processing/document_types/`.
 - [x] Keep document processing under the `process` subcommand.
 - [x] Reserve an `anonymize` command without coupling it to document-type registration.
 - [x] Separate shared models from document-specific OCR.
@@ -23,6 +23,13 @@ Status legend:
 - [x] Keep low-level file copying independent from filename policy.
 - [x] Add document-neutral CSV and XLSX writers.
 - [x] Test processor, workflow, and registry separation with synthetic components.
+- [x] Move each feature CLI adapter into the feature that owns the operation.
+- [x] Separate `DocumentTypeDefinition` from the concrete document-type catalog.
+- [x] Let each concrete document type publish one complete `definition.py`.
+- [x] Restrict the central catalog to complete document-type definitions.
+- [x] Add local technical README files for features and concrete document types.
+- [x] Enforce feature, shared-module, catalog, and concrete-type boundaries with architecture tests.
+- [ ] Split large extractors only along stable reasons for change when focused behavior work justifies it.
 - [ ] Reuse `registry/common.py` consistently to remove duplicated writer validation.
 - [ ] Evaluate whether the existing processors share enough structure for config-driven definitions.
 - [ ] Evaluate entry-point discovery only if external processor packages become necessary.
@@ -66,7 +73,7 @@ Status legend:
 
 ## NPD receipts
 
-- [x] Add `source_docs_processor/features/document_types/npd_receipts/` as a separate processor package.
+- [x] Add `source_docs_processor/features/document_processing/document_types/npd_receipts/` as a separate processor package.
 - [x] Add a copy-and-register workflow that renames recognized receipts.
 - [x] Preserve relative source subfolders in copied output.
 - [x] Copy unrecognized receipt images without renaming.

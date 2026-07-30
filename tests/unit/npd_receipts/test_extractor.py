@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from source_docs_processor.features.document_types.npd_receipts.extractor import (
+from source_docs_processor.features.document_processing.document_types.npd_receipts.extractor import (
     extract_document,
     extract_inn_candidates,
     extract_issuer_name,
 )
-from source_docs_processor.features.document_types.ocr import OcrResult
+from source_docs_processor.features.document_processing.ocr import OcrResult
 
 
 def _extract(text: str):

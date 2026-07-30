@@ -32,14 +32,18 @@ Internal code is grouped by feature:
 
 ```text
 source_docs_processor/
-├── commands/                 # CLI adapters
+├── cli.py                    # composes feature entry points
 ├── core/                     # cross-feature utilities only
 └── features/
-    ├── anonymization/        # anonymize operation
-    └── document_types/       # process infrastructure and implementations
+    ├── anonymization/        # anonymize API, CLI adapter, and implementation
+    └── document_processing/  # process API, shared infrastructure, and types
+        └── document_types/   # isolated concrete document implementations
 ```
 
-The `process` and `anonymize` CLI syntax and all `--document-type` values are unchanged by this internal layout.
+Each feature contains a technical `README.md`. Every concrete document type also
+contains a local guide describing its public definition, dependency rules,
+invariants, and focused test commands. The `process` and `anonymize` CLI syntax
+and all `--document-type` values are unchanged by this internal layout.
 
 ## Supported document types
 
@@ -284,6 +288,8 @@ Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generate
 - [Changelog](docs/CHANGELOG.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Development rules](AGENTS.md)
+- [Anonymization module guide](source_docs_processor/features/anonymization/README.md)
+- [Document processing module guide](source_docs_processor/features/document_processing/README.md)
 
 All relative `--source`, `--output`, and `--config` paths are resolved from the current working directory. The anonymization command prints the working directory plus the resolved source and output paths before scanning. A scan that finds no source files exits with an error instead of reporting a successful zero-file run.
 

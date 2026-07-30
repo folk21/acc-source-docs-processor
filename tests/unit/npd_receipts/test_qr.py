@@ -1,4 +1,4 @@
-from source_docs_processor.features.document_types.npd_receipts.qr import parse_npd_receipt_qr_url
+from source_docs_processor.features.document_processing.document_types.npd_receipts.qr import parse_npd_receipt_qr_url
 
 
 def test_parses_official_npd_receipt_qr_url():

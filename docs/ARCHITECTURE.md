@@ -50,18 +50,13 @@ A registry definition owns tabular shape and row mapping. Generic writers own CS
 
 ```text
 source_docs_processor/
-├── __init__.py
 ├── cli.py
-├── commands/
-│   ├── __init__.py
-│   ├── process.py
-│   └── anonymize.py
 ├── core/
-│   ├── __init__.py
 │   └── paths.py
 └── features/
-    ├── __init__.py
     ├── anonymization/
+    │   ├── README.md
+    │   ├── command.py
     │   ├── config.py
     │   ├── docx.py
     │   ├── editable.py
@@ -70,9 +65,11 @@ source_docs_processor/
     │   ├── pdf.py
     │   ├── text.py
     │   └── workflow.py
-    └── document_types/
-        ├── __init__.py
-        ├── catalog.py
+    └── document_processing/
+        ├── README.md
+        ├── api.py
+        ├── command.py
+        ├── contracts.py
         ├── document_processor.py
         ├── file_ops.py
         ├── image_processing.py
@@ -88,19 +85,48 @@ source_docs_processor/
         ├── workflows/
         │   ├── base.py
         │   └── copy_and_register.py
-        ├── upd_invoices_status_1/
-        ├── incoming_purchase_documents/
-        └── npd_receipts/
+        └── document_types/
+            ├── catalog.py
+            ├── upd_invoices_status_1/
+            │   ├── README.md
+            │   ├── definition.py
+            │   ├── extractor.py
+            │   ├── image_processing.py
+            │   ├── ocr.py
+            │   ├── processor.py
+            │   ├── registry.py
+            │   └── workflow.py
+            ├── npd_receipts/
+            │   ├── README.md
+            │   ├── definition.py
+            │   ├── extractor.py
+            │   ├── ocr.py
+            │   ├── processor.py
+            │   ├── qr.py
+            │   ├── registry.py
+            │   └── workflow.py
+            └── incoming_purchase_documents/
+                ├── README.md
+                ├── definition.py
+                ├── extractor.py
+                ├── processor.py
+                ├── readers.py
+                ├── registry.py
+                └── workflow.py
 ```
 
 The dependency direction is deliberately small and explicit:
 
 ```text
-cli -> commands -> features -> core
+cli -> feature command -> feature API / implementation -> core
+catalog -> document type definition -> concrete implementation
 core -X-> features
+one concrete document type -X-> another concrete document type
 ```
 
 `core/` contains only behavior used by more than one independent feature. At present this is limited to path relationship helpers. Document models, OCR helpers, registry writers, workflows, and file-copying utilities belong to the document-processing feature because anonymization neither depends on nor implements those contracts.
+
+Each feature and concrete document type contains a local technical `README.md` with its public entry points, allowed dependencies, invariants, and focused validation command. Architectural tests enforce the dependency direction, prevent cross-feature and cross-document-type imports, keep shared processing modules implementation-neutral, and restrict the catalog to `definition.py` modules.
 
 ## Anonymization pipeline
 
@@ -130,7 +156,7 @@ source directory
 
 ## Document type registry
 
-`source_docs_processor/features/document_types/catalog.py` binds one CLI value to a complete definition:
+`source_docs_processor/features/document_processing/contracts.py` defines the common `DocumentTypeDefinition` contract. Each concrete package exports one complete definition from `definition.py`, and `source_docs_processor/features/document_processing/document_types/catalog.py` registers only those definitions:
 
 ```text
 upd_invoices_status_1
@@ -175,11 +201,11 @@ Repeating item data must not be placed in `extra_fields`.
 
 ## Registry writers
 
-`features/document_types/registry/csv_writer.py` writes document-neutral UTF-8 BOM semicolon-separated CSV files.
+`features/document_processing/registry/csv_writer.py` writes document-neutral UTF-8 BOM semicolon-separated CSV files.
 
-`features/document_types/registry/xlsx_writer.py` writes ordinary single-sheet XLSX registries with formatted values and portable external links.
+`features/document_processing/registry/xlsx_writer.py` writes ordinary single-sheet XLSX registries with formatted values and portable external links.
 
-`features/document_types/registry/task_workbook.py` writes accountant task workbooks with:
+`features/document_processing/registry/task_workbook.py` writes accountant task workbooks with:
 
 - a `Documents` sheet;
 - an `Items` sheet;
@@ -195,7 +221,7 @@ The task workbook writer receives sheet columns and row builders from a document
 
 ### Processor
 
-`features/document_types/upd_invoices_status_1/processor.py` owns image-level recognition:
+`features/document_processing/document_types/upd_invoices_status_1/processor.py` owns image-level recognition:
 
 - 0°, 90°, 180°, and 270° attempts;
 - targeted status, number, date, and shipment-row OCR;
@@ -228,7 +254,7 @@ This document type is intentionally not part of the accountant task queue becaus
 
 ### Source readers
 
-`features/document_types/incoming_purchase_documents/readers.py` supports:
+`features/document_processing/document_types/incoming_purchase_documents/readers.py` supports:
 
 - PDF native text extraction with PyMuPDF;
 - PDF table detection with PyMuPDF when table structure is available;
@@ -303,9 +329,9 @@ Local QR decoding utilities exist but are not integrated into receipt processing
 4. invoke its command handler;
 5. convert unexpected failures into a stable non-zero exit code.
 
-`source_docs_processor/commands/process.py` owns processing arguments and preserves `process_folder()` as the reusable programmatic API. It resolves a `DocumentTypeDefinition`, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow.
+`source_docs_processor/features/document_processing/api.py` owns the reusable `process_folder()` API. `source_docs_processor/features/document_processing/command.py` owns processing arguments and adapts them to that API. The API resolves a `DocumentTypeDefinition`, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow.
 
-`source_docs_processor/commands/anonymize.py` accepts source and output directories, an optional editable DOCX output type, `preserve` layout mode, and optional dual source-format output, creates the local Presidio analyzer when required, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument. PDF and raster pages are OCRed into masked editable text; preserve mode approximates layout without embedding original page images.
+`source_docs_processor/features/anonymization/command.py` accepts source and output directories, an optional editable DOCX output type, `preserve` layout mode, and optional dual source-format output, creates the local Presidio analyzer when required, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument. PDF and raster pages are OCRed into masked editable text; preserve mode approximates layout without embedding original page images.
 
 No document-specific branch belongs in the CLI or command handlers. Document-type behavior remains in the explicit document-type registry and its selected components.
 

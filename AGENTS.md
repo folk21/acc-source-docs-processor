@@ -24,26 +24,54 @@ The registered document types are:
 ## Architecture rules
 
 - Keep `main.py` minimal.
-- Keep top-level operation selection in `source_docs_processor/cli.py`.
-- Keep command-specific parsing and execution in `source_docs_processor/commands/`.
+- Keep top-level feature composition in `source_docs_processor/cli.py`.
+- Keep each operation's parser and command handler in its own feature
+  `command.py`; the root CLI must not import format handlers, workflows,
+  registries, or concrete document types.
+- Read the nearest feature or document-type `README.md` before changing that
+  module. Keep its public API, dependency rules, invariants, and focused tests in
+  sync with structural changes.
 - Keep independent operations under `source_docs_processor/features/`.
-- Keep only genuinely cross-feature helpers under `source_docs_processor/core/`; core modules must not import feature modules.
-- Keep document processing infrastructure and concrete processors together under `source_docs_processor/features/document_types/`.
-- Use CLI subcommands for distinct operations such as `process` and `anonymize`; do not model operations as document types.
-- An image document processor owns only image-level recognition, orientation, OCR, extraction, normalization, and recognition decisions.
-- A source-file processor owns only one-file reading, OCR fallback, extraction, normalization, and recognition decisions.
-- A processor must not own folder traversal, copying, output folders, filename policy, report generation, or registry columns.
-- A processing workflow owns recursive folder behavior, file actions, output selection, and the document list passed to a registry writer.
-- A registry definition owns the tabular schema and conversion of one `ExtractedDocument` into one row.
-- Registry writers own serialization. Keep generic CSV and XLSX output in `source_docs_processor/features/document_types/registry/`.
-- `source_docs_processor/features/document_types/catalog.py` binds processor, workflow, and registry factories into one CLI-selectable definition.
-- Keep low-level file operations in `source_docs_processor/features/document_types/file_ops.py`.
-- Keep template crops and OCR heuristics in the corresponding processor package.
-- Do not add document-type conditionals to `cli.py` or command handlers.
+- Keep only genuinely cross-feature helpers under `source_docs_processor/core/`;
+  core modules must not import feature modules.
+- Keep document-processing infrastructure under
+  `source_docs_processor/features/document_processing/` and concrete document
+  implementations under its `document_types/` package.
+- Use CLI subcommands for distinct operations such as `process` and `anonymize`;
+  do not model operations as document types.
+- Keep `DocumentTypeDefinition` in `document_processing/contracts.py`.
+- Each concrete document type must expose `DOCUMENT_TYPE` and `DEFINITION` from
+  its own `definition.py`.
+- `document_types/catalog.py` may import complete definition modules, but must not
+  import concrete processor, workflow, or registry classes directly.
+- Shared document-processing modules outside `document_types/` must not import a
+  concrete document type. One concrete document type must not import another.
+- An image document processor owns only image-level recognition, orientation,
+  OCR, extraction, normalization, and recognition decisions.
+- A source-file processor owns only one-file reading, OCR fallback, extraction,
+  normalization, and recognition decisions.
+- A processor must not own folder traversal, copying, output folders, filename
+  policy, report generation, or registry columns.
+- A processing workflow owns recursive folder behavior, file actions, output
+  selection, and the document list passed to a registry writer.
+- A registry definition owns the tabular schema and conversion of one
+  `ExtractedDocument` into one row.
+- Registry writers own serialization. Keep generic CSV and XLSX output in
+  `source_docs_processor/features/document_processing/registry/`.
+- Keep low-level processing file operations in
+  `source_docs_processor/features/document_processing/file_ops.py`.
+- Keep template crops and OCR heuristics in the corresponding concrete document
+  package.
+- Do not add document-type conditionals to `cli.py`, feature command handlers, or
+  shared processing modules.
 - Do not add external network calls. Processing must remain local.
-- Output cleanup must preserve the output directory inode; never delete and recreate the output root because another terminal may have it as its current directory.
+- Output cleanup must preserve the output directory inode; never delete and
+  recreate the output root because another terminal may have it as its current
+  directory.
 
-`RegistryDefinition` is intentionally narrower than an output processor. It defines columns and row mapping; workflows, file operations, and CSV/XLSX writers handle the remaining output behavior.
+`RegistryDefinition` is intentionally narrower than an output processor. It
+defines columns and row mapping; workflows, file operations, and CSV/XLSX writers
+handle the remaining output behavior.
 
 ## Generic model rules
 
@@ -60,7 +88,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## UPD rules
 
-- Keep UPD-specific code under `source_docs_processor/features/document_types/upd_invoices_status_1/`.
+- Keep UPD-specific code under `source_docs_processor/features/document_processing/document_types/upd_invoices_status_1/`.
 - Keep OCR and extraction in `processor.py`, `ocr.py`, `extractor.py`, and `image_processing.py`.
 - Keep UPD copy, naming, and continuation policy in `workflow.py`.
 - Keep UPD CSV columns and row mapping in `registry.py`.
@@ -73,7 +101,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## Incoming purchase document rules
 
-- Keep incoming purchase-document logic under `source_docs_processor/features/document_types/incoming_purchase_documents/`.
+- Keep incoming purchase-document logic under `source_docs_processor/features/document_processing/document_types/incoming_purchase_documents/`.
 - Keep native file reading in `readers.py`, extraction in `extractor.py`, file recognition in `processor.py`, folder behavior in `workflow.py`, and workbook rows in `registry.py`.
 - Support UPD status `1` in `.pdf` and `.docx`; do not claim act or native `.doc` support.
 - Prefer native PDF text and table extraction before OCR.
@@ -92,7 +120,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 ## NPD receipt rules
 
-- Keep NPD-specific code under `source_docs_processor/features/document_types/npd_receipts/`.
+- Keep NPD-specific code under `source_docs_processor/features/document_processing/document_types/npd_receipts/`.
 - Keep receipt OCR and extraction inside the NPD package.
 - Keep copy, rename, output-folder, and workbook selection policy in `workflow.py`.
 - Write directly into an explicit `--output` directory unless `--target-dir-name` is also provided.
@@ -172,5 +200,5 @@ python -m pytest -q
 4. Confirm README commands, subcommands, example scripts, and output descriptions match current behavior.
 5. Confirm processors contain no workflow or registry policy.
 6. Confirm registry writers remain document-type-neutral.
-7. Confirm `source_docs_processor/core/` does not import from `features/`.
-7. Run compile and test validation.
+7. Confirm architectural dependency tests pass for core, features, shared processing modules, the catalog, and concrete document types.
+8. Run compile and test validation.

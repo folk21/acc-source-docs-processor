@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from source_docs_processor.features.anonymization.models import AnonymizationSummary
-from source_docs_processor.commands import anonymize as anonymize_command
+from source_docs_processor.features.anonymization import command as anonymize_command
 
 
 def test_included_only_command_skips_presidio_model_loading(
