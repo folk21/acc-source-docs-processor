@@ -1,4 +1,4 @@
-from source_docs_processor.features.document_processing.document_types.upd_invoices_status_1.extractor import (
+from source_docs_processor.features.document_processing.document_types.upd_invoices_status_1.date_extraction import (
     choose_more_reliable_document_date,
     is_form_template_date,
     normalize_date,

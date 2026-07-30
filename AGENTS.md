@@ -89,8 +89,10 @@ Do not put output-action state into the generic extracted model unless it is nec
 ## UPD rules
 
 - Keep UPD-specific code under `source_docs_processor/features/document_processing/document_types/upd_invoices_status_1/`.
-- Keep OCR and extraction in `processor.py`, `ocr.py`, `extractor.py`, and `image_processing.py`.
-- Keep UPD copy, naming, and continuation policy in `workflow.py`.
+- Keep orientation and targeted OCR in `processor.py`, `ocr.py`, and `image_processing.py`.
+- Keep `extractor.py` limited to assembling `ExtractedDocument`; detailed identity, number, date, shipment-row, continuation, party, financial, transport, classification, and confidence rules belong in their focused local modules.
+- Import focused helpers from their owning modules in new code and tests; `extractor.py` re-exports legacy helper names only for compatibility.
+- Keep UPD copy, naming, and continuation attachment policy in `workflow.py`.
 - Keep UPD CSV columns and row mapping in `registry.py`.
 - Prefer targeted OCR crops over full-page OCR.
 - Preserve `Документ об отгрузке` fallback logic.

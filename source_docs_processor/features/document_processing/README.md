@@ -51,11 +51,12 @@ document_processing/
 ## Adding a document type
 
 1. Create a package under `document_types/`.
-2. Keep file recognition and extraction in the package processor/extractor.
-3. Keep folder actions in its workflow and row mapping in its registry definition.
-4. Add `definition.py` which exports `DOCUMENT_TYPE` and `DEFINITION`.
-5. Register only that definition in `document_types/catalog.py`.
-6. Add isolated unit and integration tests under matching test folders.
+2. Keep file recognition in the package processor and document assembly in `extractor.py`.
+3. Split stable parsing responsibilities into focused local modules when one extractor gains unrelated reasons to change.
+4. Keep folder actions in its workflow and row mapping in its registry definition.
+5. Add `definition.py` which exports `DOCUMENT_TYPE` and `DEFINITION`.
+6. Register only that definition in `document_types/catalog.py`.
+7. Add isolated unit and integration tests under matching test folders.
 
 ## Validation
 

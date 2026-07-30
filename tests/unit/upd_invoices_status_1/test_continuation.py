@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from source_docs_processor.features.document_processing.ocr import OcrResult
+from source_docs_processor.features.document_processing.document_types.upd_invoices_status_1.continuation import (
+    is_probable_continuation_page,
+)
 from source_docs_processor.features.document_processing.document_types.upd_invoices_status_1.extractor import (
-    _is_probable_continuation_page,
     extract_document,
 )
 
@@ -20,7 +22,7 @@ def test_sparse_signature_page_is_detected_as_continuation():
     Должность Подпись М.П. ООО Учебный Перевозчик ООО Учебный Производитель
     """
 
-    assert _is_probable_continuation_page(text) is True
+    assert is_probable_continuation_page(text) is True
 
 
 def test_normal_upd_first_page_is_not_detected_as_continuation():
@@ -63,4 +65,4 @@ def test_header_marker_reduces_continuation_score():
     Подпись М.П. ООО Учебный Перевозчик ООО Учебный Производитель
     """
 
-    assert _is_probable_continuation_page(text) is False
+    assert is_probable_continuation_page(text) is False

@@ -91,6 +91,17 @@ source_docs_processor/
             │   ├── README.md
             │   ├── definition.py
             │   ├── extractor.py
+            │   ├── identity_extraction.py
+            │   ├── number_extraction.py
+            │   ├── date_extraction.py
+            │   ├── shipment_row.py
+            │   ├── continuation.py
+            │   ├── classification.py
+            │   ├── party_extraction.py
+            │   ├── financial_extraction.py
+            │   ├── transport_extraction.py
+            │   ├── confidence.py
+            │   ├── normalization.py
             │   ├── image_processing.py
             │   ├── ocr.py
             │   ├── processor.py
@@ -227,6 +238,24 @@ The task workbook writer receives sheet columns and row builders from a document
 - targeted status, number, date, and shipment-row OCR;
 - field extraction and orientation scoring;
 - conservative continuation recognition.
+
+### Extraction boundaries
+
+`extractor.py` is an assembly layer. It combines prepared OCR, focused extraction
+results, classification, confidence, and warnings into `ExtractedDocument`; it does
+not own detailed regex or candidate-selection rules.
+
+Identity processing is split by reason for change:
+
+- `identity_extraction.py` coordinates header, crop, and shipment-row sources;
+- `number_extraction.py` owns number normalization and reliability corrections;
+- `date_extraction.py` owns date normalization, crop recovery, and template filtering;
+- `shipment_row.py` parses the repeated `Документ об отгрузке` row.
+
+Continuation, classification, parties, amounts, transport fields, confidence, and
+OCR whitespace normalization have their own focused modules. Unit tests import those
+modules directly. Compatibility re-exports in `extractor.py` preserve older internal
+imports without making the orchestrator own those algorithms.
 
 ### Workflow
 

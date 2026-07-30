@@ -46,6 +46,7 @@ Status legend:
 - [x] Preserve copying, renaming, report generation, and detailed registry output.
 - [x] Keep UPD filename and continuation policy in its workflow.
 - [x] Keep UPD CSV shape in its registry definition.
+- [x] Decompose the scanned-UPD extractor into focused identity, number, date, shipment-row, continuation, party, financial, transport, classification, confidence, and normalization modules.
 - [/] Continue tuning private problematic examples outside the repository.
 - [ ] Add field-level confidence values.
 

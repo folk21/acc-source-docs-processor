@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.16.0 — Focused scanned-UPD extraction modules
+
+### Changed
+
+- Reduced `upd_invoices_status_1/extractor.py` to document assembly and warning orchestration.
+- Split number normalization and reliability corrections, date parsing and template filtering, shipment-row parsing, continuation detection, page classification, party fields, amounts, transport details, confidence scoring, and OCR whitespace normalization into focused local modules.
+- Added `identity_extraction.py` to coordinate header, targeted-crop, and shipment-row number/date sources without exposing those decisions to the document assembler.
+- Updated UPD unit tests to import focused helpers from their owning modules while retaining legacy helper re-exports from `extractor.py` for compatibility.
+- Updated package guidance, architecture documentation, and AI development rules for the decomposed extraction boundary.
+- Bumped the package version to `0.16.0`.
+
+### Added
+
+- Added structural regression coverage requiring `extractor.py` to define only `extract_document()` and preserving the focused extraction module set.
+
+### Preserved
+
+- Preserved CLI behavior, registered document type identifiers, OCR heuristics, warning codes, recognition confidence, filenames, registry output, and continuation behavior.
+
+### Validation
+
+- `python -m compileall -q main.py source_docs_processor tests`
+- `python -m pytest -q` (`118 passed`)
+
 ## 0.15.0 — Explicit module boundaries
 
 ### Changed

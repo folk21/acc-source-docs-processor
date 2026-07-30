@@ -1,4 +1,6 @@
-from source_docs_processor.features.document_processing.document_types.upd_invoices_status_1.extractor import _extract_number_date_from_shipment_document
+from source_docs_processor.features.document_processing.document_types.upd_invoices_status_1.shipment_row import (
+    extract_number_date_from_shipment_document,
+)
 
 
 def test_extracts_number_and_date_from_explicit_shipment_row():
@@ -7,7 +9,7 @@ def test_extracts_number_and_date_from_explicit_shipment_row():
     Fixed problem verified: dates and numbers may be weak in the header, but the
     form repeats them in a row like `№ п/п 1 № 511 от 21 марта 2023 г.`.
     """
-    number, date = _extract_number_date_from_shipment_document(
+    number, date = extract_number_date_from_shipment_document(
         "Документ об отгрузке № п/п 1 № 511 от 21 марта 2023 г."
     )
 
@@ -21,7 +23,7 @@ def test_ignores_row_number_before_real_document_number():
     Fixed problem verified: the fallback row contains `№ п/п 1`; the first `1`
     is only the row number and must be ignored.
     """
-    number, date = _extract_number_date_from_shipment_document(
+    number, date = extract_number_date_from_shipment_document(
         "Документ об отгрузке № п/п 1 № 426 от 09 марта 2023 г."
     )
 
@@ -35,7 +37,7 @@ def test_extracts_shipment_row_with_numeric_date():
     Fixed problem verified: some OCR runs may normalize or read the printed date
     as `20.03.2023`; the shipment-row parser should still return the date.
     """
-    number, date = _extract_number_date_from_shipment_document(
+    number, date = extract_number_date_from_shipment_document(
         "Документ об отгрузке № п/п 1 № 504 от 20.03.2023"
     )
 
@@ -49,7 +51,7 @@ def test_returns_empty_result_for_unrelated_text():
     Fixed problem verified: generic dates elsewhere in the page should not be
     parsed as document dates unless the text looks like the shipment row.
     """
-    number, date = _extract_number_date_from_shipment_document(
+    number, date = extract_number_date_from_shipment_document(
         "Постановление Правительства Российской Федерации от 2 апреля 2021 г. № 534"
     )
 
