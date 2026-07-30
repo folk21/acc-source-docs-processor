@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.8 — Stable output directory cleanup
+
+### Added
+
+- Added `--clearOutput` for safe in-place cleanup of prior anonymized files.
+- Preserved the output root and existing subdirectory inodes so terminals opened in the output directory continue to observe generated files.
+- Rejected cleanup when source is nested inside output.
+- Added regression coverage for open-directory inode preservation and source safety.
+
 ## 0.13.7 — Output-directory traversal fix
 
 ### Fixed

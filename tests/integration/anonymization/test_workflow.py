@@ -452,3 +452,69 @@ def test_nested_output_directory_remains_excluded_from_source_scan(
     assert [result.source_path for result in summary.results] == [source / "note.txt"]
     assert (output / "note.txt").exists()
     assert existing_output.read_text(encoding="utf-8") == "previous result"
+
+
+def test_clear_output_preserves_directory_inode_and_removes_old_files(
+    tmp_path: Path,
+) -> None:
+    """Verify output cleanup keeps an open terminal attached to the live directory.
+
+    Protected risk: deleting and recreating the output root leaves another macOS
+    terminal inside an unlinked directory that cannot see newly generated files.
+    """
+    import os
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    output.mkdir()
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+    (output / "old.txt").write_text("old result", encoding="utf-8")
+    nested = output / "nested"
+    nested.mkdir()
+    (nested / "old.txt").write_text("old nested result", encoding="utf-8")
+
+    output_descriptor = os.open(output, os.O_RDONLY)
+    nested_inode = nested.stat().st_ino
+    try:
+        original_inode = os.fstat(output_descriptor).st_ino
+        summary = anonymize_folder(
+            source,
+            output,
+            FictionalNameAnalyzer(),
+            clear_output=True,
+        )
+
+        assert summary.failed_count == 0
+        assert os.fstat(output_descriptor).st_ino == original_inode
+        assert output.stat().st_ino == original_inode
+        assert nested.stat().st_ino == nested_inode
+        assert not (output / "old.txt").exists()
+        assert not (nested / "old.txt").exists()
+        assert (output / "note.txt").exists()
+    finally:
+        os.close(output_descriptor)
+
+
+def test_clear_output_rejects_source_inside_output(tmp_path: Path) -> None:
+    """Verify cleanup cannot erase a source tree nested below the output root.
+
+    Protected risk: a convenience cleanup flag must fail before deleting input
+    documents when output is an ancestor of source.
+    """
+    import pytest
+
+    output = tmp_path / "output"
+    source = output / "source"
+    source.mkdir(parents=True)
+    (source / "note.txt").write_text("Контакт: Иван Петров", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source directory is inside"):
+        anonymize_folder(
+            source,
+            output,
+            FictionalNameAnalyzer(),
+            clear_output=True,
+        )
+
+    assert (source / "note.txt").exists()

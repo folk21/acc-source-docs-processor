@@ -163,6 +163,7 @@ python main.py anonymize \
   --outputDocumentType docx \
   --outputLayout preserve \
   --alsoOutputSourceFormat \
+  --clearOutput \
   --config "config/anonymization.ini"
 ```
 
@@ -235,6 +236,24 @@ Replace placeholder paths and run a script from the project root, for example:
 ```bash
 bash scripts/examples/process_incoming_purchase_documents.sh
 ```
+
+## Safe output cleanup
+
+Use `--clearOutput` when each run should replace prior anonymized artifacts:
+
+```bash
+python main.py anonymize \
+  --source "/path/to/private-documents" \
+  --output "/path/to/anonymized-documents" \
+  --clearOutput
+```
+
+The command removes existing files and symlinks recursively but preserves the
+output directory and existing subdirectory objects. A macOS Terminal already
+opened in the output directory therefore continues to see newly generated files.
+Do not combine this option with an external `rm -rf` of the output directory.
+The command rejects `--clearOutput` when the source directory is inside the
+output directory.
 
 ## Tests
 

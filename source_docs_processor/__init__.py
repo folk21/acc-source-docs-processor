@@ -11,4 +11,4 @@ Existing scan and receipt workflows remain independent from the incoming purchas
 document workflow, whose current scope is PDF/DOCX UPD status 1 files.
 """
 
-__version__ = "0.13.7"
+__version__ = "0.13.8"

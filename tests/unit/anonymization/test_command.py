@@ -170,3 +170,25 @@ def test_replacement_only_command_skips_presidio_model_loading(
     assert result == 0
     assert len(transformed) == 1
     assert transformed[0].replacement == "Иванов"
+
+
+def test_anonymize_parser_accepts_clear_output_option() -> None:
+    """Verify safe in-place output cleanup uses the public camelCase option.
+
+    Protected risk: users must not need an external rm -rf command that replaces
+    the output directory inode while another terminal is opened inside it.
+    """
+    from source_docs_processor.cli import build_parser
+
+    args = build_parser().parse_args(
+        [
+            "anonymize",
+            "--source",
+            "/tmp/source",
+            "--output",
+            "/tmp/output",
+            "--clearOutput",
+        ]
+    )
+
+    assert args.clear_output is True

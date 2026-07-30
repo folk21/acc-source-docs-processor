@@ -38,6 +38,32 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
         return False
 
 
+def _clear_output_contents(output_root: Path) -> None:
+    """Delete generated entries without replacing the output directory inode.
+
+    Existing directories are preserved so terminals whose current working
+    directory is the output root or one of its subdirectories keep observing
+    the same filesystem objects. Files and symlinks are removed recursively.
+    """
+    output_root.mkdir(parents=True, exist_ok=True)
+    for current_root, directory_names, file_names in os.walk(
+        output_root,
+        topdown=True,
+        followlinks=False,
+    ):
+        current = Path(current_root)
+        for file_name in file_names:
+            (current / file_name).unlink(missing_ok=True)
+        retained_directories: list[str] = []
+        for directory_name in directory_names:
+            directory = current / directory_name
+            if directory.is_symlink():
+                directory.unlink(missing_ok=True)
+            else:
+                retained_directories.append(directory_name)
+        directory_names[:] = retained_directories
+
+
 def _read_text(source: Path) -> tuple[str, str]:
     """Read a text file using supported local encodings."""
     raw = source.read_bytes()
@@ -241,6 +267,7 @@ def anonymize_folder(
     output_document_type: str | None = None,
     output_layout: str | None = None,
     also_output_source_format: bool = False,
+    clear_output: bool = False,
 ) -> AnonymizationSummary:
     """Anonymize supported files recursively and write requested output variants."""
     if output_document_type not in {None, "docx"}:
@@ -268,6 +295,13 @@ def anonymize_folder(
         raise ValueError(f"Output path is not a directory: {output_root}")
     if source_root == output_root:
         raise ValueError("Source and output directories must be different")
+    if clear_output and _is_relative_to(source_root, output_root):
+        raise ValueError(
+            "--clearOutput cannot be used when the source directory is inside "
+            "the output directory because clearing output would delete source files"
+        )
+    if clear_output:
+        _clear_output_contents(output_root)
 
     summary = AnonymizationSummary(
         source_root=source_root,

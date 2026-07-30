@@ -38,6 +38,7 @@ The registered document types are:
 - Keep template crops and OCR heuristics in the corresponding processor package.
 - Do not add document-type conditionals to `cli.py` or command handlers.
 - Do not add external network calls. Processing must remain local.
+- Output cleanup must preserve the output directory inode; never delete and recreate the output root because another terminal may have it as its current directory.
 
 `RegistryDefinition` is intentionally narrower than an output processor. It defines columns and row mapping; workflows, file operations, and CSV/XLSX writers handle the remaining output behavior.
 

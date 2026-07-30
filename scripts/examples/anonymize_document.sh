@@ -8,4 +8,5 @@ python main.py anonymize \
   --outputDocumentType docx \
   --outputLayout preserve \
   --alsoOutputSourceFormat \
+  --clearOutput \
   --config "config/anonymization.ini"

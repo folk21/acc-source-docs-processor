@@ -105,6 +105,8 @@ Status legend:
 
 ## Configuration and usability
 
+- [x] Add safe output cleanup that preserves directory inodes for open terminals.
+
 - [x] Move launch examples into `scripts/examples/`.
 - [x] Implement local directory anonymization behind the `anonymize` subcommand.
 - [x] Add Microsoft Presidio with Russian spaCy NER and accounting/identity recognizers.

@@ -343,3 +343,10 @@ tests/
 Document-specific folders contain extraction, reader, filename, registry, and registered-workflow tests for the matching production package. Generic model, OCR container, factory, writer, and synthetic cross-component tests remain directly under the corresponding `unit` or `integration` folder.
 
 The suite uses prepared OCR/text tests, synthetic PDF and DOCX files, generated images, fake processors, workbook contract checks, and factory tests for all registered definitions. Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.
+
+## Anonymization output cleanup
+
+`--clearOutput` removes existing files and symlinks while preserving the output
+root and existing directory objects. This prevents the Unix/macOS stale-current-
+directory behavior caused by deleting and recreating a directory that is open in
+another terminal. Cleanup is rejected when source is nested below output.

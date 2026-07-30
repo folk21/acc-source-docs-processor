@@ -86,6 +86,7 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
         "also_output_source_format",
         False,
     )
+    clear_output = getattr(args, "clear_output", False)
     if output_layout is not None and output_document_type != "docx":
         raise ValueError(
             "--outputLayout requires --outputDocumentType docx"
@@ -98,6 +99,12 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
         print(
             "Dual output enabled: an anonymized source-format file and the "
             f"requested {output_document_type.upper()} file will be generated.",
+            flush=True,
+        )
+    if clear_output:
+        print(
+            "Output cleanup enabled: existing files and symlinks will be removed "
+            "without deleting the output directory itself.",
             flush=True,
         )
     if output_document_type == "docx":
@@ -123,6 +130,7 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
         output_document_type=output_document_type,
         output_layout=output_layout,
         also_output_source_format=also_output_source_format,
+        clear_output=clear_output,
     )
 
     print(
@@ -186,6 +194,16 @@ def register_anonymize_command(subparsers: Any) -> None:
             "Also write an anonymized copy in each file's source format when "
             "--outputDocumentType requests a different format. No duplicate is "
             "created when the source already has the requested format."
+        ),
+    )
+    parser.add_argument(
+        "--clearOutput",
+        dest="clear_output",
+        action="store_true",
+        help=(
+            "Remove existing output files before processing while preserving the "
+            "output directory and its subdirectory inodes. This is safe for other "
+            "terminals currently opened in the output directory."
         ),
     )
     parser.add_argument(
