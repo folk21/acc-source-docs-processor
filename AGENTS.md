@@ -70,6 +70,11 @@ The registered document types are:
   document type identifier and must not expose processor/workflow/registry
   injection parameters. Internal tests may use
   `_internal/service.py::process_folder_with_components()` with fake components.
+- Keep every supported package facade and framework extension module explicit
+  through `__all__`. Public API regression tests must pin exported names,
+  callable signatures, public dataclass fields, registered document-type
+  identifiers, and framework protocol hooks. Update those tests deliberately
+  whenever a public compatibility contract changes.
 - Keep strict reusable document-value parsing in
   `document_processing/_internal/date_normalization.py` and
   `money_normalization.py`. Keep OCR aliases, source priorities, template
@@ -236,7 +241,8 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Put pure logic tests under `tests/unit/` and pipeline/filesystem tests under `tests/integration/`.
 - Group feature tests under folders matching the production feature, such as `tests/unit/anonymization/` and `tests/unit/document_processing/`. Mirror feature-private tests under `tests/unit/<feature>/_internal/`; keep command, API, public model, and catalog tests at the feature test root.
 - Group document-specific tests under folders matching the production package name, such as `tests/unit/npd_receipts/` and `tests/integration/incoming_purchase_documents/`. Mirror document-private tests under `tests/unit/<document_type>/_internal/`; keep processor, workflow, registry, filename, and integration tests at the document-type test root.
-- Keep only cross-feature architecture and CLI tests directly under `tests/unit/`; keep synthetic cross-component integration tests under `tests/integration/`.
+- Keep only cross-feature architecture, CLI, and root package API tests directly under `tests/unit/`; keep feature API tests at their feature test root and synthetic cross-component integration tests under `tests/integration/`.
+- Run `make test-public-api` whenever a package export, public model, CLI alias, framework protocol, base class, or public function signature changes.
 - Every test must have an English docstring explaining the verified behavior and protected risk.
 - Test processors, workflows, registry definitions, and writers independently where useful.
 - Prefer fake OCR, fake processors, synthetic workflows, prepared text, and generated images.

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.23.0 — Explicit public API regression contracts
+
+### Added
+
+- Added anonymization public API tests for exact package exports, supported constants, function signatures, and public configuration/result dataclass fields.
+- Added document-processing public API tests for exact package exports, registered document-type identifiers, the `process_folder()` signature, and public extracted-document model fields.
+- Added framework API tests for processor, registry, workflow, document-type definition, and copy/register extension exports, dataclass schemas, protocol methods, and override hooks.
+- Added root package and CLI API tests for the supported version export, CLI entry points, and the legacy `cli.process_folder` alias.
+- Added `make test-public-api` and included the public contract suite in `make test-architecture`.
+
+### Changed
+
+- Added explicit `__all__` declarations to the root package and document-processing public models module.
+- Updated root and local `AGENTS.md`, README, architecture ownership guidance, roadmap, Make targets, and architecture tests for deliberate public compatibility changes.
+- Bumped the package version to `0.23.0`.
+
+### Preserved
+
+- Preserved CLI behavior, processing and anonymization behavior, registered document-type identifiers, output files, OCR heuristics, registry schemas, and existing public call semantics.
+
+### Validation
+
+- `make test-public-api` (`17 passed`)
+- `make test-architecture` (`37 passed`)
+- `make check` (`154 passed`)
+
 ## 0.22.0 — Local AI ownership and validation guides
 
 ### Added

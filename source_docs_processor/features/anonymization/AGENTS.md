@@ -17,7 +17,8 @@ Do not modify document processing for an anonymization-only task.
 - `api.py` owns the programmatic entry points and public result/configuration
   types.
 - `command.py` owns argparse integration and console orchestration.
-- `__init__.py` re-exports only the supported package API.
+- `__init__.py` re-exports only the supported package API. Keep `api.py` and
+  package `__all__` synchronized with `tests/unit/anonymization/test_api.py`.
 
 Everything under `_internal/` is private to this feature.
 
@@ -44,6 +45,13 @@ Modules outside anonymization must not import this `_internal/` package.
 - Use synthetic names, identifiers, files, and images in tests.
 
 ## Validation
+
+Run the public contract tests after changing exports, signatures, constants, or
+public models:
+
+```bash
+make test-public-api
+```
 
 Run the focused suite while developing:
 

@@ -25,8 +25,10 @@ The feature root is the extension map used by concrete document types:
 - `models.py` owns public extracted-document result models;
 - `api.py` and `command.py` own the embedded and CLI entry points.
 
-Changing these files is a framework change. Verify every registered document
-type and the architecture tests.
+Changing these files is a framework change. Keep their `__all__`, callable
+signatures, protocol hooks, and dataclass fields synchronized with the public
+API regression tests. Verify every registered document type and the architecture
+tests.
 
 ## Private shared implementation
 
@@ -59,6 +61,13 @@ Read the nearest document-type `AGENTS.md` before changing a concrete type.
 - Use synthetic files and fictional accounting data only.
 
 ## Validation
+
+Run the public contract tests after changing package exports, public models,
+document-type identifiers, framework protocols, or base-class hooks:
+
+```bash
+make test-public-api
+```
 
 Run the complete feature suite for shared framework or `_internal` changes:
 

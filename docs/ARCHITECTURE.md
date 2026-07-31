@@ -185,6 +185,7 @@ behavior is genuinely reusable.
 | Scanned UPD status 1 OCR, extraction, continuation, naming, or registry behavior | `document_types/upd_invoices_status_1/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-upd` |
 | NPD receipt OCR, QR, naming, or workbook behavior | `document_types/npd_receipts/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-npd` |
 | Incoming PDF/DOCX purchase-document reading, extraction, validation, or workbook behavior | `document_types/incoming_purchase_documents/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-incoming-purchase-documents` |
+| Public package exports, result models, function signatures, or framework extension contracts | feature `__init__.py`, `api.py`, public models, framework modules, public API tests | affected feature implementation | unrelated feature internals | `make test-public-api` |
 | CLI composition or cross-feature dependency rules | `cli.py`, feature `command.py`, architecture tests | affected feature APIs | feature internals unrelated to the command | `make test-architecture` |
 
 A local task should normally change one row's primary scope. When a shared module
@@ -449,12 +450,14 @@ Tests mirror both feature and document-type public/private splits:
 tests/
 ├── unit/
 │   ├── anonymization/
+│   │   ├── test_api.py
 │   │   ├── test_command.py
 │   │   └── _internal/
 │   │       └── test_*.py
 │   ├── document_processing/
 │   │   ├── test_api.py
 │   │   ├── test_document_types.py
+│   │   ├── test_framework_api.py
 │   │   ├── test_processor_base.py
 │   │   ├── test_workflows.py
 │   │   └── _internal/
@@ -466,6 +469,7 @@ tests/
 │   │   └── _internal/
 │   ├── upd_invoices_status_1/
 │   │   └── _internal/
+│   ├── test_public_api.py
 │   └── test_package_boundaries.py
 └── integration/
     ├── anonymization/
@@ -476,9 +480,10 @@ tests/
 ```
 
 Private configuration, format, workflow, OCR, parser, reader, and infrastructure
-tests live under the matching `_internal/` test package. Command, public model,
-catalog, framework-facing filename, and registered-workflow tests remain at the
-matching feature or document-type test root. Synthetic component-injection tests
+tests live under the matching `_internal/` test package. Command, public API, public model, catalog, framework-facing filename, and
+registered-workflow tests remain at the matching feature or document-type test
+root. Cross-feature root package and CLI API tests remain directly under
+`tests/unit/`. Synthetic component-injection tests
 import the internal composition service explicitly.
 
 The suite uses prepared OCR/text tests, synthetic PDF and DOCX files, generated images, fake processors, workbook contract checks, and factory tests for all registered definitions. Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.
@@ -486,6 +491,7 @@ The suite uses prepared OCR/text tests, synthetic PDF and DOCX files, generated 
 The root `Makefile` standardizes local and complete validation:
 
 ```bash
+make test-public-api
 make test-anonymization
 make test-document-processing
 make test-upd
@@ -496,6 +502,17 @@ make check
 
 Local targets accelerate iteration; they do not replace `make check` before a
 change is completed.
+
+Public API regression tests deliberately pin:
+
+- exact feature-package and framework-module `__all__` exports;
+- `process_folder()`, anonymization helpers, and CLI callable signatures;
+- public dataclass field names and constructor order;
+- registered document-type identifiers and defaults;
+- processor, registry, workflow, and copy/register extension hooks.
+
+A compatibility change must update implementation, documentation, and these
+tests together rather than widening the API accidentally.
 
 ## Anonymization output cleanup
 

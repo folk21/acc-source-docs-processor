@@ -363,7 +363,8 @@ def test_feature_private_unit_tests_mirror_internal_packages() -> None:
     processing_root = tests_root / "document_processing"
 
     assert {path.name for path in anonymization_root.glob("test_*.py")} == {
-        "test_command.py"
+        "test_api.py",
+        "test_command.py",
     }
     assert {
         "test_config.py",
@@ -379,6 +380,7 @@ def test_feature_private_unit_tests_mirror_internal_packages() -> None:
     assert {path.name for path in processing_root.glob("test_*.py")} == {
         "test_api.py",
         "test_document_types.py",
+        "test_framework_api.py",
         "test_processor_base.py",
         "test_workflows.py",
     }
@@ -424,6 +426,7 @@ def test_makefile_exposes_standard_focused_validation_targets() -> None:
         "check",
         "test",
         "test-core",
+        "test-public-api",
         "test-architecture",
         "test-anonymization",
         "test-document-processing",

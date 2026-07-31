@@ -105,3 +105,5 @@ class ExtractedDocument:
         inherited_extra.update(self.extra_fields)
         self.extra_fields = inherited_extra
         self.is_recognized = True
+
+__all__ = ["ExtractedDocument", "ExtractedDocumentItem"]

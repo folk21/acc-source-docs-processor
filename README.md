@@ -293,6 +293,7 @@ make check
 Focused targets are available for local work:
 
 ```bash
+make test-public-api
 make test-anonymization
 make test-document-processing
 make test-upd
@@ -300,7 +301,7 @@ make test-npd
 make test-incoming-purchase-documents
 ```
 
-Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generated images. Document-specific tests are grouped under folders matching their production packages, while shared behavior remains at the unit or integration root. Real accounting scans, company names, and identifiers must not be committed.
+Public API tests pin supported package exports, function signatures, public result-model fields, document-type identifiers, and framework extension contracts. Tests otherwise use prepared text, synthetic PDF/DOCX files, fake processors, and generated images. Document-specific tests are grouped under folders matching their production packages, while shared behavior remains at the unit or integration root. Real accounting scans, company names, and identifiers must not be committed.
 
 ## Documentation
 

@@ -156,6 +156,7 @@ Status legend:
 - [x] Add local `AGENTS.md` ownership and invariant guides for both features and every registered document type.
 - [x] Add standardized Make targets for focused feature/document-type tests and complete validation.
 - [x] Add an architecture ownership map for selecting the narrowest safe change scope.
+- [x] Add explicit public API regression tests for exports, signatures, public models, document-type identifiers, and framework extension hooks.
 - [x] Keep comments, docstrings, and software documentation in English.
 - [ ] Add missing English docstrings to NPD regression tests.
 - [ ] Add `ruff` configuration.

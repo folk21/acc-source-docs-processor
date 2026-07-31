@@ -1,7 +1,7 @@
 PYTHON ?= python
 PYTEST := $(PYTHON) -m pytest -q
 
-.PHONY: help compile test check test-core test-architecture \
+.PHONY: help compile test check test-core test-public-api test-architecture \
 	test-anonymization test-document-processing test-upd test-npd \
 	test-incoming-purchase-documents
 
@@ -10,7 +10,8 @@ help:
 		'make check                         Compile and run the complete test suite' \
 		'make test                          Run the complete test suite' \
 		'make test-core                     Run feature-neutral core tests' \
-		'make test-architecture             Run CLI and package-boundary tests' \
+		'make test-public-api               Run public package and framework API contract tests' \
+		'make test-architecture             Run CLI, public API, and package-boundary tests' \
 		'make test-anonymization            Run anonymization unit/integration tests' \
 		'make test-document-processing      Run the complete document-processing feature tests' \
 		'make test-upd                      Run scanned UPD status 1 tests' \
@@ -28,8 +29,21 @@ check: compile test
 test-core:
 	$(PYTEST) tests/unit/core
 
+test-public-api:
+	$(PYTEST) \
+		tests/unit/test_public_api.py \
+		tests/unit/anonymization/test_api.py \
+		tests/unit/document_processing/test_api.py \
+		tests/unit/document_processing/test_framework_api.py
+
 test-architecture:
-	$(PYTEST) tests/unit/test_cli.py tests/unit/test_package_boundaries.py
+	$(PYTEST) \
+		tests/unit/test_cli.py \
+		tests/unit/test_public_api.py \
+		tests/unit/anonymization/test_api.py \
+		tests/unit/document_processing/test_api.py \
+		tests/unit/document_processing/test_framework_api.py \
+		tests/unit/test_package_boundaries.py
 
 test-anonymization:
 	$(PYTEST) tests/unit/anonymization tests/integration/anonymization
