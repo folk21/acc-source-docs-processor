@@ -62,6 +62,7 @@ external processor plugin SDK.
 
 ```text
 document_processing/
+├── AGENTS.md
 ├── README.md
 ├── __init__.py
 ├── api.py                         # stable process_folder API
@@ -75,6 +76,7 @@ document_processing/
 ├── document_types/
 │   ├── catalog.py                 # imports only complete definitions
 │   └── <document_type>/
+│       ├── AGENTS.md
 │       ├── README.md
 │       ├── definition.py
 │       ├── processor.py
@@ -114,11 +116,16 @@ for internal integration tests that need fake processors, workflows, or registry
 definitions. Production and embedded callers should use the public
 `process_folder()` API.
 
+## Development guide
+
+Read the local [`AGENTS.md`](AGENTS.md) before changing shared framework or
+feature-internal code. Concrete document types provide narrower local guides.
+
 ## Validation
 
 ```bash
-python -m pytest -q \
-  tests/unit/document_processing \
-  tests/unit/test_package_boundaries.py \
-  tests/integration/test_pipeline_with_fake_processor.py
+make test-document-processing
 ```
+
+Run a document-type target first for local changes, and run `make check` before
+completion.

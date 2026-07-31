@@ -35,10 +35,15 @@ Private modules may use root framework contracts, shared
 - Require an explicit receipt-number label.
 - Keep QR parsing local and report future QR/OCR conflicts explicitly.
 
+## Development guide
+
+Read the local [`AGENTS.md`](AGENTS.md) before changing this document type.
+
 ## Validation
 
 ```bash
-python -m pytest -q \
-  tests/unit/npd_receipts \
-  tests/integration/npd_receipts
+make test-npd
 ```
+
+Run `make test-document-processing` when shared processing code changes,
+and run `make check` before completion.

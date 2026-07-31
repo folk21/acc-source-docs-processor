@@ -37,10 +37,15 @@ anonymization, `definition.py`, `workflow.py`, or `registry.py`.
 - Keep numeric OKEI codes separate from textual units.
 - Report arithmetic conflicts without silently replacing extracted values.
 
+## Development guide
+
+Read the local [`AGENTS.md`](AGENTS.md) before changing this document type.
+
 ## Validation
 
 ```bash
-python -m pytest -q \
-  tests/unit/incoming_purchase_documents \
-  tests/integration/incoming_purchase_documents
+make test-incoming-purchase-documents
 ```
+
+Run `make test-document-processing` when shared processing code changes,
+and run `make check` before completion.

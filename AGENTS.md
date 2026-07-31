@@ -28,9 +28,10 @@ The registered document types are:
 - Keep each operation's parser and command handler in its owning feature
   `command.py`; the root CLI must not import format handlers, workflows,
   registries, or concrete document types.
-- Read the nearest feature or document-type `README.md` before changing that
-  module. Keep its public API, dependency rules, invariants, and focused tests in
-  sync with structural changes.
+- Read the nearest `AGENTS.md` before changing a feature or document type.
+  Local guides narrow this root policy with ownership, invariants, and focused
+  validation commands. Also keep the adjacent technical `README.md` in sync
+  with structural or behavioral changes.
 - Keep independent operations under `source_docs_processor/features/`.
 - Keep feature-neutral technical primitives under `source_docs_processor/core/`;
   core modules must not import feature modules.
@@ -245,7 +246,15 @@ Do not put output-action state into the generic extracted model unless it is nec
 
 Example launch scripts belong under `scripts/examples/`. They must use placeholder paths, run from the project root, and contain English comments only.
 
-Run validation from the project root:
+Run focused validation through the project `Makefile` while developing. Use
+the nearest local `AGENTS.md` to select the target. Run complete validation
+before completion:
+
+```bash
+make check
+```
+
+The equivalent explicit commands are:
 
 ```bash
 python -m compileall -q main.py source_docs_processor tests
@@ -270,4 +279,5 @@ python -m pytest -q
 5. Confirm processors contain no workflow or registry policy.
 6. Confirm registry writers remain document-type-neutral.
 7. Confirm architectural dependency tests pass for core, features, shared processing modules, the catalog, concrete document types, and `_internal/` ownership rules.
-8. Run compile and test validation.
+8. Confirm local `AGENTS.md` guides and Make targets match the current package and test layout.
+9. Run `make check`.

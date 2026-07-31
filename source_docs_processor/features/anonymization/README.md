@@ -31,6 +31,7 @@ implementation details exposed only through `api.py` when required by callers.
 
 ```text
 anonymization/
+├── AGENTS.md
 ├── README.md
 ├── __init__.py
 ├── api.py                    # public programmatic surface
@@ -55,8 +56,14 @@ anonymization/
 - PDF source text layers and metadata are not retained.
 - The output root inode is preserved by `--clearOutput`.
 
+## Development guide
+
+Read the local [`AGENTS.md`](AGENTS.md) before changing this feature.
+
 ## Validation
 
 ```bash
-python -m pytest -q tests/unit/anonymization tests/integration/anonymization
+make test-anonymization
 ```
+
+Run `make check` before completion.

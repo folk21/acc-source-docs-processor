@@ -153,6 +153,9 @@ Status legend:
 - [x] Keep runtime and developer dependencies separate.
 - [x] Add deterministic unit and integration tests.
 - [x] Group document-specific tests by production package while keeping shared tests at the unit/integration root.
+- [x] Add local `AGENTS.md` ownership and invariant guides for both features and every registered document type.
+- [x] Add standardized Make targets for focused feature/document-type tests and complete validation.
+- [x] Add an architecture ownership map for selecting the narrowest safe change scope.
 - [x] Keep comments, docstrings, and software documentation in English.
 - [ ] Add missing English docstrings to NPD regression tests.
 - [ ] Add `ruff` configuration.

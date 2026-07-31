@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.22.0 — Local AI ownership and validation guides
+
+### Added
+
+- Added local `AGENTS.md` files for anonymization, shared document processing, and every registered document type.
+- Added a root `Makefile` with focused targets for core, architecture, anonymization, shared document processing, scanned UPD, NPD receipts, incoming purchase documents, and complete validation.
+- Added a change ownership map to `docs/ARCHITECTURE.md` so local tasks identify their primary scope, allowed shared dependencies, excluded areas, and focused test target.
+- Added architecture regression coverage requiring local agent guides and the standardized validation targets.
+
+### Changed
+
+- Updated feature and document-type README validation sections to use the standardized Make targets and link to their local development guides.
+- Updated root development rules, architecture/testing documentation, roadmap, and user-facing test instructions for local-first development followed by full validation.
+- Corrected stale architecture references to removed private test and contract locations.
+- Bumped the package version to `0.22.0`.
+
+### Preserved
+
+- Preserved CLI commands, public APIs, registered document-type identifiers, OCR and anonymization behavior, output names, registries, reports, and file-layout behavior.
+
+### Validation
+
+- `make check` (`138 passed`)
+
 ## 0.21.0 — Visible document-processing framework contracts
 
 ### Changed

@@ -287,8 +287,17 @@ output directory.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m compileall -q main.py source_docs_processor tests
-python -m pytest -q
+make check
+```
+
+Focused targets are available for local work:
+
+```bash
+make test-anonymization
+make test-document-processing
+make test-upd
+make test-npd
+make test-incoming-purchase-documents
 ```
 
 Tests use prepared text, synthetic PDF/DOCX files, fake processors, and generated images. Document-specific tests are grouped under folders matching their production packages, while shared behavior remains at the unit or integration root. Real accounting scans, company names, and identifiers must not be committed.

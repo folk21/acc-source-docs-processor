@@ -47,10 +47,15 @@ anonymization, `definition.py`, `workflow.py`, or `registry.py`.
 - Recognize a standalone first page before continuation heuristics.
 - Preserve rotation, debug crops, output naming, and continuation suffixes.
 
+## Development guide
+
+Read the local [`AGENTS.md`](AGENTS.md) before changing this document type.
+
 ## Validation
 
 ```bash
-python -m pytest -q \
-  tests/unit/upd_invoices_status_1 \
-  tests/integration/upd_invoices_status_1
+make test-upd
 ```
+
+Run `make test-document-processing` when shared processing code changes,
+and run `make check` before completion.

@@ -390,3 +390,47 @@ def test_feature_private_unit_tests_mirror_internal_packages() -> None:
         for path in (processing_root / "_internal").glob("test_*.py")
     }
 
+
+
+def test_features_and_document_types_publish_local_agent_guides() -> None:
+    """Verify each independently owned scope has local AI instructions.
+
+    Protected risk: without a nearby ownership and validation guide, an AI agent
+    may inspect or modify unrelated features instead of working locally.
+    """
+    features_root = _PACKAGE_ROOT / "features"
+    required_guides = {
+        features_root / "anonymization" / "AGENTS.md",
+        features_root / "document_processing" / "AGENTS.md",
+    }
+    document_types_root = features_root / "document_processing" / "document_types"
+    required_guides.update(
+        document_types_root / package_name / "AGENTS.md"
+        for package_name in _DOCUMENT_TYPE_NAMES
+    )
+
+    assert all(path.is_file() for path in required_guides)
+    assert all("make check" in path.read_text(encoding="utf-8") for path in required_guides)
+
+
+def test_makefile_exposes_standard_focused_validation_targets() -> None:
+    """Verify local scopes share one stable validation command vocabulary.
+
+    Protected risk: ad hoc or undocumented test commands make local development
+    inconsistent and encourage skipping the complete suite before delivery.
+    """
+    makefile = (_PACKAGE_ROOT.parent / "Makefile").read_text(encoding="utf-8")
+    expected_targets = {
+        "check",
+        "test",
+        "test-core",
+        "test-architecture",
+        "test-anonymization",
+        "test-document-processing",
+        "test-upd",
+        "test-npd",
+        "test-incoming-purchase-documents",
+    }
+
+    for target in expected_targets:
+        assert f"{target}:" in makefile

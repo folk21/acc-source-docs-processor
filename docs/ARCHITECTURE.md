@@ -49,6 +49,8 @@ A registry definition owns tabular shape and row mapping. Generic writers own CS
 ## Project structure
 
 ```text
+Makefile
+AGENTS.md
 source_docs_processor/
 ├── cli.py
 ├── core/
@@ -58,6 +60,7 @@ source_docs_processor/
 │   └── text.py
 └── features/
     ├── anonymization/
+    │   ├── AGENTS.md
     │   ├── README.md
     │   ├── __init__.py
     │   ├── api.py
@@ -72,6 +75,7 @@ source_docs_processor/
     │       ├── docx.py
     │       └── editable.py
     └── document_processing/
+        ├── AGENTS.md
         ├── README.md
         ├── __init__.py
         ├── api.py
@@ -92,6 +96,7 @@ source_docs_processor/
         └── document_types/
             ├── catalog.py
             ├── upd_invoices_status_1/
+            │   ├── AGENTS.md
             │   ├── README.md
             │   ├── definition.py
             │   ├── processor.py
@@ -99,6 +104,7 @@ source_docs_processor/
             │   ├── workflow.py
             │   └── _internal/
             ├── npd_receipts/
+            │   ├── AGENTS.md
             │   ├── README.md
             │   ├── definition.py
             │   ├── processor.py
@@ -106,6 +112,7 @@ source_docs_processor/
             │   ├── workflow.py
             │   └── _internal/
             └── incoming_purchase_documents/
+                ├── AGENTS.md
                 ├── README.md
                 ├── definition.py
                 ├── processor.py
@@ -135,11 +142,11 @@ processor, workflow, registry, UPD, receipt, or invoice concepts.
 A feature root is an integration map, not an implementation directory.
 Anonymization exposes only package exports, `api.py`, and `command.py` at its
 root. Document processing additionally exposes public extracted-document models,
-the visible `document_types/` catalog, and two framework-facing workflow modules:
-`workflow_base.py` and `workflow_copy_and_register.py`. Configuration, handlers,
-processor and registry contracts, component injection, OCR containers, strict
-date/decimal normalizers, processing-specific file actions, and registry writers
-live under the owning feature's `_internal/` package.
+the visible `document_types/` catalog, and framework-facing composition,
+processor, registry, and workflow modules. Component injection, OCR containers,
+strict date/decimal normalizers, processing-specific file actions, registry
+writers, and format handlers live under the owning feature's `_internal/`
+package.
 
 The public `process_folder()` API accepts only runtime options and a registered
 document type identifier. Internal integration tests use
@@ -154,14 +161,35 @@ processing feature, so the two focused modules are flat under
 filtering, source priorities, and positional table rules; those remain in the
 concrete document type that requires them.
 
-Each feature and concrete document type contains a local technical `README.md`
-with its public entry points, allowed dependencies, invariants, and focused
-validation command. Feature-private unit tests mirror feature `_internal/`
-packages. Shared workflow extension points remain visible at the document-
-processing feature root, while concrete document type roots expose only
+Each feature and concrete document type contains a local `AGENTS.md` that narrows
+the root development policy with ownership, allowed dependencies, invariants,
+and focused validation targets. Adjacent technical `README.md` files describe
+the current package contract for human readers. Feature-private unit tests mirror
+feature `_internal/` packages. Framework extension points remain visible at the
+document-processing feature root, while concrete document type roots expose only
 `definition.py`, `processor.py`, `workflow.py`, and `registry.py`; OCR, readers,
 extraction, classification, validation, and other details live under the type's
 private `_internal/` package. Architectural tests enforce these boundaries.
+
+## Change ownership map
+
+Use the narrowest primary scope that owns the requested behavior. Shared changes
+are allowed only when the local contract is insufficient and the extracted
+behavior is genuinely reusable.
+
+| Change type | Primary production scope | Allowed shared scope | Do not change by default | Focused validation |
+|---|---|---|---|---|
+| Feature-neutral files, paths, images, or whitespace | `source_docs_processor/core/` | none | feature business rules | `make test-core` |
+| Anonymization behavior or format support | `features/anonymization/` | `core/` | document processing and document types | `make test-anonymization` |
+| Shared processor, registry, workflow, composition, OCR container, or serializer behavior | `features/document_processing/` root or `_internal/` | `core/` | anonymization | `make test-document-processing` |
+| Scanned UPD status 1 OCR, extraction, continuation, naming, or registry behavior | `document_types/upd_invoices_status_1/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-upd` |
+| NPD receipt OCR, QR, naming, or workbook behavior | `document_types/npd_receipts/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-npd` |
+| Incoming PDF/DOCX purchase-document reading, extraction, validation, or workbook behavior | `document_types/incoming_purchase_documents/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-incoming-purchase-documents` |
+| CLI composition or cross-feature dependency rules | `cli.py`, feature `command.py`, architecture tests | affected feature APIs | feature internals unrelated to the command | `make test-architecture` |
+
+A local task should normally change one row's primary scope. When a shared module
+changes, run the focused shared target as well as the original document-type or
+feature target. Every completed task runs `make check` before delivery.
 
 ## Anonymization pipeline
 
@@ -425,9 +453,11 @@ tests/
 │   │   └── _internal/
 │   │       └── test_*.py
 │   ├── document_processing/
+│   │   ├── test_api.py
 │   │   ├── test_document_types.py
+│   │   ├── test_processor_base.py
+│   │   ├── test_workflows.py
 │   │   └── _internal/
-│   │       ├── test_components.py
 │   │       ├── test_normalization.py
 │   │       └── test_ocr.py
 │   ├── incoming_purchase_documents/
@@ -452,6 +482,20 @@ matching feature or document-type test root. Synthetic component-injection tests
 import the internal composition service explicitly.
 
 The suite uses prepared OCR/text tests, synthetic PDF and DOCX files, generated images, fake processors, workbook contract checks, and factory tests for all registered definitions. Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.
+
+The root `Makefile` standardizes local and complete validation:
+
+```bash
+make test-anonymization
+make test-document-processing
+make test-upd
+make test-npd
+make test-incoming-purchase-documents
+make check
+```
+
+Local targets accelerate iteration; they do not replace `make check` before a
+change is completed.
 
 ## Anonymization output cleanup
 
