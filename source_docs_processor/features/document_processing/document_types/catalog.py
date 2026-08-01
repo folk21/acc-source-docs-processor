@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ..document_type_definition import DocumentTypeDefinition
+from ..models import DocumentTypeMetadata
 from .incoming_purchase_documents.definition import (
     DEFINITION as INCOMING_PURCHASE_DOCUMENTS_DEFINITION,
 )
@@ -28,10 +29,13 @@ DOCUMENT_TYPE_DEFINITIONS: dict[str, DocumentTypeDefinition] = {
     )
 }
 SUPPORTED_DOCUMENT_TYPES = tuple(DOCUMENT_TYPE_DEFINITIONS)
+DOCUMENT_TYPE_METADATA = tuple(
+    definition.metadata for definition in DOCUMENT_TYPE_DEFINITIONS.values()
+)
 
 
 def get_document_type_definition(document_type: str) -> DocumentTypeDefinition:
-    """Return the complete processing definition selected by the CLI value."""
+    """Return the complete processing definition selected by an adapter."""
     normalized = document_type.strip().lower()
     definition = DOCUMENT_TYPE_DEFINITIONS.get(normalized)
     if definition is not None:
@@ -42,11 +46,18 @@ def get_document_type_definition(document_type: str) -> DocumentTypeDefinition:
     )
 
 
+def get_document_type_metadata(document_type: str) -> DocumentTypeMetadata:
+    """Return UI-facing metadata for one registered document type."""
+    return get_document_type_definition(document_type).metadata
+
+
 __all__ = [
     "DEFAULT_DOCUMENT_TYPE",
     "DOCUMENT_TYPE_DEFINITIONS",
+    "DOCUMENT_TYPE_METADATA",
     "INCOMING_PURCHASE_DOCUMENTS_DOCUMENT_TYPE",
     "NPD_RECEIPT_DOCUMENT_TYPE",
     "SUPPORTED_DOCUMENT_TYPES",
     "get_document_type_definition",
+    "get_document_type_metadata",
 ]

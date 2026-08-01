@@ -22,7 +22,7 @@ The feature root is the extension map used by concrete document types:
 - `registry_base.py` owns the registry schema contract;
 - `workflow_base.py` owns workflow protocols and run types;
 - `workflow_copy_and_register.py` owns the reusable scan copy/register workflow;
-- `models.py` owns public extracted-document result models;
+- `models.py` owns public extracted documents, summaries, progress events, and document-type metadata;
 - `api.py` and `command.py` own the embedded and CLI entry points.
 
 Changing these files is a framework change. Keep their `__all__`, callable
@@ -54,6 +54,13 @@ Read the nearest document-type `AGENTS.md` before changing a concrete type.
 - Processors own one-file recognition and extraction only.
 - Workflows own recursive traversal, output policy, copying, reports, and the
   document list passed to writers.
+- Workflows emit the standard synchronous progress lifecycle through
+  `ProcessingOptions.report_progress()` without exposing OCR text or extracted
+  accounting values.
+- `process_folder()` returns `ProcessingSummary`; adapters must not scan output
+  folders or import `_internal` modules to discover generated artifacts.
+- Each `DocumentTypeDefinition` owns accurate UI-facing metadata and capability
+  flags for its registered implementation.
 - Registry definitions own schema and row mapping; writers own serialization.
 - Keep public CLI options and registered document-type identifiers stable unless
   the task explicitly changes them.

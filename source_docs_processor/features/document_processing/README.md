@@ -3,7 +3,8 @@
 ## Purpose
 
 This feature implements the `process` operation. Its stable embedded API exposes
-folder processing and extracted-document result models. Its feature root also
+folder processing, structured summaries, synchronous progress events, registered
+document-type metadata, and extracted-document result models. Its feature root also
 contains the framework-facing contracts used directly by registered document
 types:
 
@@ -25,12 +26,33 @@ Feature-neutral file, image, path, and whitespace primitives live in
 - `source_docs_processor.features.document_processing.process_folder`
 - `source_docs_processor.features.document_processing.ExtractedDocument`
 - `source_docs_processor.features.document_processing.ExtractedDocumentItem`
+- `source_docs_processor.features.document_processing.ProcessingSummary`
+- `source_docs_processor.features.document_processing.ProcessingProgress`
+- `source_docs_processor.features.document_processing.DOCUMENT_TYPE_METADATA`
+- `source_docs_processor.features.document_processing.get_document_type_metadata`
 - `source_docs_processor.features.document_processing.command.register_process_command`
 
 The framework-facing modules are extension points for document types owned by
 this repository. They are intentionally not re-exported from the package root as
 part of the stable embedded API, and the project does not currently provide an
 external processor plugin SDK.
+
+## Embedded adapter contract
+
+`process_folder()` returns `ProcessingSummary`, including processed documents,
+output roots, registry/report paths, aggregate counts, and `generated_files`. Its
+iterator preserves legacy two-value unpacking for existing callers.
+
+Adapters may pass `progress_callback`. Every registered workflow emits the same
+ordered event vocabulary: `scan_started`, `file_started`, `file_finished`,
+`registry_written` when applicable, and `run_finished`. Callbacks run
+synchronously and should return quickly. Progress events intentionally expose no
+OCR text or extracted field values.
+
+`DOCUMENT_TYPE_METADATA` and `get_document_type_metadata()` provide display text,
+supported extensions, and capability flags without constructing OCR processors.
+A concrete `definition.py` owns metadata together with its processor, workflow,
+and registry factories.
 
 ## Dependency rules
 
@@ -67,7 +89,7 @@ document_processing/
 ├── __init__.py
 ├── api.py                         # stable process_folder API
 ├── command.py                     # process CLI adapter
-├── models.py                      # public extracted-document results
+├── models.py                      # public documents, summaries, progress, metadata
 ├── document_type_definition.py    # registered component composition
 ├── processor_base.py              # processor protocols and reusable defaults
 ├── registry_base.py               # registry definition protocol

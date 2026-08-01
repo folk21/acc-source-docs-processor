@@ -134,13 +134,19 @@ def _read_registry(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(file, delimiter=";"))
 
 
-def _run_fake_workflow(source_dir: Path, output_dir: Path, target_name=None):
+def _run_fake_workflow(
+    source_dir: Path,
+    output_dir: Path,
+    target_name=None,
+    progress_callback=None,
+):
     """Run the internal composition service with independently injected components."""
     return process_folder(
         source_dir=source_dir,
         output_dir=output_dir,
         lang="rus+eng",
         target_dir_name=target_name,
+        progress_callback=progress_callback,
         document_processor=FakeProcessor(),
         processing_workflow=FakeCopyWorkflow(),
         registry_definition=FakeRegistryDefinition(),
@@ -223,3 +229,57 @@ def test_workflow_default_target_directory_is_used(tmp_path):
     _run_fake_workflow(source_dir, output_dir)
 
     assert (output_dir / "fake_documents" / "fake_documents.csv").exists()
+
+
+def test_processing_summary_and_progress_events_cover_the_complete_run(tmp_path):
+    """Verify UI adapters receive structured results and ordered progress events.
+
+    Protected risk: Streamlit and future adapters must not inspect private
+    workflow state or scan output folders to report progress and artifacts.
+    """
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "output"
+    scans_dir = source_dir / "2023"
+    _write_test_image(scans_dir / "scan_001.png")
+    _write_test_image(scans_dir / "scan_002.png")
+    _write_test_image(scans_dir / "scan_003.png")
+    events = []
+
+    summary = _run_fake_workflow(
+        source_dir,
+        output_dir,
+        target_name="target_scans",
+        progress_callback=events.append,
+    )
+
+    assert summary.document_type == "fake_document"
+    assert summary.source_root == source_dir
+    assert summary.output_root == output_dir / "target_scans"
+    assert summary.recognized_count == 1
+    assert summary.processed_count == 3
+    assert summary.error_count == 0
+    assert summary.registry_paths == (
+        output_dir / "target_scans" / "target_scans.csv",
+    )
+    assert summary.report_paths == (
+        output_dir / "target_scans" / "target_scans_report.txt",
+    )
+    assert summary.registry_paths[0] in summary.generated_files
+    assert summary.report_paths[0] in summary.generated_files
+
+    assert [event.event for event in events] == [
+        "scan_started",
+        "file_started",
+        "file_finished",
+        "file_started",
+        "file_finished",
+        "file_started",
+        "file_finished",
+        "registry_written",
+        "run_finished",
+    ]
+    assert events[0].file_count == 3
+    assert events[1].source_path.name == "scan_001.png"
+    assert events[2].recognized is True
+    assert events[2].error is None
+    assert events[-2].output_path == summary.registry_paths[0]

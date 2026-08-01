@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 from ...document_type_definition import DocumentTypeDefinition
+from ...models import DocumentTypeMetadata
 from ...processor_base import Processor
 from ...registry_base import RegistryDefinition
 from ...workflow_base import ProcessingWorkflow
 
 
 DOCUMENT_TYPE = "npd_receipts"
+
+
+METADATA = DocumentTypeMetadata(
+    identifier=DOCUMENT_TYPE,
+    display_name="Self-employed tax receipts",
+    description="Recognize scanned NPD receipts issued by self-employed persons.",
+    supported_extensions=(".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff"),
+    supports_deep_ocr=True,
+    supports_auto_rotate=True,
+    supports_debug_crops=True,
+)
 
 
 def _create_processor() -> Processor:
@@ -34,9 +46,10 @@ def _create_registry_definition() -> RegistryDefinition:
 
 DEFINITION = DocumentTypeDefinition(
     document_type=DOCUMENT_TYPE,
+    metadata=METADATA,
     processor_factory=_create_processor,
     workflow_factory=_create_workflow,
     registry_definition_factory=_create_registry_definition,
 )
 
-__all__ = ["DEFINITION", "DOCUMENT_TYPE"]
+__all__ = ["DEFINITION", "DOCUMENT_TYPE", "METADATA"]

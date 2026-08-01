@@ -148,8 +148,10 @@ strict date/decimal normalizers, processing-specific file actions, registry
 writers, and format handlers live under the owning feature's `_internal/`
 package.
 
-The public `process_folder()` API accepts only runtime options and a registered
-document type identifier. Internal integration tests use
+The public `process_folder()` API accepts runtime options, a registered
+document type identifier, and an optional synchronous progress callback. It
+returns a structured `ProcessingSummary` with output artifacts and aggregate
+counts while preserving legacy two-value unpacking. Internal integration tests use
 `document_processing/_internal/service.py::process_folder_with_components()` to
 inject fake processors, workflows, or registry definitions. This preserves
 testability without treating the project as an external plugin SDK.
@@ -412,6 +414,29 @@ Only `target_file_name` is a hyperlink. Receipt-number extraction requires an ex
 
 Local QR decoding utilities exist but are not integrated into receipt processing.
 
+## Embedded adapter API
+
+Local adapters such as Streamlit call the feature package directly. They do not
+invoke `main.py` through a subprocess and do not import private services.
+
+`ProcessingSummary` is the public run result. It owns the source/output roots,
+document type, recognized and complete document collections, registry/report
+paths, aggregate count properties, and a de-duplicated `generated_files` view.
+Its iterator preserves the historical `(found_documents, all_documents)`
+unpacking contract.
+
+`ProcessingProgress` is a privacy-conscious synchronous event model. All
+registered workflows emit `scan_started`, `file_started`, `file_finished`,
+`registry_written` when applicable, and `run_finished`. Events contain only file
+position/path, recognition/error state, and output artifact paths. They do not
+contain OCR text or extracted accounting fields. A callback exception propagates
+to the caller, so UI callbacks must be small and reliable.
+
+Each `DocumentTypeDefinition` owns `DocumentTypeMetadata`. The catalog exposes
+`DOCUMENT_TYPE_METADATA` and `get_document_type_metadata()` without constructing
+processors, allowing adapters to build selectors and capability-dependent controls
+without duplicating document-type knowledge.
+
 ## CLI orchestration
 
 `source_docs_processor/cli.py` owns only top-level operation selection:
@@ -422,7 +447,7 @@ Local QR decoding utilities exist but are not integrated into receipt processing
 4. invoke its command handler;
 5. convert unexpected failures into a stable non-zero exit code.
 
-`source_docs_processor/features/document_processing/api.py` owns the stable reusable `process_folder()` API. `source_docs_processor/features/document_processing/command.py` owns processing arguments and adapts them to that API. The public API forwards runtime options to `_internal/service.py`, which resolves a complete definition from the catalog, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow. Optional component injection exists only on the internal service for deterministic integration tests.
+`source_docs_processor/features/document_processing/api.py` owns the stable reusable `process_folder()` API. `source_docs_processor/features/document_processing/command.py` owns processing arguments and adapts them to that API. The public API forwards runtime options and an optional progress callback to `_internal/service.py`, which resolves a complete definition from the catalog, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow. The service adapts the framework `ProcessingResult` into the public `ProcessingSummary`, including registry/report paths and copied outputs. Optional component injection exists only on the internal service for deterministic integration tests.
 
 `source_docs_processor/features/anonymization/command.py` accepts source and output directories, an optional editable DOCX output type, `preserve` layout mode, and optional dual source-format output, creates the local Presidio analyzer when required, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument. PDF and raster pages are OCRed into masked editable text; preserve mode approximates layout without embedding original page images.
 

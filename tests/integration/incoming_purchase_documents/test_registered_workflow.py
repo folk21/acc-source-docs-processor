@@ -79,12 +79,15 @@ def test_registered_incoming_purchase_workflow_creates_task_workbook(tmp_path):
     source_file = source_dir / "supplier" / "upd_511.docx"
     _write_upd_docx(source_file)
 
-    found, all_documents = process_folder(
+    events = []
+    summary = process_folder(
         source_dir=source_dir,
         output_dir=output_dir,
         lang="rus+eng",
         document_type="incoming_purchase_documents",
+        progress_callback=events.append,
     )
+    found, all_documents = summary
 
     workbook_path = output_dir / "реестр_упд_для_ввода_в_1с.xlsx"
     report_path = output_dir / "упд_для_ввода_в_1с_report.txt"
@@ -97,6 +100,15 @@ def test_registered_incoming_purchase_workflow_creates_task_workbook(tmp_path):
     assert not (output_dir / "documents").exists()
     assert found[0].destination_path is None
     assert found[0].items[0].name == "Учебный товар"
+    assert summary.registry_paths == (workbook_path,)
+    assert summary.report_paths == (report_path,)
+    assert [event.event for event in events] == [
+        "scan_started",
+        "file_started",
+        "file_finished",
+        "registry_written",
+        "run_finished",
+    ]
 
     workbook_xml = _archive_text(workbook_path, "xl/workbook.xml")
     shared_strings = _archive_text(workbook_path, "xl/sharedStrings.xml")

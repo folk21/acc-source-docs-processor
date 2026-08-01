@@ -84,13 +84,16 @@ def test_registered_receipt_workflow_uses_current_output_contract(tmp_path):
     _write_test_image(source_subdir / "incoming.JPG")
     _write_test_image(source_subdir / "other.png")
 
-    found, all_documents = process_folder(
+    events = []
+    summary = process_folder(
         source_dir=source_dir,
         output_dir=output_dir,
         lang="rus+eng",
         document_type="npd_receipts",
         document_processor=FakeNpdReceiptProcessor(),
+        progress_callback=events.append,
     )
+    found, all_documents = summary
 
     target_root = output_dir
     target_subdir = target_root / "nested"
@@ -109,6 +112,17 @@ def test_registered_receipt_workflow_uses_current_output_contract(tmp_path):
     assert registry_path.exists()
     assert not list(target_root.glob("*_report.txt"))
     assert found[0].destination_path == copied_receipt
+    assert summary.registry_paths == (registry_path,)
+    assert summary.report_paths == ()
+    assert [event.event for event in events] == [
+        "scan_started",
+        "file_started",
+        "file_finished",
+        "file_started",
+        "file_finished",
+        "registry_written",
+        "run_finished",
+    ]
 
     shared_strings = _shared_strings(registry_path)
     expected_headers = [

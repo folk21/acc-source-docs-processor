@@ -8,14 +8,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .models import (
+    ExtractedDocument,
+    ProcessingProgress,
+    ProcessingProgressCallback,
+    ProcessingProgressEvent,
+)
 from .processor_base import Processor
-from .models import ExtractedDocument
 from .registry_base import RegistryDefinition
 
 
 @dataclass(frozen=True)
 class ProcessingOptions:
-    """Runtime options passed from the CLI to a selected processing workflow."""
+    """Runtime options passed from an adapter to a processing workflow."""
 
     source_dir: Path
     output_dir: Path | None
@@ -25,11 +30,38 @@ class ProcessingOptions:
     deep_ocr: bool = False
     auto_rotate: bool = True
     debug_crops: bool = False
+    progress_callback: ProcessingProgressCallback | None = None
+
+    def report_progress(
+        self,
+        event: ProcessingProgressEvent,
+        *,
+        file_index: int = 0,
+        file_count: int = 0,
+        source_path: Path | None = None,
+        recognized: bool | None = None,
+        error: str | None = None,
+        output_path: Path | None = None,
+    ) -> None:
+        """Emit one synchronous progress event when a callback is configured."""
+        if self.progress_callback is None:
+            return
+        self.progress_callback(
+            ProcessingProgress(
+                event=event,
+                file_index=file_index,
+                file_count=file_count,
+                source_path=source_path,
+                recognized=recognized,
+                error=error,
+                output_path=output_path,
+            )
+        )
 
 
 @dataclass
 class ProcessingResult:
-    """Artifacts and extracted documents produced by one folder-processing run."""
+    """Internal workflow outcome before public summary adaptation."""
 
     found_documents: list[ExtractedDocument]
     all_documents: list[ExtractedDocument]

@@ -87,8 +87,15 @@ class NpdReceiptRegistryWorkflow:
         logger.log(f"Registry file: {registry_path}")
         logger.log(f"Found image files: {len(files)}")
         logger.log(f"Document type: {processor.document_type} ({processor.display_name})")
+        options.report_progress("scan_started", file_count=len(files))
 
         for index, image_path in enumerate(files, start=1):
+            options.report_progress(
+                "file_started",
+                file_index=index,
+                file_count=len(files),
+                source_path=image_path,
+            )
             logger.log(f"[{index}/{len(files)}] Processing: {image_path}")
             target_subdir = self._target_subdir(source_dir, target_root, image_path)
             try:
@@ -127,6 +134,15 @@ class NpdReceiptRegistryWorkflow:
                 all_documents.append(document)
                 if document.destination_path:
                     logger.log(f"  copied as: {document.destination_path}")
+                options.report_progress(
+                    "file_finished",
+                    file_index=index,
+                    file_count=len(files),
+                    source_path=image_path,
+                    recognized=document.is_recognized,
+                    error=document.error,
+                    output_path=document.destination_path,
+                )
             except Exception as exc:
                 document = ExtractedDocument(
                     source_path=image_path,
@@ -142,6 +158,15 @@ class NpdReceiptRegistryWorkflow:
                         )
                 all_documents.append(document)
                 logger.log(f"  ERROR: {exc}", error=True)
+                options.report_progress(
+                    "file_finished",
+                    file_index=index,
+                    file_count=len(files),
+                    source_path=image_path,
+                    recognized=document.is_recognized,
+                    error=document.error,
+                    output_path=document.destination_path,
+                )
 
         if not options.dry_run:
             headers = getattr(registry_definition, "headers", None)
@@ -153,11 +178,17 @@ class NpdReceiptRegistryWorkflow:
                 headers=headers,
             )
             logger.log(f"Registry written: {registry_path}")
+            options.report_progress(
+                "registry_written",
+                file_count=len(files),
+                output_path=registry_path,
+            )
         else:
             logger.log("Dry run mode: no files or registry were written.")
 
         logger.log(f"Recognized NPD receipts: {len(found_documents)}")
         logger.log(f"Total processed images: {len(all_documents)}")
+        options.report_progress("run_finished", file_count=len(files))
         return ProcessingResult(
             found_documents=found_documents,
             all_documents=all_documents,

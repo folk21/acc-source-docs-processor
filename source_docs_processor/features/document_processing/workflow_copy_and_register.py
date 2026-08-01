@@ -122,8 +122,15 @@ class CopyAndRegisterWorkflow:
         logger.log(f"Deep OCR: {'on' if options.deep_ocr else 'off'}")
         logger.log(f"Dry run: {'on' if options.dry_run else 'off'}")
         logger.log(f"Debug crops: {'on' if options.debug_crops else 'off'}")
+        options.report_progress("scan_started", file_count=len(files))
 
         for index, image_path in enumerate(files, start=1):
+            options.report_progress(
+                "file_started",
+                file_index=index,
+                file_count=len(files),
+                source_path=image_path,
+            )
             logger.log(f"[{index}/{len(files)}] Processing: {image_path}")
             target_subdir = self._target_subdir(
                 source_dir,
@@ -222,6 +229,15 @@ class CopyAndRegisterWorkflow:
                     if document.destination_path:
                         logger.log(f"  copied as: {document.destination_path}")
                 all_documents.append(document)
+                options.report_progress(
+                    "file_finished",
+                    file_index=index,
+                    file_count=len(files),
+                    source_path=image_path,
+                    recognized=document.is_recognized,
+                    error=document.error,
+                    output_path=document.destination_path,
+                )
             except Exception as exc:
                 document = ExtractedDocument(
                     source_path=image_path,
@@ -241,6 +257,15 @@ class CopyAndRegisterWorkflow:
                 logger.log(f"  ERROR: {exc}", error=True)
                 if document.destination_path:
                     logger.log(f"  copied as: {document.destination_path}")
+                options.report_progress(
+                    "file_finished",
+                    file_index=index,
+                    file_count=len(files),
+                    source_path=image_path,
+                    recognized=document.is_recognized,
+                    error=document.error,
+                    output_path=document.destination_path,
+                )
 
         if not options.dry_run:
             write_csv_registry(
@@ -250,6 +275,11 @@ class CopyAndRegisterWorkflow:
                 source_root=source_dir,
             )
             logger.log(f"Registry written: {registry_path}")
+            options.report_progress(
+                "registry_written",
+                file_count=len(files),
+                output_path=registry_path,
+            )
         else:
             logger.log(
                 "Dry run mode: no files were copied and no registry was written."
@@ -258,6 +288,7 @@ class CopyAndRegisterWorkflow:
         logger.log(f"Found supported documents: {len(found_documents)}")
         logger.log(f"Total processed documents: {len(all_documents)}")
         logger.log(f"Run finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        options.report_progress("run_finished", file_count=len(files))
         return ProcessingResult(
             found_documents=found_documents,
             all_documents=all_documents,

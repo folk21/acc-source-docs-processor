@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.24.0 — Streamlit-ready document-processing API
+
+### Added
+
+- Added public `ProcessingSummary` with output roots, registry/report paths, aggregate counts, generated-file discovery, and compatible legacy tuple unpacking.
+- Added public synchronous `ProcessingProgress` events and callback typing for scan, file, registry, and completion lifecycle updates.
+- Added public `DocumentTypeMetadata`, `DOCUMENT_TYPE_METADATA`, and `get_document_type_metadata()` so UI adapters can build selectors and capability-aware controls without constructing OCR processors.
+- Added integration coverage for progress and summary behavior across shared scan, NPD receipt, and incoming electronic-document workflows.
+
+### Changed
+
+- `process_folder()` now returns `ProcessingSummary` and accepts an optional `progress_callback`.
+- `DocumentTypeDefinition` now owns the metadata for its registered processor/workflow/registry bundle.
+- Updated public API regression contracts, root and local AI rules, embedded API documentation, architecture guidance, and roadmap.
+- Bumped the package version to `0.24.0`.
+
+### Preserved
+
+- Preserved CLI behavior, registered document-type identifiers, OCR/extraction behavior, output names, registries, reports, and existing two-value result unpacking.
+
+### Validation
+
+- `make test-public-api` (`18 passed`)
+- `make test-document-processing` (`95 passed`)
+- `make check` (`159 passed`)
+
 ## 0.23.0 — Explicit public API regression contracts
 
 ### Added

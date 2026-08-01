@@ -1,6 +1,6 @@
 # acc-source-docs-processor
 
-`acc-source-docs-processor` is a local Python CLI for processing accounting source documents.
+`acc-source-docs-processor` is a local Python application and CLI for processing accounting source documents.
 
 All processing is local. Source files are never modified and are not uploaded to external services.
 
@@ -179,6 +179,60 @@ python main.py process --source "/path/to/documents" --dry-run
 ```
 
 Each workflow interprets options according to its input and output policy. For `incoming_purchase_documents`, `--deep-ocr` also OCRs PDF pages that already contain native text; normal runs OCR only pages without a useful text layer.
+
+## Embedded Python API
+
+The document-processing feature can be called directly from local Python UI
+adapters such as Streamlit. Adapters should import the public package facade
+rather than invoking the CLI through `subprocess` or importing `_internal`
+modules.
+
+```python
+from pathlib import Path
+
+from source_docs_processor.features.document_processing import (
+    DOCUMENT_TYPE_METADATA,
+    ProcessingProgress,
+    process_folder,
+)
+
+
+def report_progress(progress: ProcessingProgress) -> None:
+    if progress.event == "file_finished":
+        print(
+            f"{progress.file_index}/{progress.file_count}: "
+            f"recognized={progress.recognized}"
+        )
+
+
+for metadata in DOCUMENT_TYPE_METADATA:
+    print(metadata.identifier, metadata.display_name)
+
+summary = process_folder(
+    source_dir=Path("/path/to/documents"),
+    output_dir=Path("/path/to/output"),
+    lang="rus+eng",
+    document_type="npd_receipts",
+    progress_callback=report_progress,
+)
+
+print(summary.recognized_count)
+print(summary.error_count)
+print(summary.registry_paths)
+print(summary.generated_files)
+```
+
+`process_folder()` returns `ProcessingSummary`. Legacy two-value unpacking remains
+supported during the transition:
+
+```python
+found_documents, all_documents = process_folder(...)
+```
+
+Progress callbacks run synchronously in the processing thread. They receive
+file paths, counts, recognized/error state, and generated artifact paths, but no
+OCR text or extracted accounting values. UI adapters must keep the operation
+local unless an explicit secure upload/storage design is introduced.
 
 ## Anonymizing document folders
 

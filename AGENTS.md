@@ -70,6 +70,16 @@ The registered document types are:
   document type identifier and must not expose processor/workflow/registry
   injection parameters. Internal tests may use
   `_internal/service.py::process_folder_with_components()` with fake components.
+- Keep `process_folder()` suitable for non-CLI adapters. It returns
+  `ProcessingSummary`, accepts an optional synchronous `progress_callback`, and
+  preserves legacy two-value unpacking through the summary iterator.
+- Every registered processing workflow must emit the standard progress lifecycle:
+  `scan_started`, paired `file_started`/`file_finished` events,
+  `registry_written` when an artifact is written, and `run_finished`. Progress
+  events must not expose OCR text or extracted accounting field values.
+- Keep UI-facing document-type metadata inside each complete
+  `DocumentTypeDefinition`; the catalog exposes metadata without constructing
+  processors. Update metadata capability flags when workflow support changes.
 - Keep every supported package facade and framework extension module explicit
   through `__all__`. Public API regression tests must pin exported names,
   callable signatures, public dataclass fields, registered document-type

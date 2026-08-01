@@ -5,6 +5,7 @@ from pathlib import Path
 from source_docs_processor.features.document_processing.models import (
     ExtractedDocument,
 )
+from source_docs_processor.features.document_processing.workflow_base import ProcessingOptions
 from source_docs_processor.features.document_processing.workflow_copy_and_register import (
     CopyAndRegisterWorkflow,
 )
@@ -49,3 +50,60 @@ def test_continuation_workflow_inherits_common_and_extra_metadata():
     assert continuation.extra_fields["page_note"] == "continuation"
     assert continuation.continuation_page_number == 2
     assert continuation.continued_from == "primary.png"
+
+
+def test_processing_options_emits_privacy_conscious_progress_events(tmp_path):
+    """Verify adapters receive counts and status without extracted field values.
+
+    Protected risk: UI progress must not require private workflow inspection or
+    expose OCR text and accounting fields before the final summary is returned.
+    """
+    events = []
+    options = ProcessingOptions(
+        source_dir=tmp_path,
+        output_dir=None,
+        target_dir_name=None,
+        lang="rus+eng",
+        progress_callback=events.append,
+    )
+
+    options.report_progress(
+        "file_finished",
+        file_index=2,
+        file_count=5,
+        source_path=tmp_path / "scan.png",
+        recognized=True,
+        error=None,
+        output_path=tmp_path / "output.png",
+    )
+
+    assert len(events) == 1
+    assert events[0].event == "file_finished"
+    assert events[0].file_index == 2
+    assert events[0].file_count == 5
+    assert events[0].recognized is True
+    assert events[0].error is None
+    assert not hasattr(events[0], "document")
+
+
+def test_processing_progress_callback_errors_propagate(tmp_path):
+    """Verify a failing adapter callback stops the run instead of being hidden.
+
+    Protected risk: swallowing UI adapter failures would leave callers showing
+    stale progress while processing continues in an unknown state.
+    """
+    def fail(_progress):
+        raise RuntimeError("synthetic callback failure")
+
+    options = ProcessingOptions(
+        source_dir=tmp_path,
+        output_dir=None,
+        target_dir_name=None,
+        lang="rus+eng",
+        progress_callback=fail,
+    )
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="synthetic callback failure"):
+        options.report_progress("scan_started", file_count=1)

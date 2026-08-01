@@ -1,10 +1,11 @@
-"""Shared data models used by the document processing pipeline."""
+"""Public result, progress, and document-type metadata models."""
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 
 RegistryValue: TypeAlias = str | int | float | bool | None
@@ -106,4 +107,96 @@ class ExtractedDocument:
         self.extra_fields = inherited_extra
         self.is_recognized = True
 
-__all__ = ["ExtractedDocument", "ExtractedDocumentItem"]
+
+ProcessingProgressEvent: TypeAlias = Literal[
+    "scan_started",
+    "file_started",
+    "file_finished",
+    "registry_written",
+    "run_finished",
+]
+
+
+@dataclass(frozen=True)
+class ProcessingProgress:
+    """One synchronous progress event emitted during folder processing."""
+
+    event: ProcessingProgressEvent
+    file_index: int = 0
+    file_count: int = 0
+    source_path: Path | None = None
+    recognized: bool | None = None
+    error: str | None = None
+    output_path: Path | None = None
+
+
+ProcessingProgressCallback: TypeAlias = Callable[[ProcessingProgress], None]
+
+
+@dataclass(frozen=True)
+class DocumentTypeMetadata:
+    """UI-facing description and capabilities of one registered document type."""
+
+    identifier: str
+    display_name: str
+    description: str
+    supported_extensions: tuple[str, ...]
+    supports_deep_ocr: bool
+    supports_auto_rotate: bool
+    supports_debug_crops: bool
+
+
+@dataclass
+class ProcessingSummary:
+    """Structured outcome and generated artifacts from one processing run."""
+
+    source_root: Path
+    output_root: Path | None
+    document_type: str
+    found_documents: list[ExtractedDocument]
+    all_documents: list[ExtractedDocument]
+    registry_paths: tuple[Path, ...] = ()
+    report_paths: tuple[Path, ...] = ()
+
+    @property
+    def recognized_count(self) -> int:
+        """Return the number of recognized primary documents."""
+        return len(self.found_documents)
+
+    @property
+    def processed_count(self) -> int:
+        """Return the number of input files represented in the result."""
+        return len(self.all_documents)
+
+    @property
+    def error_count(self) -> int:
+        """Return the number of documents with processing errors."""
+        return sum(document.error is not None for document in self.all_documents)
+
+    @property
+    def generated_files(self) -> tuple[Path, ...]:
+        """Return copied documents, registries, and reports without duplicates."""
+        paths = [
+            document.destination_path
+            for document in self.all_documents
+            if document.destination_path is not None
+        ]
+        paths.extend(self.registry_paths)
+        paths.extend(self.report_paths)
+        return tuple(dict.fromkeys(paths))
+
+    def __iter__(self) -> Iterator[list[ExtractedDocument]]:
+        """Preserve legacy ``found, all_documents = process_folder(...)`` usage."""
+        yield self.found_documents
+        yield self.all_documents
+
+
+__all__ = [
+    "DocumentTypeMetadata",
+    "ExtractedDocument",
+    "ExtractedDocumentItem",
+    "ProcessingProgress",
+    "ProcessingProgressCallback",
+    "ProcessingProgressEvent",
+    "ProcessingSummary",
+]

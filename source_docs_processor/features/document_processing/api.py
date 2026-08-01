@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ._internal.service import process_folder_with_components
 from .document_types.catalog import DEFAULT_DOCUMENT_TYPE
-from .models import ExtractedDocument
+from .models import ProcessingProgressCallback, ProcessingSummary
 
 
 def process_folder(
@@ -19,7 +19,8 @@ def process_folder(
     auto_rotate: bool = True,
     debug_crops: bool = False,
     document_type: str = DEFAULT_DOCUMENT_TYPE,
-) -> tuple[list[ExtractedDocument], list[ExtractedDocument]]:
+    progress_callback: ProcessingProgressCallback | None = None,
+) -> ProcessingSummary:
     """Process one folder using the registered document type definition."""
     return process_folder_with_components(
         source_dir=source_dir,
@@ -31,6 +32,7 @@ def process_folder(
         auto_rotate=auto_rotate,
         debug_crops=debug_crops,
         document_type=document_type,
+        progress_callback=progress_callback,
     )
 
 

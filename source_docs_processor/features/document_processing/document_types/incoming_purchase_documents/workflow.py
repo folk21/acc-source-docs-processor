@@ -130,8 +130,15 @@ class IncomingPurchaseDocumentsWorkflow:
         logger.log(
             f"Document type: {processor.document_type} ({processor.display_name})"
         )
+        options.report_progress("scan_started", file_count=len(files))
 
         for index, source_path in enumerate(files, start=1):
+            options.report_progress(
+                "file_started",
+                file_index=index,
+                file_count=len(files),
+                source_path=source_path,
+            )
             logger.log(f"[{index}/{len(files)}] Processing: {source_path}")
             try:
                 document = file_processor.analyze_source_file(
@@ -157,6 +164,15 @@ class IncomingPurchaseDocumentsWorkflow:
                 else:
                     logger.log("  review required: UPD status 1 was not confirmed")
                 all_documents.append(document)
+                options.report_progress(
+                    "file_finished",
+                    file_index=index,
+                    file_count=len(files),
+                    source_path=source_path,
+                    recognized=document.is_recognized,
+                    error=document.error,
+                    output_path=document.destination_path,
+                )
             except Exception as exc:
                 document = ExtractedDocument(
                     source_path=source_path,
@@ -170,6 +186,15 @@ class IncomingPurchaseDocumentsWorkflow:
                 )
                 all_documents.append(document)
                 logger.log(f"  ERROR: {exc}", error=True)
+                options.report_progress(
+                    "file_finished",
+                    file_index=index,
+                    file_count=len(files),
+                    source_path=source_path,
+                    recognized=document.is_recognized,
+                    error=document.error,
+                    output_path=document.destination_path,
+                )
 
         if not options.dry_run:
             write_task_workbook(
@@ -179,12 +204,18 @@ class IncomingPurchaseDocumentsWorkflow:
                 source_root=source_dir,
             )
             logger.log(f"Registry written: {registry_path}")
+            options.report_progress(
+                "registry_written",
+                file_count=len(files),
+                output_path=registry_path,
+            )
         else:
             logger.log("Dry run mode: no workbook was written.")
 
         logger.log(f"Recognized UPD status 1 documents: {len(found_documents)}")
         logger.log(f"Total processed files: {len(all_documents)}")
         logger.log(f"Run finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        options.report_progress("run_finished", file_count=len(files))
         return ProcessingResult(
             found_documents=found_documents,
             all_documents=all_documents,

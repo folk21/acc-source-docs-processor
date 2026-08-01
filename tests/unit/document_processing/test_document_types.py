@@ -1,5 +1,10 @@
 import pytest
 
+from source_docs_processor.features.document_processing.document_type_definition import (
+    DocumentTypeDefinition,
+)
+from source_docs_processor.features.document_processing.models import DocumentTypeMetadata
+
 from source_docs_processor.features.document_processing.document_types.catalog import (
     DEFAULT_DOCUMENT_TYPE,
     get_document_type_definition,
@@ -80,3 +85,29 @@ def test_electronic_upd_definition_builds_source_file_components():
     assert processor.supported_extensions == frozenset({".pdf", ".docx"})
     assert isinstance(workflow, IncomingPurchaseDocumentsWorkflow)
     assert isinstance(registry, IncomingPurchaseDocumentsRegistryDefinition)
+
+
+def test_document_type_definition_rejects_mismatched_metadata_identifier():
+    """Verify UI metadata cannot silently describe a different registered type.
+
+    Protected risk: a mismatched identifier would make selectors launch the
+    wrong processor while presenting unrelated capabilities to the user.
+    """
+    metadata = DocumentTypeMetadata(
+        identifier="other_type",
+        display_name="Other",
+        description="Synthetic metadata",
+        supported_extensions=(".png",),
+        supports_deep_ocr=False,
+        supports_auto_rotate=False,
+        supports_debug_crops=False,
+    )
+
+    with pytest.raises(ValueError, match="metadata identifier"):
+        DocumentTypeDefinition(
+            document_type="expected_type",
+            metadata=metadata,
+            processor_factory=lambda: None,  # type: ignore[arg-type]
+            workflow_factory=lambda: None,  # type: ignore[arg-type]
+            registry_definition_factory=lambda: None,  # type: ignore[arg-type]
+        )

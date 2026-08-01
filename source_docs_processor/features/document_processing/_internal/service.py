@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..document_types.catalog import DEFAULT_DOCUMENT_TYPE, get_document_type_definition
-from ..models import ExtractedDocument
 from ..document_type_definition import DocumentTypeDefinition
+from ..document_types.catalog import DEFAULT_DOCUMENT_TYPE, get_document_type_definition
+from ..models import ProcessingProgressCallback, ProcessingSummary
 from ..processor_base import Processor
 from ..registry_base import RegistryDefinition
 from ..workflow_base import ProcessingOptions, ProcessingWorkflow
@@ -22,11 +22,12 @@ def process_folder_with_components(
     auto_rotate: bool = True,
     debug_crops: bool = False,
     document_type: str = DEFAULT_DOCUMENT_TYPE,
+    progress_callback: ProcessingProgressCallback | None = None,
     document_type_definition: DocumentTypeDefinition | None = None,
     document_processor: Processor | None = None,
     processing_workflow: ProcessingWorkflow | None = None,
     registry_definition: RegistryDefinition | None = None,
-) -> tuple[list[ExtractedDocument], list[ExtractedDocument]]:
+) -> ProcessingSummary:
     """Run processing with optional component injection for internal tests."""
     definition = document_type_definition or get_document_type_definition(document_type)
     processor = document_processor or definition.create_processor()
@@ -45,6 +46,15 @@ def process_folder_with_components(
             deep_ocr=deep_ocr,
             auto_rotate=auto_rotate,
             debug_crops=debug_crops,
+            progress_callback=progress_callback,
         ),
     )
-    return result.found_documents, result.all_documents
+    return ProcessingSummary(
+        source_root=source_dir,
+        output_root=result.output_root,
+        document_type=processor.document_type,
+        found_documents=result.found_documents,
+        all_documents=result.all_documents,
+        registry_paths=(result.registry_path,) if result.registry_path else (),
+        report_paths=(result.report_path,) if result.report_path else (),
+    )

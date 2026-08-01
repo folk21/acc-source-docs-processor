@@ -58,6 +58,7 @@ def test_framework_dataclass_schemas_are_stable() -> None:
     """
     assert _field_names(document_type_definition.DocumentTypeDefinition) == (
         "document_type",
+        "metadata",
         "processor_factory",
         "workflow_factory",
         "registry_definition_factory",
@@ -71,6 +72,7 @@ def test_framework_dataclass_schemas_are_stable() -> None:
         "deep_ocr",
         "auto_rotate",
         "debug_crops",
+        "progress_callback",
     )
     assert _field_names(workflow_base.ProcessingResult) == (
         "found_documents",
