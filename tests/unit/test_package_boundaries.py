@@ -404,6 +404,7 @@ def test_features_and_document_types_publish_local_agent_guides() -> None:
     required_guides = {
         features_root / "anonymization" / "AGENTS.md",
         features_root / "document_processing" / "AGENTS.md",
+        _PACKAGE_ROOT / "ui" / "AGENTS.md",
     }
     document_types_root = features_root / "document_processing" / "document_types"
     required_guides.update(
@@ -433,7 +434,82 @@ def test_makefile_exposes_standard_focused_validation_targets() -> None:
         "test-upd",
         "test-npd",
         "test-incoming-purchase-documents",
+        "test-ui",
     }
 
     for target in expected_targets:
         assert f"{target}:" in makefile
+
+
+def test_ui_depends_only_on_public_feature_surfaces() -> None:
+    """Verify the optional UI does not bypass supported feature APIs.
+
+    Protected risk: importing feature `_internal` modules would couple localized
+    presentation code to implementation details and weaken public API tests.
+    """
+    ui_root = _PACKAGE_ROOT / "ui"
+    violations = [
+        (path, module)
+        for path, module in _imported_modules(ui_root)
+        if "._internal" in module or "._internal" in module.replace("..", ".")
+    ]
+
+    assert violations == []
+
+
+def test_core_and_features_do_not_import_the_optional_ui() -> None:
+    """Verify Streamlit remains an outer adapter rather than a domain dependency.
+
+    Protected risk: importing UI code from core or features would make normal CLI
+    use require Streamlit and reverse the intended dependency direction.
+    """
+    scanned_roots = (_PACKAGE_ROOT / "core", _PACKAGE_ROOT / "features")
+    violations = [
+        (path, module)
+        for root in scanned_roots
+        for path, module in _imported_modules(root)
+        if module.startswith("source_docs_processor.ui")
+        or module.lstrip(".").startswith("ui")
+        or module == "streamlit"
+        or module.startswith("streamlit.")
+    ]
+
+    assert violations == []
+
+
+def test_streamlit_imports_stay_inside_the_optional_ui_adapter() -> None:
+    """Verify the optional dependency is isolated from regular package imports.
+
+    Protected risk: a Streamlit import in the root package, CLI, core, or feature
+    code would break installations that intentionally omit `requirements-ui.txt`.
+    """
+    allowed = {
+        _PACKAGE_ROOT / "ui" / "app.py",
+    }
+    violations: list[Path] = []
+    for path in sorted(_PACKAGE_ROOT.rglob("*.py")):
+        imports = _imported_modules_from_file(path)
+        if any(module == "streamlit" or module.startswith("streamlit.") for module in imports):
+            if path not in allowed:
+                violations.append(path)
+
+    assert violations == []
+
+
+def test_streamlit_is_an_optional_ui_dependency() -> None:
+    """Verify normal CLI installations do not require the UI framework.
+
+    Protected risk: adding Streamlit to runtime requirements would increase the
+    base installation and couple CLI-only users to the optional browser adapter.
+    """
+    project_root = _PACKAGE_ROOT.parent
+    runtime_requirements = (project_root / "requirements.txt").read_text(
+        encoding="utf-8"
+    )
+    ui_requirements = (project_root / "requirements-ui.txt").read_text(
+        encoding="utf-8"
+    )
+
+    assert "streamlit" not in runtime_requirements.casefold()
+    assert "-r requirements.txt" in ui_requirements
+    assert "streamlit" in ui_requirements.casefold()

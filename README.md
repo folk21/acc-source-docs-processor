@@ -234,6 +234,39 @@ file paths, counts, recognized/error state, and generated artifact paths, but no
 OCR text or extracted accounting values. UI adapters must keep the operation
 local unless an explicit secure upload/storage design is introduced.
 
+## Local Streamlit interface
+
+An optional local browser interface is available for non-technical users. The UI
+runs on the same computer as the source folders and calls the public Python APIs
+directly; it does not invoke the CLI through a subprocess or upload files.
+
+Install the optional dependencies:
+
+```bash
+pip install -r requirements-ui.txt
+```
+
+Start the Russian interface from the project root:
+
+```bash
+python -m streamlit run streamlit_app.py -- --lang ru
+```
+
+Use `-- --lang en` for English, or switch languages from the selector at the top
+of the page. Static labels, descriptions, validation messages, result headings,
+and the configured operation order are loaded from:
+
+```text
+config/ui/ui_ru.ini
+config/ui/ui_en.ini
+```
+
+The first UI operation is local document anonymization. It accepts source,
+output, anonymization configuration, OCR language, output-format, layout, and
+output-cleanup options and displays privacy-safe progress plus a relative-path
+result table. Browser uploads, remote hosting, authentication, and background job
+queues are outside the first local version.
+
 ## Anonymizing document folders
 
 The anonymization operation accepts directories, not individual file paths:
@@ -349,6 +382,7 @@ Focused targets are available for local work:
 ```bash
 make test-public-api
 make test-anonymization
+make test-ui
 make test-document-processing
 make test-upd
 make test-npd

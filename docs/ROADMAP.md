@@ -143,7 +143,8 @@ Status legend:
 - [ ] Add YAML processing profiles when repeated real configurations justify them.
 - [ ] Add a Tesseract validation command.
 - [ ] Add Windows-oriented setup instructions.
-- [ ] Add a simple local UI.
+- [x] Add a simple local Streamlit UI with localized anonymization controls.
+- [ ] Add document-processing operations to the local UI after the anonymization workflow is validated by users.
 
 - [x] Support launching anonymization from an output directory that contains the source directory without suppressing input discovery.
 - [x] Fail clearly when an effective source scan contains no files.

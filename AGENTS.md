@@ -146,6 +146,18 @@ The registered document types are:
 - Do not add document-type conditionals to `cli.py`, feature command handlers, or
   shared processing modules.
 - Do not add external network calls. Processing must remain local.
+- Keep the optional local Streamlit adapter under `source_docs_processor/ui/`
+  with `streamlit_app.py` as its minimal entry point. The UI may call public
+  feature package APIs, but `core` and `features` must not import the UI or
+  Streamlit.
+- Store localized UI text and configured operation order in
+  `config/ui/ui_<language>.ini`. Keep operation identifiers language-neutral and
+  map them to explicit Python handlers; configuration must not contain arbitrary
+  executable import paths.
+- Keep Russian as the default UI language and support a launch override through
+  Streamlit script arguments such as `-- --lang en`.
+- Keep UI progress and result tables privacy-conscious: do not expose OCR text or
+  extracted accounting values, and prefer relative file paths.
 - Output cleanup must preserve the output directory inode; never delete and
   recreate the output root because another terminal may have it as its current
   directory.
@@ -253,6 +265,7 @@ Do not put output-action state into the generic extracted model unless it is nec
 - Group document-specific tests under folders matching the production package name, such as `tests/unit/npd_receipts/` and `tests/integration/incoming_purchase_documents/`. Mirror document-private tests under `tests/unit/<document_type>/_internal/`; keep processor, workflow, registry, filename, and integration tests at the document-type test root.
 - Keep only cross-feature architecture, CLI, and root package API tests directly under `tests/unit/`; keep feature API tests at their feature test root and synthetic cross-component integration tests under `tests/integration/`.
 - Run `make test-public-api` whenever a package export, public model, CLI alias, framework protocol, base class, or public function signature changes.
+- Run `make test-ui` whenever Streamlit adapter logic, localized UI configuration, path validation, or UI result mapping changes.
 - Every test must have an English docstring explaining the verified behavior and protected risk.
 - Test processors, workflows, registry definitions, and writers independently where useful.
 - Prefer fake OCR, fake processors, synthetic workflows, prepared text, and generated images.

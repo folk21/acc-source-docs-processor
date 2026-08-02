@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.25.0 — Localized Streamlit anonymization UI
+
+### Added
+
+- Added an optional local Streamlit adapter with a detailed application header, language selector, configured operation selector, operation explanation, parameter form, progress display, and result summary.
+- Added Russian and English UI configurations under `config/ui/ui_<language>.ini`; the files own static UI text and the ordered list of enabled operation identifiers.
+- Added the first UI operation for local document anonymization through the public feature API, including source/output/config paths, OCR language, output variants, layout preservation, and safe output cleanup.
+- Added UI path validation, relative-path result mapping, optional `requirements-ui.txt`, `scripts/run_ui.sh`, focused `make test-ui`, and deterministic unit/smoke coverage.
+- Added a local UI development guide and architecture regression checks that keep Streamlit outside core and feature dependencies.
+
+### Changed
+
+- Extended the root README, architecture guidance, roadmap, Make targets, and AI development rules for the optional localized UI adapter.
+- Bumped the package version to `0.25.0`.
+
+### Preserved
+
+- Preserved CLI behavior, public feature APIs, document-processing workflows, anonymization behavior, output formats, and privacy rules.
+- Kept Streamlit optional; normal CLI installations continue to use `requirements.txt`.
+
+### Validation
+
+- `make test-ui` (`11 passed`)
+- `make test-architecture` (`42 passed`)
+- `make check` (`174 passed`)
+
 ## 0.24.0 — Streamlit-ready document-processing API
 
 ### Added

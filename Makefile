@@ -3,7 +3,7 @@ PYTEST := $(PYTHON) -m pytest -q
 
 .PHONY: help compile test check test-core test-public-api test-architecture \
 	test-anonymization test-document-processing test-upd test-npd \
-	test-incoming-purchase-documents
+	test-incoming-purchase-documents test-ui
 
 help:
 	@printf '%s\n' \
@@ -13,13 +13,14 @@ help:
 		'make test-public-api               Run public package and framework API contract tests' \
 		'make test-architecture             Run CLI, public API, and package-boundary tests' \
 		'make test-anonymization            Run anonymization unit/integration tests' \
+		'make test-ui                       Run local Streamlit adapter tests' \
 		'make test-document-processing      Run the complete document-processing feature tests' \
 		'make test-upd                      Run scanned UPD status 1 tests' \
 		'make test-npd                      Run NPD receipt tests' \
 		'make test-incoming-purchase-documents  Run incoming purchase-document tests'
 
 compile:
-	$(PYTHON) -m compileall -q main.py source_docs_processor tests
+	$(PYTHON) -m compileall -q main.py streamlit_app.py source_docs_processor tests
 
 test:
 	$(PYTEST)
@@ -68,3 +69,7 @@ test-npd:
 
 test-incoming-purchase-documents:
 	$(PYTEST) tests/unit/incoming_purchase_documents tests/integration/incoming_purchase_documents
+
+
+test-ui:
+	$(PYTEST) tests/unit/ui

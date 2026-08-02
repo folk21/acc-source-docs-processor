@@ -51,8 +51,19 @@ A registry definition owns tabular shape and row mapping. Generic writers own CS
 ```text
 Makefile
 AGENTS.md
+streamlit_app.py
+config/ui/
+├── ui_ru.ini
+└── ui_en.ini
 source_docs_processor/
 ├── cli.py
+├── ui/                     # optional local Streamlit adapter
+│   ├── AGENTS.md
+│   ├── README.md
+│   ├── app.py
+│   ├── anonymization.py
+│   ├── config.py
+│   └── path_validation.py
 ├── core/
 │   ├── files.py
 │   ├── images.py
@@ -125,9 +136,12 @@ The dependency direction is deliberately small and explicit:
 
 ```text
 cli -> feature command -> feature API -> feature _internal -> core
+streamlit adapter -> public feature API
 document-processing API -> internal composition service -> catalog
 catalog -> document type definition -> framework-facing modules -> type _internal
 core -X-> features
+core/features -X-> streamlit adapter
+streamlit adapter -X-> feature _internal
 one feature -X-> another feature's _internal
 shared processing _internal -X-> concrete document type _internal
 one concrete document type -X-> another concrete document type
@@ -188,11 +202,39 @@ behavior is genuinely reusable.
 | NPD receipt OCR, QR, naming, or workbook behavior | `document_types/npd_receipts/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-npd` |
 | Incoming PDF/DOCX purchase-document reading, extraction, validation, or workbook behavior | `document_types/incoming_purchase_documents/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-incoming-purchase-documents` |
 | Public package exports, result models, function signatures, or framework extension contracts | feature `__init__.py`, `api.py`, public models, framework modules, public API tests | affected feature implementation | unrelated feature internals | `make test-public-api` |
+| Local Streamlit presentation, localization, path validation, or result tables | `streamlit_app.py`, `source_docs_processor/ui/`, `config/ui/` | public feature APIs only | feature `_internal`, OCR/business logic, CLI behavior | `make test-ui` |
 | CLI composition or cross-feature dependency rules | `cli.py`, feature `command.py`, architecture tests | affected feature APIs | feature internals unrelated to the command | `make test-architecture` |
 
 A local task should normally change one row's primary scope. When a shared module
 changes, run the focused shared target as well as the original document-type or
 feature target. Every completed task runs `make check` before delivery.
+
+## Local Streamlit adapter
+
+The optional UI is an outer adapter alongside the CLI:
+
+```text
+Streamlit UI -> public feature package API -> existing workflow
+CLI          -> feature command          -> existing workflow
+```
+
+`streamlit_app.py` is the minimal entry point. `source_docs_processor/ui/` owns
+localized presentation, language and operation selection, path validation,
+privacy-safe progress rendering, and conversion of public result models into
+relative-path tables. It does not own OCR, redaction, document recognition,
+registry generation, or output policy.
+
+Static UI text and the ordered enabled-operation list are loaded from
+`config/ui/ui_<language>.ini`. Russian is the default and can be overridden with
+Streamlit script arguments such as `-- --lang en`. Configuration contains only
+known language-neutral operation identifiers; executable handlers remain an
+explicit Python mapping so configuration cannot import arbitrary code.
+
+The first UI operation is anonymization. It calls the public anonymization
+package directly, caches the local Presidio/spaCy analyzer for repeated local
+runs, and displays only paths, counts, errors, and privacy-safe progress. Core
+and feature modules never import Streamlit or the UI package, so normal CLI
+installations do not require optional UI dependencies.
 
 ## Anonymization pipeline
 
