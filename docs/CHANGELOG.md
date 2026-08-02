@@ -1,17 +1,29 @@
 # Changelog
 
-## Unreleased — Documentation ownership and platform installation
+## 0.26.0 — Complete localized operations UI and documentation ownership
 
 ### Added
 
 - Added `docs/INSTALLATION.md` with GitHub download/clone steps, virtual-environment setup, Tesseract language verification, dependency profiles, Streamlit launch, update instructions, and troubleshooting for Windows, Linux, and macOS.
 - Added `docs/USAGE.md` as the single user-facing source for CLI commands, processing workflows, anonymization configuration, output modes, and safe cleanup.
+- Added localized Streamlit operations for scanned UPD status 1, NPD receipts, and incoming PDF/DOCX purchase documents through the public document-processing API.
+- Added a generic processing UI adapter with metadata-driven controls, synchronous progress rendering, relative-path result rows, and generated-artifact tables.
+- Added deterministic UI tests for public API forwarding, metadata resolution, processing path validation, and privacy-conscious result mapping.
 
 ### Changed
 
 - Reduced the root README to a compact overview, quick start, privacy notice, and documentation index.
 - Refocused architecture, roadmap, root development rules, and local package README files on their owning concerns and replaced repeated explanations with links.
-- Kept application behavior, public APIs, CLI options, Streamlit behavior, registries, and output formats unchanged.
+- Preserved application feature behavior, public APIs, CLI options, registries, and output formats while expanding the Streamlit adapter.
+- Updated Russian and English UI configurations, adapter documentation, architecture guidance, roadmap, and local AI rules.
+- Bumped the package version to `0.26.0`.
+
+### Validation
+
+- `make test-ui` (`16 passed`)
+- `make test-public-api` (`18 passed`)
+- `make test-architecture` (`42 passed`)
+- `make check` (`179 passed`)
 
 ## 0.25.0 — Localized Streamlit anonymization UI
 

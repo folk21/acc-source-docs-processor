@@ -23,7 +23,8 @@ keeps only a compact foundation summary plus current and planned work.
   status `1` workflows.
 - [x] Provide local fail-closed anonymization for PDF, DOCX, TXT, and raster
   images with configured masking/replacement and Presidio mode.
-- [x] Provide a localized local Streamlit interface for anonymization.
+- [x] Provide a localized local Streamlit interface for anonymization and all
+  registered document-processing workflows.
 - [x] Provide platform installation and centralized usage documentation.
 
 ## Architecture and code quality
@@ -85,7 +86,5 @@ keeps only a compact foundation summary plus current and planned work.
 - [ ] Add YAML processing profiles when repeated real configurations justify
   them.
 - [ ] Add a Tesseract validation command.
-- [ ] Add document-processing operations to the local UI after the anonymization
-  workflow is validated by users.
 - [ ] Evaluate secure remote deployment only with an explicit storage,
   authentication, and privacy design.

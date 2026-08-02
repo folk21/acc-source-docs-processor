@@ -22,6 +22,10 @@ behavior into this package.
 - Keep operation identifiers explicit in Python. Language configuration may
   enable and order known operations, but it must not contain executable import
   paths or arbitrary callables.
+- Build processing controls from public `DocumentTypeMetadata` capability flags;
+  do not duplicate processor capabilities in localized configuration.
+- Keep one generic processing adapter for registered document types instead of
+  copying Streamlit execution logic into document-specific UI modules.
 
 ## Localization
 
@@ -37,6 +41,8 @@ behavior into this package.
 - Do not display OCR text or extracted private accounting values in progress
   events.
 - Prefer relative paths in result tables.
+- Processing result tables may show recognition state and counts, but must not
+  expose OCR text, extracted accounting values, or warning contents.
 - Do not invoke `main.py` or feature CLI commands through `subprocess`; call the
   public Python APIs directly.
 - Keep Streamlit callbacks small because feature progress callbacks execute

@@ -246,13 +246,17 @@ streamlit_app.py -> source_docs_processor.ui -> public feature package API
 ```
 
 It owns localized presentation, input validation, session state, progress
-rendering, and privacy-safe result tables. OCR, redaction, document extraction,
-registry generation, and output policy remain in features.
+rendering, and privacy-safe result tables. One generic processing adapter calls
+`process_folder()` for all registered document types and uses public
+`DocumentTypeMetadata` capability flags to decide which controls to render. OCR,
+redaction, document extraction, registry generation, and output policy remain in
+features.
 
 Localized text and enabled operation order are stored in
 `config/ui/ui_<language>.ini`. Configuration may select only known
 language-neutral operation identifiers; executable handlers remain an explicit
-Python mapping.
+Python mapping. The UI currently maps anonymization and the three registered
+processing workflows to those public APIs.
 
 Streamlit remains an optional dependency. CLI-only installations use
 `requirements.txt`; UI installations use `requirements-ui.txt`.

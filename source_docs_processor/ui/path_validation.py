@@ -54,3 +54,25 @@ def validate_anonymization_paths(
         issues.append(ValidationIssue("config_not_file", config))
 
     return tuple(issues)
+
+
+def validate_processing_paths(
+    source_dir: Path,
+    output_dir: Path,
+) -> tuple[ValidationIssue, ...]:
+    """Validate paths before invoking the document-processing public API."""
+    source = source_dir.expanduser().resolve()
+    output = output_dir.expanduser().resolve()
+    issues: list[ValidationIssue] = []
+
+    if not source.exists():
+        issues.append(ValidationIssue("source_missing", source))
+    elif not source.is_dir():
+        issues.append(ValidationIssue("source_not_directory", source))
+
+    if output.exists() and not output.is_dir():
+        issues.append(ValidationIssue("output_not_directory", output))
+    if source == output:
+        issues.append(ValidationIssue("source_equals_output", output))
+
+    return tuple(issues)

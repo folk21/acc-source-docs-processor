@@ -18,9 +18,16 @@ The UI runs on the same computer as the source and output folders and calls the
 public Python APIs directly. It does not upload files, invoke the CLI through a
 subprocess, or provide remote hosting and authentication.
 
-The first released UI operation is document anonymization. It provides localized
-controls for source and output folders, the anonymization configuration, OCR
-languages, output variants, approximate DOCX layout, and safe output cleanup.
+The localized operation selector provides:
+
+- document anonymization;
+- scanned UPD status 1 processing;
+- NPD receipt processing;
+- incoming PDF/DOCX UPD registration for later entry into 1C.
+
+Each processing screen uses the registered document-type metadata to show only
+supported controls. All screens accept local source/output paths, render
+privacy-safe progress, and show relative-path result and artifact tables.
 
 ## Command-line interface
 

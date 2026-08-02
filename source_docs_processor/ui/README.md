@@ -7,20 +7,24 @@ Streamlit UI -> public feature API -> existing workflow
 CLI          -> feature command    -> existing workflow
 ```
 
-The first released UI operation is document anonymization.
+The adapter exposes document anonymization and every registered document-
+processing workflow.
 
 ## Responsibilities
 
 The UI owns localized presentation, input validation, session state, privacy-safe
-progress, and result tables. It does not own OCR, redaction, document extraction,
-registry generation, or output policy.
+progress, and result tables. Processing screens resolve capabilities from public
+document-type metadata and call `process_folder()` directly. The UI does not own
+OCR, redaction, document extraction, registry generation, or output policy.
 
 `streamlit_app.py` is the minimal entry point. Implementation modules live in
 `source_docs_processor/ui/`, while localized text and enabled operation order
 live in `config/ui/ui_<language>.ini`.
 
 Configuration can enable and order known language-neutral operation identifiers.
-Executable handlers remain an explicit Python mapping.
+Executable handlers remain an explicit Python mapping. The current identifiers are
+`anonymize`, `process_upd_invoices_status_1`, `process_npd_receipts`, and
+`process_incoming_purchase_documents`.
 
 ## User documentation
 

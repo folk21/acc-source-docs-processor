@@ -16,7 +16,8 @@ The application provides two operations:
   files according to configurable masking and replacement rules.
 
 An optional local Streamlit interface is available for browser-based use on the
-same computer. The first released UI operation is document anonymization.
+same computer. It exposes anonymization plus all three registered document-
+processing workflows through the same public Python APIs used by the CLI.
 
 ### Supported processing types
 

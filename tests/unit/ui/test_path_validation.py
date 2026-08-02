@@ -69,3 +69,35 @@ def test_clear_output_rejects_a_source_nested_inside_output(tmp_path: Path) -> N
     )
 
     assert "unsafe_clear_output" in _codes(issues)
+
+
+def test_processing_paths_accept_a_new_output_directory(tmp_path: Path) -> None:
+    """Verify processing UI accepts an output directory created by the workflow.
+
+    Protected risk: the Streamlit adapter must not be stricter than the public
+    processing API for a normal first run.
+    """
+    from source_docs_processor.ui.path_validation import validate_processing_paths
+
+    source = tmp_path / "source"
+    source.mkdir()
+
+    issues = validate_processing_paths(source, tmp_path / "new-output")
+
+    assert issues == ()
+
+
+def test_processing_paths_reject_same_source_and_output(tmp_path: Path) -> None:
+    """Verify processing UI prevents ambiguous in-place folder execution.
+
+    Protected risk: using one folder for both sides can mix generated artifacts
+    into recursive discovery and make an accountant's input set unclear.
+    """
+    from source_docs_processor.ui.path_validation import validate_processing_paths
+
+    source = tmp_path / "source"
+    source.mkdir()
+
+    issues = validate_processing_paths(source, source)
+
+    assert _codes(issues) == {"source_equals_output"}

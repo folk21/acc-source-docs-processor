@@ -36,3 +36,9 @@ def test_streamlit_adapter_imports_without_running_the_application(monkeypatch) 
 
     assert callable(module.run_app)
     assert callable(app.run_app)
+    assert set(app._OPERATION_RENDERERS) == {
+        "anonymize",
+        "process_upd_invoices_status_1",
+        "process_npd_receipts",
+        "process_incoming_purchase_documents",
+    }
