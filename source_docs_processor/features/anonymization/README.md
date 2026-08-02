@@ -1,69 +1,50 @@
 # Anonymization feature
 
-## Purpose
-
 This feature creates privacy-safe local copies of supported documents. It owns
-configuration, PII detection, OCR-backed raster redaction, PDF rebuilding, DOCX
-sanitization, editable DOCX reconstruction, recursive folder processing, and the
-`anonymize` CLI adapter.
+configuration loading, text analysis, OCR-backed raster redaction, PDF rebuilding,
+DOCX sanitization, editable DOCX reconstruction, recursive folder processing,
+and the `anonymize` CLI adapter.
 
-## Public entry points
+## Public API
 
-- `source_docs_processor.features.anonymization.anonymize_folder`
-- `source_docs_processor.features.anonymization.load_anonymization_config`
-- `source_docs_processor.features.anonymization.command.register_anonymize_command`
+Supported entry points are exported through
+`source_docs_processor.features.anonymization`, including:
 
-External modules should import the package API. Format handlers, configuration
-matching, workflow machinery, and anonymization-only models are private
-implementation details exposed only through `api.py` when required by callers.
+- `anonymize_folder`;
+- `load_anonymization_config`;
+- `create_presidio_analyzer`;
+- public configuration, progress, result, and analyzer models.
 
-## Dependency rules
+Callers import the package facade. Format handlers and workflow implementation
+remain private under `_internal/`.
 
-- May import feature-neutral helpers from `source_docs_processor.core`.
-- Must not import `features.document_processing`.
-- The feature root contains only `api.py`, `command.py`, and package exports.
-- Configuration, models, workflow, text analysis, and format handlers belong
-  under `_internal/`.
-- Modules outside this feature must not import `anonymization._internal`.
-- No external network or cloud OCR calls are allowed.
-
-## Structure
+## Package map
 
 ```text
 anonymization/
-├── AGENTS.md
-├── README.md
-├── __init__.py
 ├── api.py                    # public programmatic surface
 ├── command.py                # CLI adapter
 └── _internal/
-    ├── config.py
-    ├── models.py
-    ├── workflow.py
-    ├── text.py
-    ├── image.py
-    ├── pdf.py
-    ├── docx.py
-    └── editable.py
+    ├── config.py             # INI rules and configured analyzers
+    ├── models.py             # private shared contracts
+    ├── workflow.py           # recursive planning and atomic output
+    ├── text.py               # Presidio integration and text transforms
+    ├── image.py              # OCR-coordinate raster redaction
+    ├── pdf.py                # image-only PDF rebuilding
+    ├── docx.py               # fail-closed OOXML sanitization
+    └── editable.py           # OCR-to-DOCX reconstruction
 ```
 
-## Invariants
+## Related documentation
 
-- Unsupported or opaque content fails closed.
-- Recognized PII values are never logged.
-- Source names and relative folders are preserved unless output conversion
-  requires deterministic collision handling.
-- PDF source text layers and metadata are not retained.
-- The output root inode is preserved by `--clearOutput`.
-
-## Development guide
-
-Read the local [`AGENTS.md`](AGENTS.md) before changing this feature.
+- [Installation](../../../docs/INSTALLATION.md)
+- [Anonymization usage](../../../docs/USAGE.md#anonymize-document-folders)
+- [Architecture](../../../docs/ARCHITECTURE.md#anonymization)
+- [Development invariants](AGENTS.md)
 
 ## Validation
 
 ```bash
 make test-anonymization
+make check
 ```
-
-Run `make check` before completion.

@@ -1,68 +1,39 @@
 # Local Streamlit UI
 
-## Purpose
-
-This package is an optional local adapter for non-technical users. It presents
-supported operations in a browser while calling the existing public Python APIs
-in the same local process.
+This package is an optional local adapter for non-technical users:
 
 ```text
 Streamlit UI -> public feature API -> existing workflow
-CLI          -> public feature API -> existing workflow
+CLI          -> feature command    -> existing workflow
 ```
 
 The first released UI operation is document anonymization.
 
-## Structure
+## Responsibilities
 
-```text
-streamlit_app.py
-source_docs_processor/ui/
-├── AGENTS.md
-├── README.md
-├── app.py
-├── anonymization.py
-├── config.py
-└── path_validation.py
-config/ui/
-├── ui_ru.ini
-└── ui_en.ini
-```
+The UI owns localized presentation, input validation, session state, privacy-safe
+progress, and result tables. It does not own OCR, redaction, document extraction,
+registry generation, or output policy.
 
-## Localization
+`streamlit_app.py` is the minimal entry point. Implementation modules live in
+`source_docs_processor/ui/`, while localized text and enabled operation order
+live in `config/ui/ui_<language>.ini`.
 
-The operation list, titles, descriptions, labels, help text, progress messages,
-result-table headings, and validation messages are loaded from
-`config/ui/ui_<language>.ini`.
+Configuration can enable and order known language-neutral operation identifiers.
+Executable handlers remain an explicit Python mapping.
 
-Russian is the default language. English can be selected in the interface or at
-launch:
+## User documentation
 
-```bash
-python -m streamlit run streamlit_app.py -- --lang en
-```
+- [Installation](../../docs/INSTALLATION.md)
+- [Usage](../../docs/USAGE.md#local-streamlit-interface)
 
-The language configuration controls only known operation identifiers. It cannot
-load arbitrary Python handlers.
+The UI is intended for localhost use on the computer that contains the source and
+output folders. Browser upload, remote storage, authentication, and background
+job queues are not part of the current adapter.
 
-## Dependencies and launch
+## Development
 
-Install the optional UI environment:
-
-```bash
-pip install -r requirements-ui.txt
-```
-
-Run from the project root:
-
-```bash
-python -m streamlit run streamlit_app.py -- --lang ru
-```
-
-The application is intended for localhost use on the same machine that contains
-the source and output folders. No browser upload or remote storage is included.
-
-## Validation
+Read the local [AGENTS.md](AGENTS.md) before changing the adapter.
 
 ```bash
 make test-ui

@@ -1,51 +1,28 @@
 # Incoming purchase documents
 
-## Purpose
+Reads incoming PDF/DOCX purchase documents for accountant entry into 1C. The
+current implementation recognizes UPD status `1`, extracts document and item
+data, links original files, and writes a task-oriented workbook plus report.
 
-Read incoming PDF/DOCX purchase documents for accountant entry into 1C. The
-current implementation recognizes UPD status `1`, extracts document and item data,
-links original files, and writes a task-oriented workbook plus report.
+## Package contract
 
-## Framework-facing modules
+- `definition.py` publishes the complete registered definition and metadata;
+- `processor.py` dispatches one PDF or DOCX file;
+- `workflow.py` owns recursive task-workbook behavior and source links;
+- `registry.py` defines document, item, review, and metadata rows;
+- `_internal/readers.py` owns native PDF/DOCX reading and OCR fallback;
+- `_internal/extractor.py` owns recognition, extraction, totals, and validation.
 
-The package root contains only integration modules:
+## User documentation
 
-- `definition.py` publishes the complete registered definition;
-- `processor.py` dispatches one PDF or DOCX source file;
-- `workflow.py` owns recursive task-workbook behavior;
-- `registry.py` defines document, item, review, and metadata rows.
+- [Installation](../../../../../docs/INSTALLATION.md)
+- [Usage](../../../../../docs/USAGE.md#incoming-purchase-documents)
 
-## Private implementation
+## Development
 
-`_internal/readers.py` reads native PDF/DOCX content and OCR fallback pages.
-`_internal/extractor.py` recognizes UPD status `1` and extracts document, party,
-item, total, and validation data. These modules are private to this document type.
-
-## Allowed dependencies
-
-Private modules may use public document models, root framework contracts,
-shared `document_processing._internal` helpers, and feature-neutral `core`
-primitives. They must not import another document type,
-anonymization, `definition.py`, `workflow.py`, or `registry.py`.
-
-## Key invariants
-
-- Prefer native PDF/DOCX text and tables before OCR fallback.
-- Reject explicit UPD status `2` and unsupported legacy `.doc` files.
-- Keep one document task linked to item rows through hidden `task_id` values.
-- Keep incomplete files visible in `Documents` and `Review`.
-- Keep numeric OKEI codes separate from textual units.
-- Report arithmetic conflicts without silently replacing extracted values.
-
-## Development guide
-
-Read the local [`AGENTS.md`](AGENTS.md) before changing this document type.
-
-## Validation
+Read [AGENTS.md](AGENTS.md) before changing this document type.
 
 ```bash
 make test-incoming-purchase-documents
+make check
 ```
-
-Run `make test-document-processing` when shared processing code changes,
-and run `make check` before completion.

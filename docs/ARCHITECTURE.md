@@ -1,94 +1,64 @@
 # Architecture
 
-`acc-source-docs-processor` is a local CLI for scanned and electronic accounting source documents.
-
-The CLI selects an operation first:
+`acc-source-docs-processor` is a local application with two independent
+operations and two outer adapters:
 
 ```text
-CLI subcommand
-  -> process
-      -> DocumentTypeDefinition
-          -> Processor
-          -> ProcessingWorkflow
-          -> RegistryDefinition
-  -> anonymize
-      -> recursive folder workflow
-          -> Presidio text analyzer
-          -> PDF / DOCX / image / text sanitizer
+CLI ----------> public feature API ----------> feature implementation
+Streamlit ----> public feature API ----------> feature implementation
 ```
 
-Document types belong to the `process` operation. Anonymization is an independent directory operation and is not registered as a document type.
+The UI and CLI select operations. Document types belong only to the `process`
+operation.
 
-Registered document types:
+```text
+process
+  -> DocumentTypeDefinition
+      -> Processor
+      -> ProcessingWorkflow
+      -> RegistryDefinition
 
-- `upd_invoices_status_1` — scan-oriented UPD status `1` processing and tax-report preparation;
-- `npd_receipts` — scanned NPD receipt processing;
-- `incoming_purchase_documents` — incoming purchase-document extraction for manual entry into 1C; the current scope is PDF/DOCX UPD status `1`.
+anonymize
+  -> recursive folder workflow
+      -> text analyzer
+      -> format-specific sanitizer
+```
 
-The default remains `upd_invoices_status_1`.
+## Architectural goals
 
-## Component boundaries
-
-A processor owns recognition and extraction for one input file. Two specialized protocols are available:
-
-- `DocumentProcessor` for images, orientation candidates, OCR, and continuation recognition;
-- `SourceFileProcessor` for structured or paged source files such as PDF and DOCX.
-
-A processor does not own recursive traversal, output directories, copying, reports, or registry serialization.
-
-A workflow owns:
-
-- recursive source-file selection;
-- output-directory policy;
-- copying and naming;
-- selection of documents written to registries;
-- report generation.
-
-A registry definition owns tabular shape and row mapping. Generic writers own CSV/XLSX serialization.
+- keep processing local and privacy-conscious;
+- keep the CLI and Streamlit adapter thin;
+- separate generic technical primitives from feature behavior;
+- separate one-file recognition from folder workflows and registry schemas;
+- keep document-type rules isolated;
+- expose small public APIs while keeping implementation packages private;
+- prefer explicit registration over plugin discovery while all implementations
+  live in this repository.
 
 ## Project structure
 
 ```text
-Makefile
-AGENTS.md
-streamlit_app.py
-config/ui/
-├── ui_ru.ini
-└── ui_en.ini
+main.py                         # CLI entry point
+streamlit_app.py                # local Streamlit entry point
+config/
+├── examples/                   # portable user configuration examples
+└── ui/                         # localized UI text and operation order
+docs/
+├── INSTALLATION.md             # platform installation and launch
+├── USAGE.md                    # commands, configuration, and outputs
+├── ARCHITECTURE.md             # this document
+├── ROADMAP.md                  # active and planned work
+└── CHANGELOG.md                # release history
 source_docs_processor/
-├── cli.py
-├── ui/                     # optional local Streamlit adapter
-│   ├── AGENTS.md
-│   ├── README.md
-│   ├── app.py
-│   ├── anonymization.py
-│   ├── config.py
-│   └── path_validation.py
-├── core/
-│   ├── files.py
-│   ├── images.py
-│   ├── paths.py
-│   └── text.py
+├── cli.py                      # feature command composition
+├── ui/                         # optional Streamlit adapter
+├── core/                       # feature-neutral technical primitives
 └── features/
     ├── anonymization/
-    │   ├── AGENTS.md
-    │   ├── README.md
-    │   ├── __init__.py
     │   ├── api.py
     │   ├── command.py
     │   └── _internal/
-    │       ├── config.py
-    │       ├── models.py
-    │       ├── workflow.py
-    │       ├── text.py
-    │       ├── image.py
-    │       ├── pdf.py
-    │       ├── docx.py
-    │       └── editable.py
     └── document_processing/
-        ├── AGENTS.md
-        ├── README.md
-        ├── __init__.py
         ├── api.py
         ├── command.py
         ├── models.py
@@ -98,492 +68,269 @@ source_docs_processor/
         ├── workflow_base.py
         ├── workflow_copy_and_register.py
         ├── _internal/
-        │   ├── service.py
-        │   ├── file_ops.py
-        │   ├── ocr.py
-        │   ├── date_normalization.py
-        │   ├── money_normalization.py
-        │   └── registry/
         └── document_types/
             ├── catalog.py
             ├── upd_invoices_status_1/
-            │   ├── AGENTS.md
-            │   ├── README.md
-            │   ├── definition.py
-            │   ├── processor.py
-            │   ├── registry.py
-            │   ├── workflow.py
-            │   └── _internal/
             ├── npd_receipts/
-            │   ├── AGENTS.md
-            │   ├── README.md
-            │   ├── definition.py
-            │   ├── processor.py
-            │   ├── registry.py
-            │   ├── workflow.py
-            │   └── _internal/
             └── incoming_purchase_documents/
-                ├── AGENTS.md
-                ├── README.md
-                ├── definition.py
-                ├── processor.py
-                ├── registry.py
-                ├── workflow.py
-                └── _internal/
 ```
 
-The dependency direction is deliberately small and explicit:
+## Dependency direction
 
 ```text
-cli -> feature command -> feature API -> feature _internal -> core
-streamlit adapter -> public feature API
+cli -> feature command -> public feature API -> feature _internal -> core
+ui  -> public feature API
+
 document-processing API -> internal composition service -> catalog
-catalog -> document type definition -> framework-facing modules -> type _internal
-core -X-> features
-core/features -X-> streamlit adapter
-streamlit adapter -X-> feature _internal
+catalog -> complete document type definition
+complete definition -> processor + workflow + registry -> type _internal
+```
+
+Forbidden directions:
+
+```text
+core -X-> features or ui
+features -X-> ui
+ui -X-> feature _internal
 one feature -X-> another feature's _internal
-shared processing _internal -X-> concrete document type _internal
+shared document processing -X-> concrete type _internal
 one concrete document type -X-> another concrete document type
 ```
 
-`core/` contains feature-neutral technical primitives whose meaning does not
-depend on a document type or operation. It owns safe filename and collision
-helpers, local OpenCV image I/O and geometry, whitespace normalization, and path
-relationships. A core module never imports a feature and its API contains no
-processor, workflow, registry, UPD, receipt, or invoice concepts.
+Architecture regression tests enforce these boundaries.
 
-A feature root is an integration map, not an implementation directory.
-Anonymization exposes only package exports, `api.py`, and `command.py` at its
-root. Document processing additionally exposes public extracted-document models,
-the visible `document_types/` catalog, and framework-facing composition,
-processor, registry, and workflow modules. Component injection, OCR containers,
-strict date/decimal normalizers, processing-specific file actions, registry
-writers, and format handlers live under the owning feature's `_internal/`
-package.
+## Core
 
-The public `process_folder()` API accepts runtime options, a registered
-document type identifier, and an optional synchronous progress callback. It
-returns a structured `ProcessingSummary` with output artifacts and aggregate
-counts while preserving legacy two-value unpacking. Internal integration tests use
-`document_processing/_internal/service.py::process_folder_with_components()` to
-inject fake processors, workflows, or registry definitions. This preserves
-testability without treating the project as an external plugin SDK.
+`source_docs_processor/core/` contains feature-neutral filesystem, image, path,
+and text primitives. A core helper must remain meaningful without knowing an
+operation, document type, processor, workflow, registry, UPD, receipt, or invoice
+concept.
 
-Strict date and decimal normalization is shared only inside the document-
-processing feature, so the two focused modules are flat under
-`document_processing/_internal/` rather than wrapped in a small
-`normalization/` package. They deliberately exclude OCR aliases, template-date
-filtering, source priorities, and positional table rules; those remain in the
-concrete document type that requires them.
+Core currently owns:
 
-Each feature and concrete document type contains a local `AGENTS.md` that narrows
-the root development policy with ownership, allowed dependencies, invariants,
-and focused validation targets. Adjacent technical `README.md` files describe
-the current package contract for human readers. Feature-private unit tests mirror
-feature `_internal/` packages. Framework extension points remain visible at the
-document-processing feature root, while concrete document type roots expose only
-`definition.py`, `processor.py`, `workflow.py`, and `registry.py`; OCR, readers,
-extraction, classification, validation, and other details live under the type's
-private `_internal/` package. Architectural tests enforce these boundaries.
+- safe filename and collision handling;
+- non-ASCII OpenCV image I/O;
+- image discovery, rotation, cropping, and neutral OCR preprocessing;
+- path relationship checks;
+- whitespace normalization.
 
-## Change ownership map
+## Feature boundaries
 
-Use the narrowest primary scope that owns the requested behavior. Shared changes
-are allowed only when the local contract is insufficient and the extracted
-behavior is genuinely reusable.
+A feature root is a public integration map. Stable public entry points and the
+CLI adapter remain visible; implementation details live under `_internal/`.
+Modules outside a feature must not import its `_internal` package.
 
-| Change type | Primary production scope | Allowed shared scope | Do not change by default | Focused validation |
-|---|---|---|---|---|
-| Feature-neutral files, paths, images, or whitespace | `source_docs_processor/core/` | none | feature business rules | `make test-core` |
-| Anonymization behavior or format support | `features/anonymization/` | `core/` | document processing and document types | `make test-anonymization` |
-| Shared processor, registry, workflow, composition, OCR container, or serializer behavior | `features/document_processing/` root or `_internal/` | `core/` | anonymization | `make test-document-processing` |
-| Scanned UPD status 1 OCR, extraction, continuation, naming, or registry behavior | `document_types/upd_invoices_status_1/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-upd` |
-| NPD receipt OCR, QR, naming, or workbook behavior | `document_types/npd_receipts/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-npd` |
-| Incoming PDF/DOCX purchase-document reading, extraction, validation, or workbook behavior | `document_types/incoming_purchase_documents/` | document-processing framework/internal modules, then `core/` | anonymization and other document types | `make test-incoming-purchase-documents` |
-| Public package exports, result models, function signatures, or framework extension contracts | feature `__init__.py`, `api.py`, public models, framework modules, public API tests | affected feature implementation | unrelated feature internals | `make test-public-api` |
-| Local Streamlit presentation, localization, path validation, or result tables | `streamlit_app.py`, `source_docs_processor/ui/`, `config/ui/` | public feature APIs only | feature `_internal`, OCR/business logic, CLI behavior | `make test-ui` |
-| CLI composition or cross-feature dependency rules | `cli.py`, feature `command.py`, architecture tests | affected feature APIs | feature internals unrelated to the command | `make test-architecture` |
+Detailed feature contracts are documented next to the code:
 
-A local task should normally change one row's primary scope. When a shared module
-changes, run the focused shared target as well as the original document-type or
-feature target. Every completed task runs `make check` before delivery.
+- [Anonymization feature](../source_docs_processor/features/anonymization/README.md)
+- [Document-processing feature](../source_docs_processor/features/document_processing/README.md)
+- [Local Streamlit adapter](../source_docs_processor/ui/README.md)
 
-## Local Streamlit adapter
+The nearest `AGENTS.md` contains development invariants and focused validation
+commands. This architecture document intentionally does not duplicate those
+rules.
 
-The optional UI is an outer adapter alongside the CLI:
+## Document-processing framework
+
+A complete `DocumentTypeDefinition` binds three independent components and its
+UI-facing metadata:
 
 ```text
-Streamlit UI -> public feature package API -> existing workflow
-CLI          -> feature command          -> existing workflow
+DocumentTypeDefinition
+├── processor factory
+├── workflow factory
+├── registry-definition factory
+└── DocumentTypeMetadata
 ```
 
-`streamlit_app.py` is the minimal entry point. `source_docs_processor/ui/` owns
-localized presentation, language and operation selection, path validation,
-privacy-safe progress rendering, and conversion of public result models into
-relative-path tables. It does not own OCR, redaction, document recognition,
-registry generation, or output policy.
+### Processor
 
-Static UI text and the ordered enabled-operation list are loaded from
-`config/ui/ui_<language>.ini`. Russian is the default and can be overridden with
-Streamlit script arguments such as `-- --lang en`. Configuration contains only
-known language-neutral operation identifiers; executable handlers remain an
-explicit Python mapping so configuration cannot import arbitrary code.
+A processor owns one input file:
 
-The first UI operation is anonymization. It calls the public anonymization
-package directly, caches the local Presidio/spaCy analyzer for repeated local
-runs, and displays only paths, counts, errors, and privacy-safe progress. Core
-and feature modules never import Streamlit or the UI package, so normal CLI
-installations do not require optional UI dependencies.
+- image orientation and OCR for scan processors;
+- native text, table reading, and OCR fallback for source-file processors;
+- field extraction, normalization, confidence, warnings, and recognition state.
 
-## Anonymization pipeline
+A processor does not own recursive traversal, output folders, copying, filenames,
+reports, or registry columns.
 
-`source_docs_processor/features/anonymization/` is independent from the document processing registry:
+### Processing workflow
+
+A workflow owns run-level behavior:
+
+- recursive source selection;
+- output-directory policy;
+- copying, linking, and filename policy;
+- continuation attachment where applicable;
+- selection of rows passed to registry writers;
+- report generation;
+- standard synchronous progress events.
+
+Every registered workflow emits `scan_started`, paired
+`file_started`/`file_finished`, `registry_written` when applicable, and
+`run_finished`. Events contain paths, counts, recognition/error state, and
+artifact paths, but no OCR text or extracted accounting values.
+
+### Registry definition and writer
+
+A registry definition owns columns and conversion of extracted documents into
+rows. Document-neutral writers own CSV/XLSX serialization and task-workbook
+mechanics.
+
+The task-workbook writer supports `Documents`, `Items`, `Review`, and hidden
+`_metadata` sheets without containing document-specific parsing rules.
+
+### Composition
+
+The public `process_folder()` function accepts runtime options, a registered
+document-type identifier, and an optional progress callback. It resolves the
+complete definition through the catalog and returns `ProcessingSummary`.
+
+Internal integration tests may use
+`document_processing._internal.service.process_folder_with_components()` for
+fake-component injection. Production and adapter code use the public API.
+
+## Concrete document types
+
+Each concrete document type exposes only framework-facing integration modules at
+its package root:
+
+```text
+<document_type>/
+├── definition.py
+├── processor.py
+├── workflow.py
+├── registry.py
+└── _internal/
+```
+
+Private OCR, parsing, source readers, classification, validation, and
+format-specific normalization live under the owning `_internal/` package.
+
+Current contracts are documented here:
+
+- [Scanned UPD status 1](../source_docs_processor/features/document_processing/document_types/upd_invoices_status_1/README.md)
+- [NPD receipts](../source_docs_processor/features/document_processing/document_types/npd_receipts/README.md)
+- [Incoming purchase documents](../source_docs_processor/features/document_processing/document_types/incoming_purchase_documents/README.md)
+
+## Anonymization
+
+Anonymization is independent from document-type registration:
 
 ```text
 source directory
-  -> recursive supported-file selection
-      -> configured mask/replacement analyzer or Presidio Russian NER
-          -> format-specific sanitizer
-              -> source-format output and/or requested editable output below the same relative folder
+  -> supported-file discovery
+      -> configured analyzer or Presidio analyzer
+          -> PDF / DOCX / TXT / raster sanitizer
+              -> atomic output below the matching relative folder
 ```
 
-`anonymization/_internal/text.py` configures `ru_core_news_sm` through Presidio's `SpacyNlpEngine`, maps Russian spaCy labels to Presidio entities, and registers Russian accounting and identity patterns. Detected spans are normalized into the project-owned `DetectedEntity` model so tests do not require real NLP models.
+The public API owns configuration and summary contracts. Private modules own
+configuration parsing, text transformation, recursive planning, raster OCR,
+PDF rebuilding, DOCX package sanitization, and editable DOCX reconstruction.
 
-`anonymization/_internal/config.py` loads `excluded`, masked `included`, `includedAndReplaced` pseudonym rules, and `includedParagraphs` from an INI file. A non-empty `included` or `includedAndReplaced` list enables configured-only mode, bypasses Presidio and `excluded`, and supports flexible whitespace inside multiword sources. Replacement entries use `source -> replacement` syntax and take priority over an identical masked include. Optional `includedFuzzy` and `includedFuzzyMaxErrors` settings add bounded OCR-only edit-distance matching for raster content while native TXT and DOCX text remains exact. OCR matching also normalizes common Latin/Cyrillic lookalikes. When both configured include lists are empty, Presidio remains the base analyzer and `excluded` subtracts explicit false-positive ranges. Section headings operate independently and activate full redaction below the heading and across later raster pages.
+The operation is fail-closed. Unsupported formats and opaque active or embedded
+content are not copied unchanged. Progress and logs do not expose detected PII
+values.
 
-`anonymization/_internal/image.py` runs local Tesseract OCR against four orientation candidates, retains both original redaction coordinates and upright layout coordinates, maps detected text spans back to original pixels, draws opaque masks or privacy-safe replacement text, and writes images without source metadata.
+Operational configuration and output behavior are documented in
+[Usage](USAGE.md), while implementation invariants remain in the local feature
+guide.
 
-`anonymization/_internal/editable.py` creates editable DOCX output. Its default mode writes plain masked OCR text. The optional `preserve` layout mode groups Tesseract words into lines and approximates source page dimensions, orientation, horizontal placement, vertical spacing, and font sizes. It never embeds the source scan as a background image. Native DOCX input continues through the OOXML sanitizer so existing formatting is retained where possible.
+## Local Streamlit adapter
 
-`anonymization/_internal/pdf.py` renders each page, delegates pixel redaction to the image sanitizer, and creates a new image-only PDF. It intentionally does not preserve the source text layer, annotations, attachments, forms, or metadata because those channels may contain recoverable private data.
-
-`anonymization/_internal/docx.py` processes the OOXML ZIP package directly. It masks or replaces paragraph text across run boundaries, sanitizes remaining XML text and author attributes, strips core/custom metadata, removes external relationships and custom XML, and transforms supported embedded raster images. It rejects opaque embedded or active content instead of copying it unchanged.
-
-`anonymization/_internal/workflow.py` preserves relative paths, writes each output atomically, and excludes generated files only when the output directory is nested below the source tree. An output directory that is an ancestor of the source remains valid, including `--output .` runs launched from the destination directory. A zero-file effective scan fails with resolved path diagnostics instead of returning a misleading successful summary. The workflow emits privacy-safe file/page progress events and records failures without logging recognized values. Optional dual-output mode writes the anonymized source format plus the requested editable format, skips a redundant second artifact when both formats match, and resolves converted-name collisions deterministically. If either requested variant fails, all artifacts for that source file are removed. Unsupported files remain absent from output and cause a non-zero command result.
-
-## Document-processing framework boundary
-
-Concrete document types import their extension contracts from visible feature-root
-modules:
-
-- `processor_base.py` for processor protocols and reusable base defaults;
-- `registry_base.py` for the document-specific registry schema protocol;
-- `workflow_base.py` and `workflow_copy_and_register.py` for folder workflows;
-- `document_type_definition.py` for registered component composition.
-
-These modules are visible because concrete `processor.py`, `registry.py`,
-`workflow.py`, and `definition.py` modules depend on them directly. Component
-injection, file actions, OCR containers, value normalizers, and registry
-serializers remain private under `_internal/`.
-
-## Document type registry
-
-`source_docs_processor/features/document_processing/document_type_definition.py` defines the common `DocumentTypeDefinition` framework contract. Each concrete package exports one complete definition from `definition.py`, and `source_docs_processor/features/document_processing/document_types/catalog.py` registers only those definitions:
+The optional UI is an outer adapter, not a feature implementation:
 
 ```text
-upd_invoices_status_1
-  -> UpdInvoicesStatus1Processor
-  -> UpdInvoicesStatus1Workflow
-  -> UpdInvoicesStatus1RegistryDefinition
-
-npd_receipts
-  -> NpdReceiptProcessor
-  -> NpdReceiptRegistryWorkflow
-  -> NpdReceiptRegistryDefinition
-
-incoming_purchase_documents
-  -> IncomingPurchaseDocumentsProcessor
-  -> IncomingPurchaseDocumentsWorkflow
-  -> IncomingPurchaseDocumentsRegistryDefinition
+streamlit_app.py -> source_docs_processor.ui -> public feature package API
 ```
 
-The explicit catalog remains preferable to plugin discovery while all processors live inside the document-processing feature.
+It owns localized presentation, input validation, session state, progress
+rendering, and privacy-safe result tables. OCR, redaction, document extraction,
+registry generation, and output policy remain in features.
 
-## Generic models
+Localized text and enabled operation order are stored in
+`config/ui/ui_<language>.ini`. Configuration may select only known
+language-neutral operation identifiers; executable handlers remain an explicit
+Python mapping.
 
-`ExtractedDocument` contains common accounting concepts:
+Streamlit remains an optional dependency. CLI-only installations use
+`requirements.txt`; UI installations use `requirements-ui.txt`.
 
-- document identity and recognition state;
-- issuer and recipient details;
-- net, tax, and gross amounts;
-- currency and description;
-- confidence, warnings, errors, and output path;
-- continuation metadata for scan workflows;
-- `items` for repeating goods or service rows;
-- `extra_fields` for document-specific scalar values.
+## Public models
 
-`ExtractedDocumentItem` contains:
+`ExtractedDocument` contains document identity, recognition state, parties,
+amounts, description, warnings, errors, continuation metadata, repeating items,
+and document-specific scalar `extra_fields`.
 
-- line number and name;
-- unit, quantity, and unit price;
-- amount without tax, tax rate, tax amount, and total amount;
-- confidence and line-level warnings.
+`ExtractedDocumentItem` contains repeating goods or service row values.
+Repeating rows must not be encoded into `extra_fields`.
 
-Repeating item data must not be placed in `extra_fields`.
+`ProcessingSummary` provides source/output roots, recognized and complete
+documents, registry/report paths, aggregate counts, and generated artifacts. Its
+iterator preserves legacy two-value unpacking.
 
-## Registry writers
+`DocumentTypeMetadata` lets adapters build selectors and capability-aware
+controls without constructing OCR processors.
 
-`features/document_processing/_internal/registry/csv_writer.py` writes document-neutral UTF-8 BOM semicolon-separated CSV files.
+## Change ownership
 
-`features/document_processing/_internal/registry/xlsx_writer.py` writes ordinary single-sheet XLSX registries with formatted values and portable external links.
+| Change | Primary scope | Focused validation |
+|---|---|---|
+| Neutral files, paths, images, or whitespace | `source_docs_processor/core/` | `make test-core` |
+| Anonymization behavior or formats | `features/anonymization/` | `make test-anonymization` |
+| Shared processing framework or serializers | `features/document_processing/` | `make test-document-processing` |
+| Scanned UPD behavior | `document_types/upd_invoices_status_1/` | `make test-upd` |
+| NPD receipt behavior | `document_types/npd_receipts/` | `make test-npd` |
+| Incoming PDF/DOCX behavior | `document_types/incoming_purchase_documents/` | `make test-incoming-purchase-documents` |
+| Local UI, localization, or UI validation | `streamlit_app.py`, `source_docs_processor/ui/`, `config/ui/` | `make test-ui` |
+| Public APIs or framework contracts | affected public modules and API tests | `make test-public-api` |
+| CLI composition or dependency boundaries | `cli.py`, feature commands, architecture tests | `make test-architecture` |
 
-`features/document_processing/_internal/registry/task_workbook.py` writes accountant task workbooks with:
+Run `make check` before completing every change.
 
-- a `Documents` sheet;
-- an `Items` sheet;
-- a `Review` sheet;
-- a hidden `_metadata` sheet;
-- list-validated binary processing fields;
-- hidden internal identifier columns with header comments;
-- links to original source documents.
+## Testing layout
 
-The task workbook writer receives sheet columns and row builders from a document-specific definition. It does not contain UPD parsing rules.
-
-## Scan-oriented UPD status 1
-
-### Processor
-
-`features/document_processing/document_types/upd_invoices_status_1/processor.py` owns image-level recognition:
-
-- 0°, 90°, 180°, and 270° attempts;
-- targeted status, number, date, and shipment-row OCR;
-- field extraction and orientation scoring;
-- conservative continuation recognition.
-
-### Private extraction boundary
-
-The package root exposes only the registered definition, processor, workflow, and
-registry. `processor.py` delegates UPD-specific OCR and extraction to `_internal/`.
-
-`_internal/extractor.py` is an assembly layer. It combines prepared OCR, focused
-extraction results, classification, confidence, and warnings into
-`ExtractedDocument`; it does not own detailed regex or candidate-selection rules.
-Identity processing remains split across private number, date, shipment-row, and
-source-selection modules. Continuation, classification, parties, amounts, transport
-fields, confidence, crop coordinates, and targeted OCR also have focused private
-modules. Matching unit tests live under
-`tests/unit/upd_invoices_status_1/_internal/`.
-
-### Workflow
-
-The workflow preserves:
-
-- output folder `передаточные_документы`;
-- corrected and renamed image copies;
-- source subfolders;
-- continuation-page attachment;
-- detailed CSV and text report generation.
-
-### Preserved OCR rules
-
-- Prefer structured targeted crops over one global OCR pass.
-- Use `Документ об отгрузке` as a high-priority number/date source.
-- Replace suspiciously short values such as `4` with reliable values such as `405`.
-- Correct over-read values such as `43007` or `4977` when a shorter reliable candidate exists.
-- Reject the form-template date `02-04-2021` when it comes from regulation text.
-- Recognize a standalone first page before testing continuation markers.
-- Preserve auto-rotation and debug-crop support.
-
-This document type is intentionally not part of the accountant task queue because its purpose is scan selection and report preparation rather than entering documents into 1C.
-
-## Incoming purchase documents
-
-### Source readers
-
-`features/document_processing/document_types/incoming_purchase_documents/_internal/readers.py` supports:
-
-- PDF native text extraction with PyMuPDF;
-- PDF table detection with PyMuPDF when table structure is available;
-- OCR fallback for PDF pages without a useful text layer;
-- optional forced PDF OCR with `--deep-ocr`;
-- DOCX paragraphs and table extraction with `python-docx`.
-
-No network calls are used. Legacy `.doc` files are outside the supported input contract.
-
-### Processor
-
-`IncomingPurchaseDocumentsProcessor` owns one PDF/DOCX file and extracts:
-
-- UPD status and invoice-transfer markers;
-- number and date;
-- seller and buyer names, INNs, and KPPs;
-- structured goods or service rows;
-- net, VAT, and gross totals;
-- line and document arithmetic warnings.
-
-An explicit status `2` document is rejected. A file with incomplete extraction remains visible and is marked for review rather than silently omitted.
-
-### Workflow
-
-`IncomingPurchaseDocumentsWorkflow`:
-
-- scans `.pdf` and `.docx` recursively;
-- references original source files without copying unchanged PDF/DOCX inputs;
-- assigns a stable task UUID derived from relative path and file content;
-- writes `реестр_упд_для_ввода_в_1с.xlsx`;
-- writes directly into an explicit `--output` directory unless a target name is requested;
-- uses duplicate-safe workbook and report names on repeated runs;
-- writes a text report.
-
-Without `--output`, the default output folder is `упд_для_ввода_в_1с`.
-
-### Workbook contract
-
-`Documents` contains one task per source file. `processed` is a binary `Нет`/`Да` dropdown initially set to `Нет`. It belongs to the complete UPD, not to individual goods rows.
-
-`Items` contains one row per extracted goods or service line and links rows to the document through `task_id`. The `task_id` columns are hidden and carry an English header comment explaining that the value is an internal stable identifier.
-
-The item parser rejects the official row of column designators such as `1а` and distinguishes numeric OKEI codes from textual units such as `шт` or `кг`. Numeric codes are not exported as unit names.
-
-`Review` contains document warnings, missing required fields, status conflicts, extraction errors, and line arithmetic conflicts.
-
-`_metadata` contains:
-
-```text
-registry_schema = incoming_purchase_documents_tasks
-registry_schema_version = 2
-document_type = incoming_purchase_documents
-```
-
-This metadata is intended for a later task-summary generator that reads multiple working workbooks without relying only on visible sheet labels.
-
-## NPD receipts
-
-The NPD processor delegates OCR, receipt extraction, and local QR parsing to `_internal/`. Its workflow copies all images, renames recognized receipts, preserves relative subfolders, and writes the compact eight-column `npd_receipts_registry.xlsx` workbook. An explicit `--output` directory is the final artifact directory unless `--target-dir-name` requests an additional nested folder. The NPD workflow does not generate a text report.
-
-Only `target_file_name` is a hyperlink. Receipt-number extraction requires an explicit label, and the first INN in receipt order is treated as the self-employed issuer INN.
-
-Local QR decoding utilities exist but are not integrated into receipt processing.
-
-## Embedded adapter API
-
-Local adapters such as Streamlit call the feature package directly. They do not
-invoke `main.py` through a subprocess and do not import private services.
-
-`ProcessingSummary` is the public run result. It owns the source/output roots,
-document type, recognized and complete document collections, registry/report
-paths, aggregate count properties, and a de-duplicated `generated_files` view.
-Its iterator preserves the historical `(found_documents, all_documents)`
-unpacking contract.
-
-`ProcessingProgress` is a privacy-conscious synchronous event model. All
-registered workflows emit `scan_started`, `file_started`, `file_finished`,
-`registry_written` when applicable, and `run_finished`. Events contain only file
-position/path, recognition/error state, and output artifact paths. They do not
-contain OCR text or extracted accounting fields. A callback exception propagates
-to the caller, so UI callbacks must be small and reliable.
-
-Each `DocumentTypeDefinition` owns `DocumentTypeMetadata`. The catalog exposes
-`DOCUMENT_TYPE_METADATA` and `get_document_type_metadata()` without constructing
-processors, allowing adapters to build selectors and capability-dependent controls
-without duplicating document-type knowledge.
-
-## CLI orchestration
-
-`source_docs_processor/cli.py` owns only top-level operation selection:
-
-1. create the root parser;
-2. register command parsers;
-3. parse the selected subcommand;
-4. invoke its command handler;
-5. convert unexpected failures into a stable non-zero exit code.
-
-`source_docs_processor/features/document_processing/api.py` owns the stable reusable `process_folder()` API. `source_docs_processor/features/document_processing/command.py` owns processing arguments and adapts them to that API. The public API forwards runtime options and an optional progress callback to `_internal/service.py`, which resolves a complete definition from the catalog, creates the processor, workflow, and registry definition, builds `ProcessingOptions`, and runs the selected workflow. The service adapts the framework `ProcessingResult` into the public `ProcessingSummary`, including registry/report paths and copied outputs. Optional component injection exists only on the internal service for deterministic integration tests.
-
-`source_docs_processor/features/anonymization/command.py` accepts source and output directories, an optional editable DOCX output type, `preserve` layout mode, and optional dual source-format output, creates the local Presidio analyzer when required, runs the recursive anonymization workflow, and returns a non-zero code when any source file fails. It has no document-type argument. PDF and raster pages are OCRed into masked editable text; preserve mode approximates layout without embedding original page images.
-
-No document-specific branch belongs in the CLI or command handlers. Document-type behavior remains in the explicit document-type registry and its selected components.
-
-## Example scripts
-
-Example command wrappers live under `scripts/examples/` rather than the project root:
-
-```text
-scripts/examples/
-├── process_upd_scans.sh
-├── process_npd_receipts.sh
-├── process_incoming_purchase_documents.sh
-└── anonymize_document.sh
-```
-
-The folder contains replaceable path templates, not environment-specific production configuration. The anonymization script uses directory paths and preserves relative file names below the selected output root.
-
-## Testing
-
-Tests mirror both feature and document-type public/private splits:
+Tests mirror production ownership:
 
 ```text
 tests/
 ├── unit/
+│   ├── core/
 │   ├── anonymization/
-│   │   ├── test_api.py
-│   │   ├── test_command.py
 │   │   └── _internal/
-│   │       └── test_*.py
 │   ├── document_processing/
-│   │   ├── test_api.py
-│   │   ├── test_document_types.py
-│   │   ├── test_framework_api.py
-│   │   ├── test_processor_base.py
-│   │   ├── test_workflows.py
 │   │   └── _internal/
-│   │       ├── test_normalization.py
-│   │       └── test_ocr.py
-│   ├── incoming_purchase_documents/
+│   ├── ui/
+│   ├── upd_invoices_status_1/
 │   │   └── _internal/
 │   ├── npd_receipts/
 │   │   └── _internal/
-│   ├── upd_invoices_status_1/
-│   │   └── _internal/
-│   ├── test_public_api.py
-│   └── test_package_boundaries.py
+│   └── incoming_purchase_documents/
+│       └── _internal/
 └── integration/
     ├── anonymization/
-    ├── incoming_purchase_documents/
-    ├── npd_receipts/
     ├── upd_invoices_status_1/
-    └── test_pipeline_with_fake_processor.py
+    ├── npd_receipts/
+    └── incoming_purchase_documents/
 ```
 
-Private configuration, format, workflow, OCR, parser, reader, and infrastructure
-tests live under the matching `_internal/` test package. Command, public API, public model, catalog, framework-facing filename, and
-registered-workflow tests remain at the matching feature or document-type test
-root. Cross-feature root package and CLI API tests remain directly under
-`tests/unit/`. Synthetic component-injection tests
-import the internal composition service explicitly.
+Most tests use prepared text, fake processors, generated images, and synthetic
+PDF/DOCX files. Real OCR tests are optional and must use synthetic or confirmed
+anonymized fixtures.
 
-The suite uses prepared OCR/text tests, synthetic PDF and DOCX files, generated images, fake processors, workbook contract checks, and factory tests for all registered definitions. Real accounting documents, names, INNs/KPPs, addresses, and private debug output must not be committed.
+## Documentation ownership
 
-The root `Makefile` standardizes local and complete validation:
+Documentation has one primary purpose per file:
 
-```bash
-make test-public-api
-make test-anonymization
-make test-document-processing
-make test-upd
-make test-npd
-make test-incoming-purchase-documents
-make check
-```
+- `README.md` — compact project overview and entry points;
+- `docs/INSTALLATION.md` — platform setup and launch;
+- `docs/USAGE.md` — user commands, configuration, and outputs;
+- `docs/ARCHITECTURE.md` — system boundaries and ownership;
+- `docs/ROADMAP.md` — active and planned work;
+- `docs/CHANGELOG.md` — historical completed changes;
+- local `README.md` files — package contracts close to code;
+- `AGENTS.md` files — engineering rules and protected invariants.
 
-Local targets accelerate iteration; they do not replace `make check` before a
-change is completed.
-
-Public API regression tests deliberately pin:
-
-- exact feature-package and framework-module `__all__` exports;
-- `process_folder()`, anonymization helpers, and CLI callable signatures;
-- public dataclass field names and constructor order;
-- registered document-type identifiers and defaults;
-- processor, registry, workflow, and copy/register extension hooks.
-
-A compatibility change must update implementation, documentation, and these
-tests together rather than widening the API accidentally.
-
-## Anonymization output cleanup
-
-`--clearOutput` removes existing files and symlinks while preserving the output
-root and existing directory objects. This prevents the Unix/macOS stale-current-
-directory behavior caused by deleting and recreating a directory that is open in
-another terminal. Cleanup is rejected when source is nested below output.
+A topic should be explained in its owning document and linked elsewhere instead
+of being copied into multiple files.

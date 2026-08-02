@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Documentation ownership and platform installation
+
+### Added
+
+- Added `docs/INSTALLATION.md` with GitHub download/clone steps, virtual-environment setup, Tesseract language verification, dependency profiles, Streamlit launch, update instructions, and troubleshooting for Windows, Linux, and macOS.
+- Added `docs/USAGE.md` as the single user-facing source for CLI commands, processing workflows, anonymization configuration, output modes, and safe cleanup.
+
+### Changed
+
+- Reduced the root README to a compact overview, quick start, privacy notice, and documentation index.
+- Refocused architecture, roadmap, root development rules, and local package README files on their owning concerns and replaced repeated explanations with links.
+- Kept application behavior, public APIs, CLI options, Streamlit behavior, registries, and output formats unchanged.
+
 ## 0.25.0 — Localized Streamlit anonymization UI
 
 ### Added
