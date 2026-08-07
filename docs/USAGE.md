@@ -231,10 +231,18 @@ Rules:
 
 - `entityDetectionMode` accepts `automatic`, `configured`, `combined`, or
   `disabled`;
-- `automatic` uses local Presidio with Russian and English spaCy NER plus the
-  built-in project recognizers and ignores `included` and
-  `includedAndReplaced`; English personal names and common international phone
-  numbers beginning with `+` are included in automatic detection;
+- `automatic` uses a targeted privacy set from local Presidio with Russian and
+  English spaCy NER plus project recognizers and ignores `included` and
+  `includedAndReplaced`; it masks multiword names/organizations/locations,
+  Russian identifiers, bank/card identifiers, email/IP values, document or
+  vehicle identifiers, and explicit phone patterns including common
+  international numbers beginning with `+`;
+- automatic detection intentionally does not request broad Presidio date/time or
+  generic phone recognizers, so receipt amounts, dates, totals, and ordinary
+  financial text remain available for recognition; single-token NER guesses are
+  ignored to reduce false positives such as ordinary receipt headings;
+- when a real single-word proper name must be hidden, add it explicitly through
+  `included` or `includedAndReplaced` and use `combined` mode;
 - `configured` uses only `included` and `includedAndReplaced` and does not load
   Presidio/spaCy;
 - `combined` uses automatic detections plus configured rules; configured spans

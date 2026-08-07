@@ -43,6 +43,11 @@ Modules outside anonymization must not import this `_internal/` package.
   historical inferred behavior.
 - Automatic detection uses both Russian and English local spaCy NER. Do not
   silently fall back to one language when a required model is unavailable.
+- Keep automatic detection targeted to privacy entities. Do not enable broad
+  Presidio recognizers that can mask receipt amounts, dates, or ordinary text
+  without a regression demonstrating the need.
+- Reject single-token PERSON/ORGANIZATION/LOCATION NER guesses in automatic
+  detection; use explicit configured rules for known single-word proper names.
 - Keep international `+` phone recognition language-neutral and regression-tested.
 - In `combined` mode, explicit `included` and `includedAndReplaced` spans take
   priority over overlapping automatic detections; `excluded` filters only the

@@ -104,11 +104,24 @@ class _FakePresidioEngine:
     def __init__(self, results_by_language: dict[str, list[_FakePresidioResult]]) -> None:
         self.results_by_language = results_by_language
         self.calls: list[str] = []
+        self.requested_entities: list[tuple[str, ...]] = []
 
-    def analyze(self, *, text: str, language: str, score_threshold: float):
-        """Record the requested language and return prepared results."""
+    def analyze(
+        self,
+        *,
+        text: str,
+        language: str,
+        entities: list[str],
+        score_threshold: float,
+    ):
+        """Record the requested language/entity scope and return prepared results."""
         self.calls.append(language)
-        return self.results_by_language.get(language, [])
+        self.requested_entities.append(tuple(entities))
+        return [
+            result
+            for result in self.results_by_language.get(language, [])
+            if result.entity_type in entities
+        ]
 
 
 def test_presidio_analyzer_combines_russian_and_english_ner_results() -> None:
@@ -148,6 +161,82 @@ def test_presidio_analyzer_combines_russian_and_english_ner_results() -> None:
         (russian_start, russian_start + len("Иван Петров"), "PERSON"),
         (english_start, english_start + len("John Smith"), "PERSON"),
     ]
+
+
+def test_presidio_analyzer_requests_only_targeted_privacy_entities() -> None:
+    """Verify automatic mode does not ask Presidio for broad numeric entities.
+
+    Protected risk: receipt amounts and ordinary financial text must remain
+    available for downstream recognition instead of being hidden by unrelated
+    generic Presidio recognizers.
+    """
+    engine = _FakePresidioEngine({"ru": [], "en": []})
+
+    PresidioTextAnalyzer(engine).analyze("ИТОГО 1 234,56")
+
+    assert len(engine.requested_entities) == 2
+    for requested in engine.requested_entities:
+        assert "PERSON" in requested
+        assert "RU_INN" in requested
+        assert "INTERNATIONAL_PHONE_NUMBER" in requested
+        assert "CREDIT_CARD" in requested
+        assert "IBAN_CODE" in requested
+        assert "PHONE_NUMBER" not in requested
+        assert "DATE_TIME" not in requested
+
+
+def test_presidio_analyzer_preserves_receipt_amounts_from_broad_phone_detection() -> None:
+    """Verify receipt amounts survive broad default recognizer false positives.
+
+    Protected risk: generic phone/date recognizers may interpret grouped numeric
+    receipt values as PII and hide the amounts needed for downstream analysis.
+    """
+    text = "ИТОГО 1 234,56"
+    amount_start = text.index("1 234,56")
+    broad_results = [
+        _FakePresidioResult(
+            amount_start,
+            amount_start + len("1 234,56"),
+            "PHONE_NUMBER",
+            0.75,
+        )
+    ]
+    engine = _FakePresidioEngine({"ru": broad_results, "en": broad_results})
+    analyzer = PresidioTextAnalyzer(engine)
+
+    masked, entities = mask_text(text, analyzer)
+
+    assert masked == text
+    assert entities == []
+
+
+def test_presidio_analyzer_rejects_single_token_ner_false_positives() -> None:
+    """Verify isolated receipt words are not masked as names or organizations.
+
+    Protected risk: NER can misclassify ordinary words such as receipt headings
+    as PERSON, ORGANIZATION, or LOCATION, destroying content needed for LLM
+    recognition experiments.
+    """
+    text = "Внимание билете кассовый Иван Петров John Smith"
+    fragments = (
+        ("Внимание", "PERSON"),
+        ("билете", "LOCATION"),
+        ("кассовый", "ORGANIZATION"),
+        ("Иван Петров", "PERSON"),
+        ("John Smith", "PERSON"),
+    )
+    results = []
+    for fragment, entity_type in fragments:
+        start = text.index(fragment)
+        results.append(
+            _FakePresidioResult(start, start + len(fragment), entity_type, 0.80)
+        )
+    engine = _FakePresidioEngine({"ru": results, "en": []})
+
+    entities = PresidioTextAnalyzer(engine).analyze(text)
+
+    detected_text = [text[entity.start : entity.end] for entity in entities]
+    assert detected_text == ["Иван Петров", "John Smith"]
 
 
 def test_international_phone_pattern_accepts_common_plus_prefixed_formats() -> None:

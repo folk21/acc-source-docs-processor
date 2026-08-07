@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 
 from .models import DetectedEntity, TextEntityAnalyzer
@@ -9,6 +10,29 @@ from .models import DetectedEntity, TextEntityAnalyzer
 
 MASK_CHARACTER = "█"
 _INTERNATIONAL_PHONE_PATTERN = r"(?<![\w+])\+\d(?:[\s().-]*\d){7,14}(?!\d)"
+_AUTOMATIC_ENTITY_TYPES = (
+    "PERSON",
+    "ORGANIZATION",
+    "LOCATION",
+    "RU_INN",
+    "RU_KPP",
+    "RU_OGRN",
+    "RU_SNILS",
+    "RU_PASSPORT",
+    "RU_BANK_ACCOUNT",
+    "RU_BIK",
+    "RU_PHONE_NUMBER",
+    "INTERNATIONAL_PHONE_NUMBER",
+    "CREDIT_CARD",
+    "IBAN_CODE",
+    "EMAIL_ADDRESS",
+    "IP_ADDRESS",
+    "VEHICLE_REGISTRATION",
+    "VIN",
+    "DOCUMENT_NUMBER",
+)
+_NER_ENTITY_TYPES = frozenset({"PERSON", "ORGANIZATION", "LOCATION"})
+_NAME_TOKEN_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё]+(?:[-'][A-Za-zА-Яа-яЁё]+)?")
 
 
 def merge_entities(
@@ -154,8 +178,17 @@ def mask_text(
     return transform_text(text, analyzer)
 
 
+def _keep_automatic_result(text: str, result) -> bool:
+    """Keep only precise automatic PII detections suitable for document sharing."""
+    if result.entity_type not in _NER_ENTITY_TYPES:
+        return True
+
+    fragment = text[result.start : result.end]
+    return len(_NAME_TOKEN_PATTERN.findall(fragment)) >= 2
+
+
 class PresidioTextAnalyzer:
-    """Adapt multilingual Microsoft Presidio results to the project protocol."""
+    """Adapt targeted multilingual Microsoft Presidio results to the project protocol."""
 
     def __init__(
         self,
@@ -166,7 +199,7 @@ class PresidioTextAnalyzer:
         self._languages = languages
 
     def analyze(self, text: str) -> Sequence[DetectedEntity]:
-        """Detect PII by combining results from every configured NLP language."""
+        """Detect targeted PII while preserving ordinary document content."""
         if not text.strip():
             return []
 
@@ -175,6 +208,7 @@ class PresidioTextAnalyzer:
             results = self._engine.analyze(
                 text=text,
                 language=language,
+                entities=list(_AUTOMATIC_ENTITY_TYPES),
                 score_threshold=0.30,
             )
             entities.extend(
@@ -185,6 +219,7 @@ class PresidioTextAnalyzer:
                     score=float(result.score),
                 )
                 for result in results
+                if _keep_automatic_result(text, result)
             )
         return merge_entities(entities, len(text))
 
@@ -263,7 +298,7 @@ def _add_pattern_recognizers(engine) -> None:
             ("бик",),
         ),
         (
-            "PHONE_NUMBER",
+            "RU_PHONE_NUMBER",
             (
                 Pattern(
                     "Russian phone",
@@ -353,7 +388,7 @@ def _add_pattern_recognizers(engine) -> None:
     for language in ("ru", "en"):
         engine.registry.add_recognizer(
             PatternRecognizer(
-                supported_entity="PHONE_NUMBER",
+                supported_entity="INTERNATIONAL_PHONE_NUMBER",
                 patterns=[international_phone_pattern],
                 context=list(phone_context),
                 supported_language=language,

@@ -24,8 +24,9 @@ keeps only a compact foundation summary plus current and planned work.
 - [x] Provide local fail-closed anonymization for PDF, DOCX, TXT, and raster
   images with configured masking/replacement and Presidio mode.
 - [x] Provide configurable anonymization entity-detection modes for automatic,
-  configured, combined, and disabled entity sources, with Russian/English NER
-  and international phone recognition in automatic detection.
+  configured, combined, and disabled entity sources, with targeted
+  Russian/English NER, explicit privacy recognizers, and international phone
+  recognition that preserves receipt amounts and ordinary text.
 - [x] Provide a localized local Streamlit interface for anonymization and all
   registered document-processing workflows.
 - [x] Provide platform installation and centralized usage documentation.

@@ -231,12 +231,17 @@ configuration parsing, text transformation, recursive planning, raster OCR,
 PDF rebuilding, DOCX package sanitization, and editable DOCX reconstruction.
 
 `entityDetectionMode` controls which entity sources participate in text
-redaction. Automatic detection uses local Presidio with Russian and English
-spaCy NER plus project pattern recognizers, including international `+` phone
-numbers; configured detection uses `included` and `includedAndReplaced`;
-combined mode composes both with configured spans taking precedence over
-overlapping automatic spans. `excluded` applies only to automatic detections,
-while `includedParagraphs` remains independent from entity detection.
+redaction. Automatic detection uses a deliberately narrow privacy entity set
+from local Presidio with Russian and English spaCy NER plus project pattern
+recognizers. Broad generic date/time and phone recognizers are not requested,
+and single-token PERSON/ORGANIZATION/LOCATION NER guesses are rejected. This
+preserves amounts, totals, dates, and ordinary document text while retaining
+targeted identifiers, bank/card data, contacts, multiword names, and explicit
+phone patterns. Configured detection uses `included` and
+`includedAndReplaced`; combined mode composes both with configured spans taking
+precedence over overlapping automatic spans. `excluded` applies only to
+automatic detections, while `includedParagraphs` remains independent from
+entity detection.
 
 The operation is fail-closed. Unsupported formats and opaque active or embedded
 content are not copied unchanged. Progress and logs do not expose detected PII

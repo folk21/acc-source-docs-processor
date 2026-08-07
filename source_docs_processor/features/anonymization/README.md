@@ -8,8 +8,11 @@ and the `anonymize` CLI adapter.
 `entityDetectionMode` selects whether entity masking comes from local
 Presidio/spaCy recognition, explicit configured literals, both sources, or
 neither. Automatic recognition uses both Russian and English local spaCy NER and
-project patterns for identifiers and international `+` phone numbers.
-`includedParagraphs` remains an independent structural redaction rule.
+a targeted set of project/privacy recognizers. It intentionally excludes broad
+generic recognizers which can hide receipt amounts or dates and rejects
+single-token name/location/organization NER guesses. Explicit international `+`
+phone patterns remain supported. `includedParagraphs` remains an independent
+structural redaction rule.
 Legacy configurations without `entityDetectionMode` retain the historical
 inference: configured literals select configured-only detection; otherwise
 automatic detection is used.

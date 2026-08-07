@@ -12,6 +12,6 @@ The public CLI and registered document type identifiers remain stable while each
 feature and document implementation can evolve independently.
 """
 
-__version__ = "0.27.1"
+__version__ = "0.27.2"
 
 __all__ = ["__version__"]

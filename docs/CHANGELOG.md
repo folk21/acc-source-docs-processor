@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.27.2 — Targeted receipt-safe automatic anonymization
+
+### Changed
+
+- Restricted automatic Presidio analysis to a deliberate privacy entity set
+  instead of requesting every default recognizer.
+- Replaced broad default phone detection with project-owned Russian and
+  international phone patterns while retaining explicit `+` phone support.
+- Ignore single-token `PERSON`, `ORGANIZATION`, and `LOCATION` NER guesses to
+  reduce masking of ordinary receipt words. Multiword Russian and English names
+  remain eligible for automatic masking.
+- Updated anonymization configuration comments, Streamlit help, usage,
+  architecture, roadmap, and local development invariants for the targeted
+  automatic policy.
+- Bumped the package version to `0.27.2`.
+
+### Preserved
+
+- Receipt amounts, totals, dates, and ordinary financial text are not targeted
+  by automatic entity detection.
+- Explicit `included` and `includedAndReplaced` rules can still mask or replace
+  known single-word proper names in `configured` or `combined` mode.
+- Credit-card and IBAN identifiers remain in the targeted privacy set.
+
+### Validation
+
+- `make test-anonymization`
+- `make check`
+
 ## 0.27.1 — Multilingual names and international phone redaction
 
 ### Added
