@@ -49,8 +49,10 @@ Modules outside anonymization must not import this `_internal/` package.
 - Keep generic organization/location NER disabled in automatic detection and
   reject single-token PERSON guesses; use explicit configured rules for known
   single-word proper names.
-- Keep boarding-pass passenger-name recovery narrow and label/slash anchored; do
-  not replace it with generic uppercase-word heuristics.
+- Keep boarding-pass passenger-name recovery narrow and anchored to explicit
+  passenger labels or titled slash-name layouts. OCR must support both same-line
+  values and values directly below `Passenger name` / `Фамилия пассажира`; do not
+  replace this with generic uppercase-word heuristics.
 - Keep international `+` phone recognition language-neutral and regression-tested.
 - In `combined` mode, explicit `included` and `includedAndReplaced` spans take
   priority over overlapping automatic detections; `excluded` filters only the

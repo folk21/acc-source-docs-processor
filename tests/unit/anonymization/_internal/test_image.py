@@ -218,3 +218,155 @@ def test_raster_replacement_covers_source_and_draws_target(monkeypatch) -> None:
     assert detected == 1
     assert minimum < 80
     assert maximum > 240
+
+
+def _make_stacked_passenger_page(label_words: tuple[str, ...], name_words: tuple[str, ...]):
+    """Build synthetic OCR lines with a passenger label above its value."""
+    from source_docs_processor.features.anonymization._internal.image import OcrPage, OcrWord
+
+    words = []
+    text_parts = []
+    offset = 0
+    for line_number, (values, top) in enumerate(((label_words, 20), (name_words, 55)), start=1):
+        left = 20
+        for value in values:
+            if text_parts:
+                text_parts.append(" ")
+                offset += 1
+            start = offset
+            text_parts.append(value)
+            offset += len(value)
+            width = max(30, len(value) * 9)
+            words.append(
+                OcrWord(
+                    text=value,
+                    start=start,
+                    end=offset,
+                    left=left,
+                    top=top,
+                    width=width,
+                    height=18,
+                    confidence=92.0,
+                    layout_left=left,
+                    layout_top=top,
+                    layout_width=width,
+                    layout_height=18,
+                    block_number=1,
+                    paragraph_number=1,
+                    line_number=line_number,
+                )
+            )
+            left += width + 10
+    return OcrPage(
+        text="".join(text_parts),
+        words=tuple(words),
+        rotation_degrees=0,
+        original_width=500,
+        original_height=180,
+        layout_width=500,
+        layout_height=180,
+    )
+
+
+def test_ocr_detects_english_passenger_name_below_label(monkeypatch) -> None:
+    """Verify an English passenger name is masked when its label is above it.
+
+    Protected risk: boarding-pass layouts often place `Passenger name` on one
+    line and the actual name on the next, which flat-text NER can miss.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import AnonymizationConfig
+    from source_docs_processor.features.anonymization._internal.image import _choose_ocr_page
+
+    page = _make_stacked_passenger_page(("Passenger", "name"), ("SMITH/JOHN", "MR"))
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+
+    class EmptyAnalyzer:
+        """Return no generic entities so the structured OCR rule is isolated."""
+
+        def analyze(self, text: str):
+            """Return no entities."""
+            return []
+
+    _selected, entities = _choose_ocr_page(
+        Image.new("RGB", (500, 180), "white"),
+        EmptyAnalyzer(),
+        "rus+eng",
+        AnonymizationConfig(entity_detection_mode="automatic"),
+    )
+
+    assert len(entities) == 1
+    assert page.text[entities[0].start : entities[0].end] == "SMITH/JOHN MR"
+
+
+def test_ocr_detects_english_name_below_russian_passenger_label(monkeypatch) -> None:
+    """Verify a Russian passenger label can anchor an English passenger name.
+
+    Protected risk: localized boarding passes may label the field in Russian
+    while printing the passenger value in Latin characters.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import AnonymizationConfig
+    from source_docs_processor.features.anonymization._internal.image import _choose_ocr_page
+
+    page = _make_stacked_passenger_page(("Фамилия", "пассажира"), ("JOHN", "SMITH"))
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+
+    class EmptyAnalyzer:
+        """Return no generic entities so the structured OCR rule is isolated."""
+
+        def analyze(self, text: str):
+            """Return no entities."""
+            return []
+
+    _selected, entities = _choose_ocr_page(
+        Image.new("RGB", (500, 180), "white"),
+        EmptyAnalyzer(),
+        "rus+eng",
+        AnonymizationConfig(entity_detection_mode="combined"),
+    )
+
+    assert len(entities) == 1
+    assert page.text[entities[0].start : entities[0].end] == "JOHN SMITH"
+
+
+def test_stacked_passenger_name_rule_is_disabled_in_configured_mode(monkeypatch) -> None:
+    """Verify the OCR label rule follows the configured entity-detection mode.
+
+    Protected risk: configured-only anonymization must not silently enable an
+    automatic passenger-name heuristic.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import AnonymizationConfig
+    from source_docs_processor.features.anonymization._internal.image import _choose_ocr_page
+
+    page = _make_stacked_passenger_page(("Passenger", "name"), ("JOHN", "SMITH"))
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+
+    class EmptyAnalyzer:
+        """Return no configured entities."""
+
+        def analyze(self, text: str):
+            """Return no entities."""
+            return []
+
+    _selected, entities = _choose_ocr_page(
+        Image.new("RGB", (500, 180), "white"),
+        EmptyAnalyzer(),
+        "rus+eng",
+        AnonymizationConfig(entity_detection_mode="configured"),
+    )
+
+    assert entities == []

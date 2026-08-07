@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -13,6 +14,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageSequence
 from .config import (
     AnonymizationConfig,
     EMPTY_ANONYMIZATION_CONFIG,
+    _literal_spans,
+    _subtract_spans,
     find_heading_token_range,
 )
 from .models import DetectedEntity, TextEntityAnalyzer, UnitProgressCallback
@@ -20,6 +23,16 @@ from .text import merge_entities
 
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"})
+_PASSENGER_LABEL_SEQUENCES = (
+    ("passenger", "name"),
+    ("name", "of", "passenger"),
+    ("фамилия", "пассажира"),
+)
+_NAME_COMPONENT_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё]+(?:[-'’][A-Za-zА-Яа-яЁё]+)?")
+_NAME_VALUE_WORD_PATTERN = re.compile(
+    r"^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё/'’\-]*$"
+)
+_NAME_TITLES = frozenset({"mr", "mrs", "ms", "miss", "mstr", "dr"})
 
 
 @dataclass(frozen=True)
@@ -61,6 +74,173 @@ class ParagraphRedactionState:
     """Track whether a configured section continues onto later raster pages."""
 
     redact_all: bool = False
+
+
+def _layout_left(word: OcrWord) -> int:
+    """Return one OCR word's upright left coordinate."""
+    return word.layout_left if word.layout_left is not None else word.left
+
+
+def _layout_top(word: OcrWord) -> int:
+    """Return one OCR word's upright top coordinate."""
+    return word.layout_top if word.layout_top is not None else word.top
+
+
+def _layout_width(word: OcrWord) -> int:
+    """Return one OCR word's upright width."""
+    return word.layout_width if word.layout_width is not None else word.width
+
+
+def _layout_height(word: OcrWord) -> int:
+    """Return one OCR word's upright height."""
+    return word.layout_height if word.layout_height is not None else word.height
+
+
+def _normalized_label_tokens(words: tuple[OcrWord, ...]) -> tuple[str, ...]:
+    """Return normalized alphabetic tokens for one OCR line."""
+    return tuple(
+        token.casefold().replace("ё", "е")
+        for word in words
+        for token in _NAME_COMPONENT_PATTERN.findall(word.text)
+    )
+
+
+def _contains_passenger_label(words: tuple[OcrWord, ...]) -> bool:
+    """Return True when one OCR line contains a supported passenger-name label."""
+    tokens = _normalized_label_tokens(words)
+    for sequence in _PASSENGER_LABEL_SEQUENCES:
+        size = len(sequence)
+        if any(
+            tokens[index : index + size] == sequence
+            for index in range(len(tokens) - size + 1)
+        ):
+            return True
+    return False
+
+
+def _ocr_lines(page: OcrPage) -> list[tuple[OcrWord, ...]]:
+    """Group OCR words into visual lines while preserving page order."""
+    words = [word for word in page.words if word.text.strip()]
+    if not words:
+        return []
+
+    if any(word.line_number > 0 for word in words):
+        grouped: dict[tuple[int, int, int], list[OcrWord]] = {}
+        for word in words:
+            grouped.setdefault(
+                (word.block_number, word.paragraph_number, word.line_number),
+                [],
+            ).append(word)
+        lines = [
+            tuple(sorted(group, key=_layout_left))
+            for group in grouped.values()
+        ]
+        return sorted(
+            lines,
+            key=lambda line: (
+                min(_layout_top(item) for item in line),
+                min(_layout_left(item) for item in line),
+            ),
+        )
+
+    ordered = sorted(words, key=lambda item: (_layout_top(item), _layout_left(item)))
+    lines: list[list[OcrWord]] = []
+    for word in ordered:
+        center = _layout_top(word) + _layout_height(word) / 2
+        selected: list[OcrWord] | None = None
+        for candidate in reversed(lines):
+            candidate_center = sum(
+                _layout_top(item) + _layout_height(item) / 2
+                for item in candidate
+            ) / len(candidate)
+            tolerance = max(
+                6.0,
+                max(_layout_height(word), *(_layout_height(item) for item in candidate))
+                * 0.65,
+            )
+            if abs(center - candidate_center) <= tolerance:
+                selected = candidate
+                break
+        if selected is None:
+            lines.append([word])
+        else:
+            selected.append(word)
+    return [tuple(sorted(line, key=_layout_left)) for line in lines]
+
+
+def _line_box(words: tuple[OcrWord, ...]) -> tuple[int, int, int, int]:
+    """Return one OCR line rectangle in upright layout coordinates."""
+    return (
+        min(_layout_left(word) for word in words),
+        min(_layout_top(word) for word in words),
+        max(_layout_left(word) + _layout_width(word) for word in words),
+        max(_layout_top(word) + _layout_height(word) for word in words),
+    )
+
+
+def _passenger_name_value_words(words: tuple[OcrWord, ...]) -> tuple[OcrWord, ...]:
+    """Return the leading name-like words from a candidate value line."""
+    selected: list[OcrWord] = []
+    components: list[str] = []
+    for word in words:
+        value = word.text.strip().strip(".,:;#")
+        if not value or not _NAME_VALUE_WORD_PATTERN.fullmatch(value):
+            if selected:
+                break
+            continue
+        selected.append(word)
+        components.extend(_NAME_COMPONENT_PATTERN.findall(value))
+
+    meaningful = [
+        component
+        for component in components
+        if component.casefold() not in _NAME_TITLES
+    ]
+    if len(meaningful) < 2:
+        return ()
+    return tuple(selected)
+
+
+def _stacked_passenger_name_entities(page: OcrPage) -> list[DetectedEntity]:
+    """Detect a passenger name directly below a strong OCR field label."""
+    lines = _ocr_lines(page)
+    matches: list[DetectedEntity] = []
+    page_width = max(page.layout_width, page.original_width, 1)
+    page_height = max(page.layout_height, page.original_height, 1)
+
+    for index, label_line in enumerate(lines[:-1]):
+        if not _contains_passenger_label(label_line):
+            continue
+        label_left, label_top, label_right, label_bottom = _line_box(label_line)
+        label_height = max(1, label_bottom - label_top)
+        for candidate_line in lines[index + 1 : index + 3]:
+            candidate_left, candidate_top, _candidate_right, _candidate_bottom = (
+                _line_box(candidate_line)
+            )
+            vertical_gap = candidate_top - label_bottom
+            if vertical_gap < -label_height * 0.25:
+                continue
+            if vertical_gap > max(label_height * 4, page_height * 0.08):
+                break
+            horizontal_tolerance = max(
+                label_right - label_left,
+                page_width * 0.12,
+            )
+            if abs(candidate_left - label_left) > horizontal_tolerance:
+                continue
+            name_words = _passenger_name_value_words(candidate_line)
+            if not name_words:
+                continue
+            matches.append(
+                DetectedEntity(
+                    start=min(word.start for word in name_words),
+                    end=max(word.end for word in name_words),
+                    entity_type="PERSON",
+                    score=0.99,
+                )
+            )
+            break
+    return matches
 
 
 def _rotated_image(image: Image.Image, angle: int) -> Image.Image:
@@ -192,6 +372,26 @@ def _choose_ocr_page(
             else analyzer.analyze(page.text)
         )
         entities = merge_entities(raw_entities, len(page.text))
+        if config.uses_automatic_detection:
+            excluded_spans = _literal_spans(page.text, config.excluded)
+            configured_spans = [
+                (entity.start, entity.end)
+                for entity in entities
+                if entity.entity_type.startswith("CONFIG_")
+            ]
+            structured_entities = [
+                configured_segment
+                for entity in _stacked_passenger_name_entities(page)
+                for excluded_segment in _subtract_spans(entity, excluded_spans)
+                for configured_segment in _subtract_spans(
+                    excluded_segment,
+                    configured_spans,
+                )
+            ]
+            entities = merge_entities(
+                [*entities, *structured_entities],
+                len(page.text),
+            )
         candidates.append((page, entities))
     if not candidates:
         raise RuntimeError("Tesseract OCR did not return a usable result")

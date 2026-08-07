@@ -412,3 +412,18 @@ def test_presidio_analyzer_does_not_mask_unlabeled_boarding_pass_route() -> None
     entities = PresidioTextAnalyzer(engine).analyze(text)
 
     assert entities == []
+
+
+def test_presidio_analyzer_detects_name_after_russian_passenger_label_inline() -> None:
+    """Verify a Russian passenger label can anchor a Latin-script name inline.
+
+    Protected risk: localized boarding passes may use `Фамилия пассажира` while
+    the passenger name itself remains in Latin characters.
+    """
+    text = "Фамилия пассажира: SMITH JOHN"
+    engine = _FakePresidioEngine({"ru": [], "en": []})
+
+    entities = PresidioTextAnalyzer(engine).analyze(text)
+
+    detected = [text[entity.start : entity.end] for entity in entities]
+    assert detected == ["SMITH JOHN"]

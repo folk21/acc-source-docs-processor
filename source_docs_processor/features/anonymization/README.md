@@ -11,8 +11,10 @@ neither. Automatic recognition uses Russian and English local spaCy PERSON NER
 plus a targeted set of project/privacy recognizers. Generic organization/location
 NER is intentionally excluded, and single-token PERSON guesses are rejected so
 receipt, ticket, and boarding-pass content is preserved. High-confidence
-passenger-name layouts such as `NAME OF PASSENGER: SMITH/JOHN MR` are handled by
-a narrow supplemental recognizer. Explicit international `+` phone patterns
+passenger-name layouts are handled by narrow supplemental recognizers. They
+support same-line forms such as `NAME OF PASSENGER: SMITH/JOHN MR` and OCR
+layouts where `Passenger name` or `Фамилия пассажира` is printed above the
+passenger value. Explicit international `+` phone patterns
 remain supported. `includedParagraphs` remains an independent structural
 redaction rule.
 Legacy configurations without `entityDetectionMode` retain the historical

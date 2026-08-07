@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.27.4 — Stacked boarding-pass passenger-name recognition
+
+### Fixed
+
+- Added OCR line/coordinate-aware passenger-name recovery when `Passenger name` or
+  `Фамилия пассажира` is printed above the passenger value on a boarding pass.
+- Added the Russian `Фамилия пассажира` label to the same-line boarding-pass name
+  recognizer for Latin-script passenger values.
+- Kept the recovery limited to `automatic` and `combined` modes and preserved
+  configured-rule precedence and exclusions.
+
+### Added
+
+- Added deterministic regressions for English and Russian stacked passenger labels,
+  Latin-script passenger values, and configured-only mode isolation.
+
+### Changed
+
+- Updated anonymization usage, architecture, feature guidance, and roadmap text for
+  vertically stacked boarding-pass label/value layouts.
+- Bumped the package version to `0.27.4`.
+
 ## 0.27.3 — Boarding-pass name precision and XLSX anonymization
 
 ### Added

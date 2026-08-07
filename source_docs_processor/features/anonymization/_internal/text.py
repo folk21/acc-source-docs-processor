@@ -36,7 +36,7 @@ _BOARDING_NAME_PART = r"[A-Z][A-Za-z'’\-]{1,30}"
 _BOARDING_TITLE = r"(?:MR|MRS|MS|MISS|MSTR|DR)"
 _LABELED_BOARDING_NAME_PATTERN = re.compile(
     rf"(?i:(?:passenger(?:\s+name)?|name\s+of\s+passenger|"
-    rf"travell?er(?:\s+name)?|pax))\s*[:#.-]?\s*"
+    rf"travell?er(?:\s+name)?|pax|фамилия\s+пассажира))\s*[:#.-]?\s*"
     rf"(?P<name>{_BOARDING_NAME_PART}(?:\s*/\s*|\s+)"
     rf"{_BOARDING_NAME_PART}(?:\s*{_BOARDING_TITLE})?)"
 )

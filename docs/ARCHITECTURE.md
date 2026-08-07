@@ -236,7 +236,9 @@ from local Presidio with Russian and English spaCy NER plus project pattern
 recognizers. Broad generic date/time and phone recognizers are not requested,
 and generic organization/location NER is not used while single-token PERSON
 guesses are rejected. High-confidence boarding-pass passenger layouts are handled
-by a narrow labeled/slash-name recognizer. This preserves amounts, totals, dates,
+by narrow label-anchored rules: same-line labels are matched in OCR text, while
+raster/PDF OCR can also associate `Passenger name` or `Фамилия пассажира` with a
+name value on the line directly below. This preserves amounts, totals, dates,
 route/airline text, and ordinary document content while retaining targeted
 identifiers, bank/card data, contacts, person names, and explicit phone patterns. Configured detection uses `included` and
 `includedAndReplaced`; combined mode composes both with configured spans taking

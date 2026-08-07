@@ -235,8 +235,10 @@ Rules:
 - `automatic` uses a targeted privacy set from local Presidio with Russian and
   English spaCy NER plus project recognizers and ignores `included` and
   `includedAndReplaced`; it masks multiword person names, high-confidence
-  passenger-name layouts such as `NAME OF PASSENGER: SMITH/JOHN MR`, explicit
-  organization patterns, Russian identifiers, bank/card identifiers, email/IP
+  passenger-name layouts such as `NAME OF PASSENGER: SMITH/JOHN MR`, plus OCR
+  layouts where `Passenger name` or `Фамилия пассажира` appears directly above
+  the passenger value; explicit organization patterns, Russian identifiers,
+  bank/card identifiers, email/IP
   values, document or vehicle identifiers, and explicit phone patterns including
   common international numbers beginning with `+`;
 - automatic detection intentionally does not request broad Presidio date/time or

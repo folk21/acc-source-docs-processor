@@ -26,7 +26,8 @@ keeps only a compact foundation summary plus current and planned work.
 - [x] Provide configurable anonymization entity-detection modes for automatic,
   configured, combined, and disabled entity sources, with targeted
   Russian/English person NER, high-confidence boarding-pass passenger-name
-  recognition, explicit privacy recognizers, and international phone recognition
+  recognition for same-line and stacked label/value layouts, explicit privacy
+  recognizers, and international phone recognition
   that preserves receipt amounts and ordinary text.
 - [x] Provide a localized local Streamlit interface for anonymization and all
   registered document-processing workflows.
