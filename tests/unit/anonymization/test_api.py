@@ -60,7 +60,7 @@ def test_anonymization_public_constants_remain_stable() -> None:
         "disabled",
     )
     assert anonymization.SUPPORTED_EXTENSIONS == frozenset(
-        {".bmp", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".tif", ".tiff", ".txt"}
+        {".bmp", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".tif", ".tiff", ".txt", ".xlsx"}
     )
 
 

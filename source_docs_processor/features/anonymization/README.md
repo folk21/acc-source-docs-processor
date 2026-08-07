@@ -2,17 +2,19 @@
 
 This feature creates privacy-safe local copies of supported documents. It owns
 configuration loading, text analysis, OCR-backed raster redaction, PDF rebuilding,
-DOCX sanitization, editable DOCX reconstruction, recursive folder processing,
-and the `anonymize` CLI adapter.
+DOCX/XLSX package sanitization, editable DOCX reconstruction, recursive folder
+processing, and the `anonymize` CLI adapter.
 
 `entityDetectionMode` selects whether entity masking comes from local
 Presidio/spaCy recognition, explicit configured literals, both sources, or
-neither. Automatic recognition uses both Russian and English local spaCy NER and
-a targeted set of project/privacy recognizers. It intentionally excludes broad
-generic recognizers which can hide receipt amounts or dates and rejects
-single-token name/location/organization NER guesses. Explicit international `+`
-phone patterns remain supported. `includedParagraphs` remains an independent
-structural redaction rule.
+neither. Automatic recognition uses Russian and English local spaCy PERSON NER
+plus a targeted set of project/privacy recognizers. Generic organization/location
+NER is intentionally excluded, and single-token PERSON guesses are rejected so
+receipt, ticket, and boarding-pass content is preserved. High-confidence
+passenger-name layouts such as `NAME OF PASSENGER: SMITH/JOHN MR` are handled by
+a narrow supplemental recognizer. Explicit international `+` phone patterns
+remain supported. `includedParagraphs` remains an independent structural
+redaction rule.
 Legacy configurations without `entityDetectionMode` retain the historical
 inference: configured literals select configured-only detection; otherwise
 automatic detection is used.
@@ -44,7 +46,8 @@ anonymization/
     ├── text.py               # Presidio integration and text transforms
     ├── image.py              # OCR-coordinate raster redaction
     ├── pdf.py                # image-only PDF rebuilding
-    ├── docx.py               # fail-closed OOXML sanitization
+    ├── docx.py               # fail-closed DOCX sanitization
+    ├── xlsx.py               # fail-closed XLSX sanitization
     └── editable.py           # OCR-to-DOCX reconstruction
 ```
 

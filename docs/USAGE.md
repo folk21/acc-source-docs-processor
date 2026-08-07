@@ -177,8 +177,9 @@ python main.py anonymize \
   --config "config/examples/anonymization.ini"
 ```
 
-Supported input formats are PDF, DOCX, TXT encoded as UTF-8 or Windows-1251,
-PNG, JPG/JPEG, BMP, and single- or multi-page TIFF.
+Supported input formats are PDF, DOCX, XLSX, TXT encoded as UTF-8 or Windows-1251,
+PNG, JPG/JPEG, BMP, and single- or multi-page TIFF. XLSX is anonymized only in
+its source format; legacy XLS and macro-enabled XLSM files are not supported.
 
 ### Output modes
 
@@ -233,14 +234,16 @@ Rules:
   `disabled`;
 - `automatic` uses a targeted privacy set from local Presidio with Russian and
   English spaCy NER plus project recognizers and ignores `included` and
-  `includedAndReplaced`; it masks multiword names/organizations/locations,
-  Russian identifiers, bank/card identifiers, email/IP values, document or
-  vehicle identifiers, and explicit phone patterns including common
-  international numbers beginning with `+`;
+  `includedAndReplaced`; it masks multiword person names, high-confidence
+  passenger-name layouts such as `NAME OF PASSENGER: SMITH/JOHN MR`, explicit
+  organization patterns, Russian identifiers, bank/card identifiers, email/IP
+  values, document or vehicle identifiers, and explicit phone patterns including
+  common international numbers beginning with `+`;
 - automatic detection intentionally does not request broad Presidio date/time or
   generic phone recognizers, so receipt amounts, dates, totals, and ordinary
-  financial text remain available for recognition; single-token NER guesses are
-  ignored to reduce false positives such as ordinary receipt headings;
+  financial text remain available for recognition; generic organization/location
+  NER is not used and single-token PERSON guesses are ignored to reduce false
+  positives in receipts, tickets, and boarding passes;
 - when a real single-word proper name must be hidden, add it explicitly through
   `included` or `includedAndReplaced` and use `combined` mode;
 - `configured` uses only `included` and `includedAndReplaced` and does not load
@@ -257,13 +260,14 @@ Rules:
   in `configured` and `combined` modes;
 - a replacement rule takes priority over an identical mask rule;
 - `includedFuzzy = true` enables bounded OCR-only matching for configured source
-  values; native TXT and DOCX text remains exact;
+  values; native TXT, DOCX, and XLSX text remains exact;
 - `includedFuzzyMaxErrors` accepts values from `0` to `3`;
 - `excluded` filters only automatic detections in `automatic` and `combined`
   modes and never cancels an explicit `included` or `includedAndReplaced` rule;
 - `includedParagraphs` masks content after a matched heading and activates
   stronger following-page handling for raster pages independently from
-  `entityDetectionMode`.
+  `entityDetectionMode`. XLSX has no page-continuation semantics, so
+  `includedParagraphs` is not applied to workbook cells.
 
 Comma-separated and multiline values are supported for ordinary lists.
 `includedAndReplaced` uses one `source -> replacement` rule per line. Multiword
@@ -290,6 +294,12 @@ Anonymization is designed to fail closed:
   images are sanitized;
 - DOCX macros, OLE/ActiveX objects, embedded workbooks, and unsupported vector
   media cause the file to fail;
+- XLSX visible/hidden cell text, comments, headers/footers, metadata, drawing/chart
+  text, and supported embedded raster images are sanitized while numeric values
+  and formulas are preserved;
+- XLSX external relationships, active/embedded objects, pivot/query caches,
+  unsupported media, structural-name PII, and detected PII inside formulas cause
+  the file to fail rather than being copied unchanged;
 - partial temporary output is removed after a failure;
 - the command returns a non-zero exit code when any source file fails.
 

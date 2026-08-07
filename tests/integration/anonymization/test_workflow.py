@@ -518,3 +518,43 @@ def test_clear_output_rejects_source_inside_output(tmp_path: Path) -> None:
         )
 
     assert (source / "note.txt").exists()
+
+
+def test_folder_anonymization_processes_xlsx_without_changing_numeric_values(
+    tmp_path: Path,
+) -> None:
+    """Verify XLSX participates in the recursive source-format workflow.
+
+    Protected risk: Excel support must not be limited to a private handler while
+    folder anonymization still reports ordinary XLSX workbooks as unsupported.
+    """
+    import zipfile
+
+    import xlsxwriter
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    workbook_path = source / "receipt.xlsx"
+    workbook = xlsxwriter.Workbook(workbook_path)
+    sheet = workbook.add_worksheet("Receipt")
+    sheet.write("A1", "Контакт: Иван Петров")
+    sheet.write("A2", "ИТОГО")
+    sheet.write_number("B2", 987.65)
+    workbook.close()
+
+    summary = anonymize_folder(source, output, FictionalNameAnalyzer())
+
+    destination = output / "receipt.xlsx"
+    assert summary.succeeded_count == 1
+    assert summary.failed_count == 0
+    assert destination.exists()
+    with zipfile.ZipFile(destination) as archive:
+        package_text = "\n".join(
+            archive.read(name).decode("utf-8", errors="ignore")
+            for name in archive.namelist()
+            if name.endswith(".xml")
+        )
+    assert "Иван Петров" not in package_text
+    assert "ИТОГО" in package_text
+    assert "987.65" in package_text

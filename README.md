@@ -12,7 +12,7 @@ The application provides two operations:
 
 - `process` recognizes supported accounting documents, extracts fields, and
   creates workflow-specific files and registries;
-- `anonymize` creates privacy-safe copies of PDF, DOCX, TXT, and raster-image
+- `anonymize` creates privacy-safe copies of PDF, DOCX, XLSX, TXT, and raster-image
   files according to configurable masking and replacement rules.
 
 An optional local Streamlit interface is available for browser-based use on the

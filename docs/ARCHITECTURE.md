@@ -222,30 +222,35 @@ Anonymization is independent from document-type registration:
 source directory
   -> supported-file discovery
       -> configured analyzer or Presidio analyzer
-          -> PDF / DOCX / TXT / raster sanitizer
+          -> PDF / DOCX / XLSX / TXT / raster sanitizer
               -> atomic output below the matching relative folder
 ```
 
 The public API owns configuration and summary contracts. Private modules own
 configuration parsing, text transformation, recursive planning, raster OCR,
-PDF rebuilding, DOCX package sanitization, and editable DOCX reconstruction.
+PDF rebuilding, DOCX/XLSX package sanitization, and editable DOCX reconstruction.
 
 `entityDetectionMode` controls which entity sources participate in text
 redaction. Automatic detection uses a deliberately narrow privacy entity set
 from local Presidio with Russian and English spaCy NER plus project pattern
 recognizers. Broad generic date/time and phone recognizers are not requested,
-and single-token PERSON/ORGANIZATION/LOCATION NER guesses are rejected. This
-preserves amounts, totals, dates, and ordinary document text while retaining
-targeted identifiers, bank/card data, contacts, multiword names, and explicit
-phone patterns. Configured detection uses `included` and
+and generic organization/location NER is not used while single-token PERSON
+guesses are rejected. High-confidence boarding-pass passenger layouts are handled
+by a narrow labeled/slash-name recognizer. This preserves amounts, totals, dates,
+route/airline text, and ordinary document content while retaining targeted
+identifiers, bank/card data, contacts, person names, and explicit phone patterns. Configured detection uses `included` and
 `includedAndReplaced`; combined mode composes both with configured spans taking
 precedence over overlapping automatic spans. `excluded` applies only to
 automatic detections, while `includedParagraphs` remains independent from
 entity detection.
 
-The operation is fail-closed. Unsupported formats and opaque active or embedded
-content are not copied unchanged. Progress and logs do not expose detected PII
-values.
+The operation is fail-closed. XLSX support sanitizes visible cell text, hidden
+sheets, comments, document metadata, drawing/chart text, and supported embedded
+raster images while preserving numeric cells and formulas. External links,
+macros/active content, embedded objects, pivot caches, query connections, and
+PII inside formulas or structural workbook names are rejected rather than copied
+unchanged. Other unsupported formats and opaque content follow the same rule.
+Progress and logs do not expose detected PII values.
 
 Operational configuration and output behavior are documented in
 [Usage](USAGE.md), while implementation invariants remain in the local feature

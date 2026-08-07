@@ -46,8 +46,11 @@ Modules outside anonymization must not import this `_internal/` package.
 - Keep automatic detection targeted to privacy entities. Do not enable broad
   Presidio recognizers that can mask receipt amounts, dates, or ordinary text
   without a regression demonstrating the need.
-- Reject single-token PERSON/ORGANIZATION/LOCATION NER guesses in automatic
-  detection; use explicit configured rules for known single-word proper names.
+- Keep generic organization/location NER disabled in automatic detection and
+  reject single-token PERSON guesses; use explicit configured rules for known
+  single-word proper names.
+- Keep boarding-pass passenger-name recovery narrow and label/slash anchored; do
+  not replace it with generic uppercase-word heuristics.
 - Keep international `+` phone recognition language-neutral and regression-tested.
 - In `combined` mode, explicit `included` and `includedAndReplaced` spans take
   priority over overlapping automatic detections; `excluded` filters only the
@@ -57,7 +60,11 @@ Modules outside anonymization must not import this `_internal/` package.
   collision handling requires a new name.
 - Do not retain PDF source text layers or metadata.
 - `--clearOutput` must preserve the output root inode.
-- Use synthetic names, identifiers, files, and images in tests.
+- Use synthetic names, identifiers, files, images, and workbooks in tests.
+- XLSX anonymization must preserve numeric values and formulas, sanitize hidden
+  visible-content stores and supported embedded raster images, and fail closed on
+  external links, active/embedded objects, cached external data, or detected PII
+  inside formulas/structural names.
 
 ## Validation
 

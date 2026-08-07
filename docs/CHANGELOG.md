@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.27.3 — Boarding-pass name precision and XLSX anonymization
+
+### Added
+
+- Added high-confidence English passenger-name detection for boarding-pass OCR layouts such as labeled `SURNAME/GIVENNAME` values without broadening generic NER.
+- Added source-format XLSX anonymization for visible and hidden cell text, comments, headers/footers, workbook metadata, drawing/chart text, and supported embedded raster images.
+- Added fail-closed XLSX checks for external relationships, active/embedded content, pivot/query caches, unsupported media, structural-name PII, and PII embedded in formulas.
+- Added deterministic unit and integration regression coverage for boarding-pass names, route preservation, XLSX numeric/formula preservation, hidden-sheet sanitization, and workbook safety failures.
+
+### Changed
+
+- Narrowed automatic NER to person names; generic organization/location NER is no longer used, reducing false positives in tickets and boarding passes while explicit organization patterns remain available.
+- Added `.xlsx` to the public anonymization supported-extension set and updated Streamlit, usage, architecture, roadmap, and feature guidance.
+- Bumped the package version to `0.27.3`.
+
+### Preserved
+
+- Receipt amounts, totals, dates, formulas, numeric spreadsheet cells, configured mapping semantics, source files, and existing PDF/DOCX/TXT/raster anonymization behavior remain unchanged.
+
 ## 0.27.2 — Targeted receipt-safe automatic anonymization
 
 ### Changed

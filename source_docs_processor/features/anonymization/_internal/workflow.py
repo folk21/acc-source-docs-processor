@@ -26,9 +26,10 @@ from .models import (
 )
 from .pdf import anonymize_pdf_file
 from .text import mask_text
+from .xlsx import anonymize_xlsx_file
 
 
-SUPPORTED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt"}) | SUPPORTED_IMAGE_EXTENSIONS
+SUPPORTED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".xlsx"}) | SUPPORTED_IMAGE_EXTENSIONS
 
 
 def _clear_output_contents(output_root: Path) -> None:
@@ -120,6 +121,8 @@ def _anonymize_one_file(
         if suffix == ".txt":
             text, _encoding = _read_text(source)
             return anonymize_text_to_docx(text, destination, analyzer, config)
+        if suffix == ".xlsx":
+            raise ValueError("XLSX input supports source-format anonymization only")
     if suffix in SUPPORTED_IMAGE_EXTENSIONS:
         return anonymize_image_file(
             source,
@@ -148,6 +151,14 @@ def _anonymize_one_file(
         )
     if suffix == ".txt":
         return _anonymize_text_file(source, destination, analyzer, config)
+    if suffix == ".xlsx":
+        return anonymize_xlsx_file(
+            source,
+            destination,
+            analyzer,
+            lang=lang,
+            config=config,
+        )
     raise ValueError(f"Unsupported file type: {suffix or '<no extension>'}")
 
 

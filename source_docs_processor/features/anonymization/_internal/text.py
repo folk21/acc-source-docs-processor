@@ -12,8 +12,7 @@ MASK_CHARACTER = "█"
 _INTERNATIONAL_PHONE_PATTERN = r"(?<![\w+])\+\d(?:[\s().-]*\d){7,14}(?!\d)"
 _AUTOMATIC_ENTITY_TYPES = (
     "PERSON",
-    "ORGANIZATION",
-    "LOCATION",
+    "RU_ORGANIZATION",
     "RU_INN",
     "RU_KPP",
     "RU_OGRN",
@@ -31,8 +30,20 @@ _AUTOMATIC_ENTITY_TYPES = (
     "VIN",
     "DOCUMENT_NUMBER",
 )
-_NER_ENTITY_TYPES = frozenset({"PERSON", "ORGANIZATION", "LOCATION"})
+_NER_ENTITY_TYPES = frozenset({"PERSON"})
 _NAME_TOKEN_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё]+(?:[-'][A-Za-zА-Яа-яЁё]+)?")
+_BOARDING_NAME_PART = r"[A-Z][A-Za-z'’\-]{1,30}"
+_BOARDING_TITLE = r"(?:MR|MRS|MS|MISS|MSTR|DR)"
+_LABELED_BOARDING_NAME_PATTERN = re.compile(
+    rf"(?i:(?:passenger(?:\s+name)?|name\s+of\s+passenger|"
+    rf"travell?er(?:\s+name)?|pax))\s*[:#.-]?\s*"
+    rf"(?P<name>{_BOARDING_NAME_PART}(?:\s*/\s*|\s+)"
+    rf"{_BOARDING_NAME_PART}(?:\s*{_BOARDING_TITLE})?)"
+)
+_TITLED_SLASH_NAME_PATTERN = re.compile(
+    rf"(?P<name>{_BOARDING_NAME_PART}\s*/\s*"
+    rf"{_BOARDING_NAME_PART}\s*{_BOARDING_TITLE})\b"
+)
 
 
 def merge_entities(
@@ -187,6 +198,21 @@ def _keep_automatic_result(text: str, result) -> bool:
     return len(_NAME_TOKEN_PATTERN.findall(fragment)) >= 2
 
 
+def _boarding_pass_name_entities(text: str) -> list[DetectedEntity]:
+    """Detect high-confidence English passenger-name layouts missed by general NER."""
+    matches: dict[tuple[int, int], DetectedEntity] = {}
+    for pattern in (_LABELED_BOARDING_NAME_PATTERN, _TITLED_SLASH_NAME_PATTERN):
+        for match in pattern.finditer(text):
+            start, end = match.span("name")
+            matches[(start, end)] = DetectedEntity(
+                start=start,
+                end=end,
+                entity_type="PERSON",
+                score=0.92,
+            )
+    return list(matches.values())
+
+
 class PresidioTextAnalyzer:
     """Adapt targeted multilingual Microsoft Presidio results to the project protocol."""
 
@@ -221,6 +247,7 @@ class PresidioTextAnalyzer:
                 for result in results
                 if _keep_automatic_result(text, result)
             )
+        entities.extend(_boarding_pass_name_entities(text))
         return merge_entities(entities, len(text))
 
 
@@ -230,7 +257,7 @@ def _add_pattern_recognizers(engine) -> None:
 
     specifications = (
         (
-            "ORGANIZATION",
+            "RU_ORGANIZATION",
             (
                 Pattern(
                     "Quoted Russian organization",
@@ -414,9 +441,6 @@ def create_presidio_analyzer(
             model_to_presidio_entity_mapping={
                 "PER": "PERSON",
                 "PERSON": "PERSON",
-                "LOC": "LOCATION",
-                "GPE": "LOCATION",
-                "ORG": "ORGANIZATION",
             },
         )
         nlp_engine = SpacyNlpEngine(

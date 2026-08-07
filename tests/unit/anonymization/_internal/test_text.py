@@ -177,6 +177,9 @@ def test_presidio_analyzer_requests_only_targeted_privacy_entities() -> None:
     assert len(engine.requested_entities) == 2
     for requested in engine.requested_entities:
         assert "PERSON" in requested
+        assert "ORGANIZATION" not in requested
+        assert "LOCATION" not in requested
+        assert "RU_ORGANIZATION" in requested
         assert "RU_INN" in requested
         assert "INTERNATIONAL_PHONE_NUMBER" in requested
         assert "CREDIT_CARD" in requested
@@ -336,6 +339,10 @@ def test_create_presidio_analyzer_configures_russian_and_english_models(monkeypa
         {"lang_code": "en", "model_name": "en_core_web_sm"},
     ]
     assert captured["supported_languages"] == ["ru", "en"]
+    assert captured["ner_configuration"]["model_to_presidio_entity_mapping"] == {
+        "PER": "PERSON",
+        "PERSON": "PERSON",
+    }
 
 
 def test_create_presidio_analyzer_fails_closed_when_a_required_model_is_missing(
@@ -376,3 +383,32 @@ def test_create_presidio_analyzer_fails_closed_when_a_required_model_is_missing(
     message = str(error.value)
     assert "ru_core_news_sm" in message
     assert "en_core_web_sm" in message
+
+
+def test_presidio_analyzer_detects_labeled_boarding_pass_name_when_ner_misses() -> None:
+    """Verify boarding-pass passenger layouts are masked without broadening general NER.
+
+    Protected risk: OCR often renders English passenger names as slash-separated
+    uppercase text which spaCy does not recognize as a normal PERSON entity.
+    """
+    text = "BOARDING PASS  NAME OF PASSENGER: SMITH/JOHN MR  FROM LONDON TO PARIS"
+    engine = _FakePresidioEngine({"ru": [], "en": []})
+
+    entities = PresidioTextAnalyzer(engine).analyze(text)
+
+    detected = [text[entity.start : entity.end] for entity in entities]
+    assert detected == ["SMITH/JOHN MR"]
+
+
+def test_presidio_analyzer_does_not_mask_unlabeled_boarding_pass_route() -> None:
+    """Verify slash-separated route text is not mistaken for a passenger name.
+
+    Protected risk: a boarding pass contains many uppercase city and airport
+    labels, so generic slash-name matching would destroy useful travel content.
+    """
+    text = "BOARDING PASS  LONDON/PARIS  GATE A12"
+    engine = _FakePresidioEngine({"ru": [], "en": []})
+
+    entities = PresidioTextAnalyzer(engine).analyze(text)
+
+    assert entities == []

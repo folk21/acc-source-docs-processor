@@ -29,7 +29,8 @@ Executable handlers remain an explicit Python mapping. The current identifiers a
 The anonymization form exposes the feature's supported entity-detection modes.
 The selected value overrides the INI `entityDetectionMode` only for the current
 run by replacing that field on an in-memory configuration value; the UI never
-modifies the selected anonymization INI.
+modifies the selected anonymization INI. Source-format anonymization also accepts
+XLSX workbooks; XLSX-to-DOCX conversion is intentionally not supported.
 
 ## User documentation
 
