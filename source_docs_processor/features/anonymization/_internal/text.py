@@ -1,4 +1,4 @@
-"""Presidio-backed Russian PII detection and configurable text transformation."""
+"""Presidio-backed multilingual PII detection and configurable text transformation."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from .models import DetectedEntity, TextEntityAnalyzer
 
 
 MASK_CHARACTER = "█"
+_INTERNATIONAL_PHONE_PATTERN = r"(?<![\w+])\+\d(?:[\s().-]*\d){7,14}(?!\d)"
 
 
 def merge_entities(
@@ -151,35 +152,45 @@ def mask_text(
 ) -> tuple[str, list[DetectedEntity]]:
     """Backward-compatible alias for configurable text transformation."""
     return transform_text(text, analyzer)
-class PresidioTextAnalyzer:
-    """Adapt Microsoft Presidio results to the project analyzer protocol."""
 
-    def __init__(self, analyzer_engine, language: str = "ru") -> None:
+
+class PresidioTextAnalyzer:
+    """Adapt multilingual Microsoft Presidio results to the project protocol."""
+
+    def __init__(
+        self,
+        analyzer_engine,
+        languages: tuple[str, ...] = ("ru", "en"),
+    ) -> None:
         self._engine = analyzer_engine
-        self._language = language
+        self._languages = languages
 
     def analyze(self, text: str) -> Sequence[DetectedEntity]:
-        """Detect configured PII entities in one text value."""
+        """Detect PII by combining results from every configured NLP language."""
         if not text.strip():
             return []
-        results = self._engine.analyze(
-            text=text,
-            language=self._language,
-            score_threshold=0.30,
-        )
-        return [
-            DetectedEntity(
-                start=result.start,
-                end=result.end,
-                entity_type=result.entity_type,
-                score=float(result.score),
+
+        entities: list[DetectedEntity] = []
+        for language in self._languages:
+            results = self._engine.analyze(
+                text=text,
+                language=language,
+                score_threshold=0.30,
             )
-            for result in results
-        ]
+            entities.extend(
+                DetectedEntity(
+                    start=result.start,
+                    end=result.end,
+                    entity_type=result.entity_type,
+                    score=float(result.score),
+                )
+                for result in results
+            )
+        return merge_entities(entities, len(text))
 
 
 def _add_pattern_recognizers(engine) -> None:
-    """Register Russian accounting and identity patterns in Presidio."""
+    """Register accounting, identity, and contact patterns in Presidio."""
     from presidio_analyzer import Pattern, PatternRecognizer
 
     specifications = (
@@ -325,11 +336,35 @@ def _add_pattern_recognizers(engine) -> None:
             )
         )
 
+    international_phone_pattern = Pattern(
+        "International phone with country prefix",
+        _INTERNATIONAL_PHONE_PATTERN,
+        0.78,
+    )
+    phone_context = (
+        "phone",
+        "mobile",
+        "tel",
+        "telephone",
+        "телефон",
+        "тел",
+        "моб",
+    )
+    for language in ("ru", "en"):
+        engine.registry.add_recognizer(
+            PatternRecognizer(
+                supported_entity="PHONE_NUMBER",
+                patterns=[international_phone_pattern],
+                context=list(phone_context),
+                supported_language=language,
+            )
+        )
+
 
 def create_presidio_analyzer(
     model_name: str = "ru_core_news_sm",
 ) -> PresidioTextAnalyzer:
-    """Create a local Presidio analyzer using the Russian spaCy NER pipeline."""
+    """Create a local Presidio analyzer with Russian and English spaCy NER."""
     try:
         from presidio_analyzer import AnalyzerEngine
         from presidio_analyzer.nlp_engine import NerModelConfiguration, SpacyNlpEngine
@@ -350,17 +385,21 @@ def create_presidio_analyzer(
             },
         )
         nlp_engine = SpacyNlpEngine(
-            models=[{"lang_code": "ru", "model_name": model_name}],
+            models=[
+                {"lang_code": "ru", "model_name": model_name},
+                {"lang_code": "en", "model_name": "en_core_web_sm"},
+            ],
             ner_model_configuration=ner_configuration,
         )
         engine = AnalyzerEngine(
             nlp_engine=nlp_engine,
-            supported_languages=["ru"],
+            supported_languages=["ru", "en"],
         )
     except OSError as exc:
         raise RuntimeError(
-            "The Russian spaCy model is not installed. Run: "
-            "python -m spacy download ru_core_news_sm"
+            "The required spaCy models are not installed. Run: "
+            "python -m spacy download ru_core_news_sm && "
+            "python -m spacy download en_core_web_sm"
         ) from exc
 
     _add_pattern_recognizers(engine)

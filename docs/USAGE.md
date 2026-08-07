@@ -231,8 +231,10 @@ Rules:
 
 - `entityDetectionMode` accepts `automatic`, `configured`, `combined`, or
   `disabled`;
-- `automatic` uses local Presidio/spaCy plus the built-in project recognizers
-  and ignores `included` and `includedAndReplaced`;
+- `automatic` uses local Presidio with Russian and English spaCy NER plus the
+  built-in project recognizers and ignores `included` and
+  `includedAndReplaced`; English personal names and common international phone
+  numbers beginning with `+` are included in automatic detection;
 - `configured` uses only `included` and `includedAndReplaced` and does not load
   Presidio/spaCy;
 - `combined` uses automatic detections plus configured rules; configured spans

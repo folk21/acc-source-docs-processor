@@ -41,6 +41,9 @@ Modules outside anonymization must not import this `_internal/` package.
 - `entityDetectionMode` owns entity-source selection: `automatic`, `configured`,
   `combined`, or `disabled`; legacy configurations without the key retain their
   historical inferred behavior.
+- Automatic detection uses both Russian and English local spaCy NER. Do not
+  silently fall back to one language when a required model is unavailable.
+- Keep international `+` phone recognition language-neutral and regression-tested.
 - In `combined` mode, explicit `included` and `includedAndReplaced` spans take
   priority over overlapping automatic detections; `excluded` filters only the
   automatic side.

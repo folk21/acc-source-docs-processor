@@ -2,8 +2,21 @@
 
 from __future__ import annotations
 
+import re
+import sys
+from dataclasses import dataclass
+from types import ModuleType
+
+import pytest
+
 from source_docs_processor.features.anonymization._internal.models import DetectedEntity
-from source_docs_processor.features.anonymization._internal.text import mask_text, merge_entities
+from source_docs_processor.features.anonymization._internal.text import (
+    _INTERNATIONAL_PHONE_PATTERN,
+    PresidioTextAnalyzer,
+    create_presidio_analyzer,
+    mask_text,
+    merge_entities,
+)
 
 
 class FakeAnalyzer:
@@ -73,3 +86,204 @@ def test_merge_entities_keeps_adjacent_spans_separate() -> None:
     assert len(merged) == 2
     assert merged[0].replacement == "Иванов"
     assert merged[1].entity_type == "PERSON"
+
+
+@dataclass(frozen=True)
+class _FakePresidioResult:
+    """Minimal Presidio-compatible result used by multilingual analyzer tests."""
+
+    start: int
+    end: int
+    entity_type: str
+    score: float
+
+
+class _FakePresidioEngine:
+    """Return language-specific entities without loading real NLP models."""
+
+    def __init__(self, results_by_language: dict[str, list[_FakePresidioResult]]) -> None:
+        self.results_by_language = results_by_language
+        self.calls: list[str] = []
+
+    def analyze(self, *, text: str, language: str, score_threshold: float):
+        """Record the requested language and return prepared results."""
+        self.calls.append(language)
+        return self.results_by_language.get(language, [])
+
+
+def test_presidio_analyzer_combines_russian_and_english_ner_results() -> None:
+    """Verify automatic detection queries both local NER languages.
+
+    Protected risk: English personal names in mixed accounting documents must
+    not remain visible merely because the primary document language is Russian.
+    """
+    text = "Иван Петров / John Smith"
+    russian_start = text.index("Иван Петров")
+    english_start = text.index("John Smith")
+    engine = _FakePresidioEngine(
+        {
+            "ru": [
+                _FakePresidioResult(
+                    russian_start,
+                    russian_start + len("Иван Петров"),
+                    "PERSON",
+                    0.83,
+                )
+            ],
+            "en": [
+                _FakePresidioResult(
+                    english_start,
+                    english_start + len("John Smith"),
+                    "PERSON",
+                    0.91,
+                )
+            ],
+        }
+    )
+
+    entities = PresidioTextAnalyzer(engine).analyze(text)
+
+    assert engine.calls == ["ru", "en"]
+    assert [(entity.start, entity.end, entity.entity_type) for entity in entities] == [
+        (russian_start, russian_start + len("Иван Петров"), "PERSON"),
+        (english_start, english_start + len("John Smith"), "PERSON"),
+    ]
+
+
+def test_international_phone_pattern_accepts_common_plus_prefixed_formats() -> None:
+    """Verify automatic patterns cover common international phone formatting.
+
+    Protected risk: phone numbers with a country-code plus sign, spaces,
+    parentheses, or hyphens must be redacted in automatic and combined modes.
+    """
+    samples = (
+        "+1 (415) 555-2671",
+        "+44 20 7946 0958",
+        "+31 6 12345678",
+        "+49.30.12345678",
+        "+7 (999) 123-45-67",
+    )
+
+    for value in samples:
+        match = re.search(_INTERNATIONAL_PHONE_PATTERN, f"Phone: {value}")
+        assert match is not None
+        assert match.group(0) == value
+
+
+def test_international_phone_pattern_rejects_short_plus_prefixed_numbers() -> None:
+    """Verify short signed numbers are not mistaken for phone numbers.
+
+    Protected risk: a broad plus-prefix pattern must not redact ordinary signed
+    numeric values which are too short to be plausible international phones.
+    """
+    assert re.search(_INTERNATIONAL_PHONE_PATTERN, "Adjustment: +1234567") is None
+
+
+def test_create_presidio_analyzer_configures_russian_and_english_models(monkeypatch) -> None:
+    """Verify automatic mode initializes both local spaCy NER pipelines.
+
+    Protected risk: querying English in the adapter is insufficient if the
+    underlying Presidio NLP engine was initialized with Russian only.
+    """
+    captured: dict[str, object] = {}
+
+    class FakeNerModelConfiguration:
+        """Capture NER mapping without loading Presidio."""
+
+        def __init__(self, **kwargs) -> None:
+            captured["ner_configuration"] = kwargs
+
+    class FakeSpacyNlpEngine:
+        """Capture configured spaCy models without loading spaCy."""
+
+        def __init__(self, *, models, ner_model_configuration) -> None:
+            captured["models"] = models
+
+    class FakeRegistry:
+        """Accept custom pattern recognizers added by project code."""
+
+        def __init__(self) -> None:
+            self.recognizers: list[object] = []
+
+        def add_recognizer(self, recognizer) -> None:
+            self.recognizers.append(recognizer)
+
+    class FakeAnalyzerEngine:
+        """Capture supported languages while exposing a fake registry."""
+
+        def __init__(self, *, nlp_engine, supported_languages) -> None:
+            captured["supported_languages"] = supported_languages
+            self.registry = FakeRegistry()
+
+    class FakePattern:
+        """Store pattern construction arguments for registration."""
+
+        def __init__(self, name, regex, score) -> None:
+            self.name = name
+            self.regex = regex
+            self.score = score
+
+    class FakePatternRecognizer:
+        """Store recognizer construction arguments for registration."""
+
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    presidio_module = ModuleType("presidio_analyzer")
+    presidio_module.AnalyzerEngine = FakeAnalyzerEngine
+    presidio_module.Pattern = FakePattern
+    presidio_module.PatternRecognizer = FakePatternRecognizer
+    nlp_module = ModuleType("presidio_analyzer.nlp_engine")
+    nlp_module.NerModelConfiguration = FakeNerModelConfiguration
+    nlp_module.SpacyNlpEngine = FakeSpacyNlpEngine
+    monkeypatch.setitem(sys.modules, "presidio_analyzer", presidio_module)
+    monkeypatch.setitem(sys.modules, "presidio_analyzer.nlp_engine", nlp_module)
+
+    analyzer = create_presidio_analyzer()
+
+    assert isinstance(analyzer, PresidioTextAnalyzer)
+    assert captured["models"] == [
+        {"lang_code": "ru", "model_name": "ru_core_news_sm"},
+        {"lang_code": "en", "model_name": "en_core_web_sm"},
+    ]
+    assert captured["supported_languages"] == ["ru", "en"]
+
+
+def test_create_presidio_analyzer_fails_closed_when_a_required_model_is_missing(
+    monkeypatch,
+) -> None:
+    """Verify multilingual automatic detection never degrades silently.
+
+    Protected risk: missing English NER must fail the run instead of leaving
+    English personal names visible while reporting successful anonymization.
+    """
+
+    class FakeNerModelConfiguration:
+        """Accept configuration without loading Presidio."""
+
+        def __init__(self, **kwargs) -> None:
+            pass
+
+    class MissingModelSpacyNlpEngine:
+        """Simulate spaCy failing while loading one required model."""
+
+        def __init__(self, *, models, ner_model_configuration) -> None:
+            raise OSError("missing model")
+
+    class FakeAnalyzerEngine:
+        """Unused analyzer placeholder required by the import surface."""
+
+    presidio_module = ModuleType("presidio_analyzer")
+    presidio_module.AnalyzerEngine = FakeAnalyzerEngine
+    nlp_module = ModuleType("presidio_analyzer.nlp_engine")
+    nlp_module.NerModelConfiguration = FakeNerModelConfiguration
+    nlp_module.SpacyNlpEngine = MissingModelSpacyNlpEngine
+    monkeypatch.setitem(sys.modules, "presidio_analyzer", presidio_module)
+    monkeypatch.setitem(sys.modules, "presidio_analyzer.nlp_engine", nlp_module)
+
+    with pytest.raises(RuntimeError) as error:
+        create_presidio_analyzer()
+
+    message = str(error.value)
+    assert "ru_core_news_sm" in message
+    assert "en_core_web_sm" in message

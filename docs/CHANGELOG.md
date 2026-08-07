@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.27.1 — Multilingual names and international phone redaction
+
+### Added
+
+- Added English `en_core_web_sm` NER alongside the existing Russian spaCy model
+  for `automatic` and `combined` anonymization modes.
+- Added language-neutral recognition for common international phone numbers
+  beginning with `+`, including spaces, parentheses, dots, and hyphens.
+- Added deterministic regressions for bilingual Presidio analysis, dual-model
+  initialization, accepted international phone formats, and short signed-number
+  rejection.
+
+### Changed
+
+- Automatic Presidio analysis now combines Russian and English detections before
+  applying configured-mode composition and masking.
+- Installation and verification documentation now requires both local spaCy NER
+  models for `automatic` and `combined` modes.
+- Updated anonymization usage, architecture, UI help, roadmap, and local
+  development invariants for multilingual names and international phones.
+- Bumped the package version to `0.27.1`.
+
+### Safety
+
+- Automatic and combined modes fail rather than silently degrading to
+  Russian-only NER when a required spaCy model is unavailable.
+- Phone matching requires 8–15 digits after the `+` prefix so short signed
+  numeric values are not treated as phone numbers.
+
+### Validation
+
+- `make test-anonymization` (`64 passed`)
+- `make test-ui` (`20 passed`)
+- `make test-public-api` (`18 passed`)
+- `make test-architecture` (`42 passed`)
+- `make check` (`196 passed`)
+
 ## 0.27.0 — Configurable anonymization entity detection
 
 ### Added

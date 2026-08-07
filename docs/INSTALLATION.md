@@ -193,27 +193,29 @@ python -m pip install -r requirements-dev.txt
 python -m pip install -r requirements-ui.txt
 ```
 
-## 6. Install the Russian spaCy model
+## 6. Install the Russian and English spaCy models
 
-The `automatic` and `combined` anonymization modes use the Russian spaCy model
-through local Presidio analysis:
+The `automatic` and `combined` anonymization modes use local Russian and English
+spaCy NER through Presidio. Both models are required so mixed-language documents
+can redact personal names without silently falling back to one language:
 
 ```bash
 python -m spacy download ru_core_news_sm
+python -m spacy download en_core_web_sm
 ```
 
 The `configured` and `disabled` modes do not load Presidio or spaCy. Legacy
 configuration files without `entityDetectionMode` retain their previous
 behavior: non-empty `included` or `includedAndReplaced` rules imply configured
-mode; otherwise automatic mode is used. Installing the model is recommended so
+mode; otherwise automatic mode is used. Installing both models is recommended so
 all four modes remain available.
 
 ## 7. Verify the installation
 
-Check Python imports:
+Check Python imports and both anonymization NER models:
 
 ```bash
-python -c "import cv2, fitz, pytesseract, spacy; print('Runtime imports OK')"
+python -c "import cv2, fitz, pytesseract, spacy; spacy.load('ru_core_news_sm'); spacy.load('en_core_web_sm'); print('Runtime imports and spaCy models OK')"
 ```
 
 For a UI installation, also check Streamlit:
@@ -277,6 +279,7 @@ Activate the existing virtual environment, then refresh dependencies:
 ```bash
 python -m pip install -r requirements-ui.txt
 python -m spacy download ru_core_news_sm
+python -m spacy download en_core_web_sm
 ```
 
 Use `requirements.txt` instead when the installation intentionally excludes the
