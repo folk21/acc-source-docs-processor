@@ -178,3 +178,83 @@ def test_execute_anonymization_loads_presidio_for_combined_mode(
 
     assert analyzer_calls == 1
     assert captured["analyzer"].analyze("Учебная организация")
+
+
+def test_execute_anonymization_applies_session_mode_override_without_editing_ini(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify a UI mode choice overrides the loaded config only in memory.
+
+    Protected risk: changing the Streamlit selection must affect the current run
+    without persisting a different ``entityDetectionMode`` into the user's INI.
+    """
+    from source_docs_processor.ui import anonymization as ui_anonymization
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    config_path = tmp_path / "anonymization.ini"
+    original_config = (
+        "[anonymization]\n"
+        "entityDetectionMode = automatic\n"
+        "included = Учебная организация\n"
+    )
+    config_path.write_text(original_config, encoding="utf-8")
+    captured = {}
+
+    def forbidden_analyzer_provider():
+        raise AssertionError("Configured override must not load Presidio")
+
+    def fake_anonymize_folder(**kwargs):
+        captured.update(kwargs)
+        return AnonymizationSummary(source_root=source, output_root=output)
+
+    monkeypatch.setattr(ui_anonymization, "anonymize_folder", fake_anonymize_folder)
+    request = ui_anonymization.AnonymizationRequest(
+        source_dir=source,
+        output_dir=output,
+        config_path=config_path,
+        entity_detection_mode="configured",
+    )
+
+    ui_anonymization.execute_anonymization(
+        request,
+        analyzer_provider=forbidden_analyzer_provider,
+    )
+
+    assert captured["config"].resolved_entity_detection_mode == "configured"
+    assert config_path.read_text(encoding="utf-8") == original_config
+
+
+def test_execute_anonymization_rejects_unknown_session_mode(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify invalid programmatic UI overrides fail through shared validation.
+
+    Protected risk: the UI adapter must reuse the anonymization feature's mode
+    validation instead of silently accepting a value that Streamlit never offers.
+    """
+    from source_docs_processor.ui import anonymization as ui_anonymization
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    config_path = tmp_path / "anonymization.ini"
+    config_path.write_text("[anonymization]\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        ui_anonymization,
+        "anonymize_folder",
+        lambda **_kwargs: AnonymizationSummary(source_root=source, output_root=output),
+    )
+    request = ui_anonymization.AnonymizationRequest(
+        source_dir=source,
+        output_dir=output,
+        config_path=config_path,
+        entity_detection_mode="mappingOnly",
+    )
+
+    with pytest.raises(ValueError, match="entityDetectionMode"):
+        ui_anonymization.execute_anonymization(request)

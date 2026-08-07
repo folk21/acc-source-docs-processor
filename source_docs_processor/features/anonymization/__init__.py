@@ -2,6 +2,7 @@
 
 from .api import (
     DEFAULT_CONFIG_PATH,
+    ENTITY_DETECTION_MODES,
     SUPPORTED_EXTENSIONS,
     AnonymizationConfig,
     AnonymizationProgress,
@@ -25,6 +26,7 @@ __all__ = [
     "AnonymizedFileResult",
     "ConfiguredTextAnalyzer",
     "DEFAULT_CONFIG_PATH",
+    "ENTITY_DETECTION_MODES",
     "DetectedEntity",
     "PresidioTextAnalyzer",
     "ReplacementRule",

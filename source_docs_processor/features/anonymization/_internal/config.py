@@ -18,9 +18,7 @@ _TOKEN_PATTERN = re.compile(r"[0-9A-Za-zА-Яа-яЁё]+")
 _HEADING_FUZZY_THRESHOLD = 0.84
 _MAX_INCLUDED_FUZZY_ERRORS = 3
 _MIN_FUZZY_LITERAL_LENGTH = 5
-_ENTITY_DETECTION_MODES = frozenset(
-    {"automatic", "configured", "combined", "disabled"}
-)
+ENTITY_DETECTION_MODES = ("automatic", "configured", "combined", "disabled")
 _OCR_CONFUSABLES = str.maketrans(
     {
         "a": "а",
@@ -42,8 +40,8 @@ _OCR_CONFUSABLES = str.maketrans(
 def _normalize_entity_detection_mode(value: str) -> str:
     """Normalize and validate one configured entity-detection mode."""
     normalized = value.strip().casefold()
-    if normalized not in _ENTITY_DETECTION_MODES:
-        supported = ", ".join(sorted(_ENTITY_DETECTION_MODES))
+    if normalized not in ENTITY_DETECTION_MODES:
+        supported = ", ".join(ENTITY_DETECTION_MODES)
         raise ValueError(f"entityDetectionMode must be one of: {supported}")
     return normalized
 

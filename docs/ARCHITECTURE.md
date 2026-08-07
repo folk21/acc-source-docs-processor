@@ -266,6 +266,11 @@ language-neutral operation identifiers; executable handlers remain an explicit
 Python mapping. The UI currently maps anonymization and the three registered
 processing workflows to those public APIs.
 
+The anonymization adapter may override `entityDetectionMode` for one Streamlit
+run by creating an in-memory copy of the public `AnonymizationConfig`. It does
+not rewrite the user's anonymization INI. Supported mode identifiers come from
+the public anonymization API so the UI does not duplicate the feature contract.
+
 Streamlit remains an optional dependency. CLI-only installations use
 `requirements.txt`; UI installations use `requirements-ui.txt`.
 

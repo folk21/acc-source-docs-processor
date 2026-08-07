@@ -15,6 +15,7 @@ _EXPECTED_PUBLIC_NAMES = (
     "AnonymizedFileResult",
     "ConfiguredTextAnalyzer",
     "DEFAULT_CONFIG_PATH",
+    "ENTITY_DETECTION_MODES",
     "DetectedEntity",
     "PresidioTextAnalyzer",
     "ReplacementRule",
@@ -52,6 +53,12 @@ def test_anonymization_public_constants_remain_stable() -> None:
     behavior without changing a function signature.
     """
     assert anonymization.DEFAULT_CONFIG_PATH == Path("config/anonymization.ini")
+    assert anonymization.ENTITY_DETECTION_MODES == (
+        "automatic",
+        "configured",
+        "combined",
+        "disabled",
+    )
     assert anonymization.SUPPORTED_EXTENSIONS == frozenset(
         {".bmp", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".tif", ".tiff", ".txt"}
     )

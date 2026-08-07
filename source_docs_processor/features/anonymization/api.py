@@ -2,6 +2,7 @@
 
 from ._internal.config import (
     DEFAULT_CONFIG_PATH,
+    ENTITY_DETECTION_MODES,
     AnonymizationConfig,
     ConfiguredTextAnalyzer,
     ReplacementRule,
@@ -24,6 +25,7 @@ __all__ = [
     "AnonymizedFileResult",
     "ConfiguredTextAnalyzer",
     "DEFAULT_CONFIG_PATH",
+    "ENTITY_DETECTION_MODES",
     "DetectedEntity",
     "PresidioTextAnalyzer",
     "ReplacementRule",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
@@ -34,6 +34,7 @@ class AnonymizationRequest:
     output_mode: AnonymizationOutputMode = "source"
     preserve_layout: bool = False
     clear_output: bool = False
+    entity_detection_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,11 @@ def execute_anonymization(
 ) -> AnonymizationSummary:
     """Execute one local anonymization request through the public feature API."""
     config = load_anonymization_config(request.config_path)
+    if request.entity_detection_mode is not None:
+        config = replace(
+            config,
+            entity_detection_mode=request.entity_detection_mode,
+        )
     base_analyzer = analyzer_provider() if config.uses_automatic_detection else None
     analyzer = ConfiguredTextAnalyzer(base_analyzer, config)
     output_document_type, output_layout, also_output_source_format = (

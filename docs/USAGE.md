@@ -29,6 +29,11 @@ Each processing screen uses the registered document-type metadata to show only
 supported controls. All screens accept local source/output paths, render
 privacy-safe progress, and show relative-path result and artifact tables.
 
+The anonymization screen also exposes the four supported entity-detection modes.
+Its selection overrides `entityDetectionMode` from the chosen anonymization INI
+for that run only. The INI file is never rewritten by the UI. `combined` is the
+default Streamlit selection.
+
 ## Command-line interface
 
 The CLI is organized by operation:
@@ -259,6 +264,11 @@ The example configuration is:
 ```text
 config/examples/anonymization.ini
 ```
+
+When anonymization is started from Streamlit, the form's entity-detection mode
+selection overrides the INI `entityDetectionMode` only in memory for that run.
+Other configuration rules continue to come from the selected INI file, which is
+not modified.
 
 ### Safety behavior
 

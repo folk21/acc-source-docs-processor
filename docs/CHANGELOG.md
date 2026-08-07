@@ -13,6 +13,8 @@
   backward-compatible legacy inference, combined replacement precedence, and
   matching CLI/Streamlit analyzer selection.
 - Added a cross-project DRY guideline to `AGENTS.md`.
+- Added a localized Streamlit entity-detection selector that overrides the INI mode only for the current run without modifying the configuration file.
+- Exposed the ordered `ENTITY_DETECTION_MODES` public constant so adapters can reuse the feature contract instead of duplicating mode identifiers.
 
 ### Changed
 
@@ -36,10 +38,10 @@
 ### Validation
 
 - `make test-anonymization` (`59 passed`)
-- `make test-ui` (`17 passed`)
+- `make test-ui` (`20 passed`)
 - `make test-public-api` (`18 passed`)
 - `make test-architecture` (`42 passed`)
-- `make check` (`188 passed`)
+- `make check` (`191 passed`)
 
 ## 0.26.0 — Complete localized operations UI and documentation ownership
 

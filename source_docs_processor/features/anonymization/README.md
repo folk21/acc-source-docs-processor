@@ -20,6 +20,7 @@ Supported entry points are exported through
 - `anonymize_folder`;
 - `load_anonymization_config`;
 - `create_presidio_analyzer`;
+- `ENTITY_DETECTION_MODES` for adapters that render supported mode choices;
 - public configuration, progress, result, and analyzer models.
 
 Callers import the package facade. Format handlers and workflow implementation
