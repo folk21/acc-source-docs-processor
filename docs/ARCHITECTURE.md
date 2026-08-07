@@ -20,7 +20,8 @@ process
 
 anonymize
   -> recursive folder workflow
-      -> text analyzer
+      -> entity-detection mode
+          -> automatic / configured / combined / disabled analyzer
       -> format-specific sanitizer
 ```
 
@@ -228,6 +229,13 @@ source directory
 The public API owns configuration and summary contracts. Private modules own
 configuration parsing, text transformation, recursive planning, raster OCR,
 PDF rebuilding, DOCX package sanitization, and editable DOCX reconstruction.
+
+`entityDetectionMode` controls which entity sources participate in text
+redaction. Automatic detection uses local Presidio/spaCy plus project pattern
+recognizers; configured detection uses `included` and `includedAndReplaced`;
+combined mode composes both with configured spans taking precedence over
+overlapping automatic spans. `excluded` applies only to automatic detections,
+while `includedParagraphs` remains independent from entity detection.
 
 The operation is fail-closed. Unsupported formats and opaque active or embedded
 content are not copied unchanged. Progress and logs do not expose detected PII

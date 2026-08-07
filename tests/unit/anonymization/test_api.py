@@ -121,6 +121,7 @@ def test_anonymization_public_model_fields_are_stable() -> None:
     """
     assert _field_names(anonymization.ReplacementRule) == ("source", "replacement")
     assert _field_names(anonymization.AnonymizationConfig) == (
+        "entity_detection_mode",
         "excluded",
         "included",
         "included_and_replaced",

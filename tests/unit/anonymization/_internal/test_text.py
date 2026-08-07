@@ -53,3 +53,23 @@ def test_merge_entities_combines_overlapping_spans() -> None:
     )
 
     assert merged == [DetectedEntity(2, 12, "ORGANIZATION", 0.8)]
+
+
+def test_merge_entities_keeps_adjacent_spans_separate() -> None:
+    """Verify touching entities remain independent transformation ranges.
+
+    Protected risk: combined mode may split an automatic entity directly next
+    to a configured replacement, and merging those spans would discard the
+    replacement value.
+    """
+    merged = merge_entities(
+        [
+            DetectedEntity(0, 6, "CONFIG_REPLACED", 1.1, replacement="Иванов"),
+            DetectedEntity(6, 11, "PERSON", 0.8),
+        ],
+        text_length=11,
+    )
+
+    assert len(merged) == 2
+    assert merged[0].replacement == "Иванов"
+    assert merged[1].entity_type == "PERSON"

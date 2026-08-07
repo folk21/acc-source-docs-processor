@@ -172,6 +172,65 @@ def test_replacement_only_command_skips_presidio_model_loading(
     assert transformed[0].replacement == "Иванов"
 
 
+def test_combined_command_loads_presidio_and_applies_mapping(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify combined mode initializes automatic detection and configured rules.
+
+    Protected risk: CLI mode selection must not silently degrade combined runs
+    into configured-only anonymization.
+    """
+    from source_docs_processor.features.anonymization import DetectedEntity
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    config = tmp_path / "anonymization.ini"
+    config.write_text(
+        "[anonymization]\n"
+        "entityDetectionMode = combined\n"
+        "includedAndReplaced = Петров -> Иванов\n",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    class BaseAnalyzer:
+        """Return one deterministic PERSON span."""
+
+        def analyze(self, text: str) -> list[DetectedEntity]:
+            """Detect the complete test value."""
+            return [DetectedEntity(0, len(text), "PERSON")]
+
+    def fake_anonymize_folder(**kwargs):
+        captured["analyzer"] = kwargs["analyzer"]
+        return AnonymizationSummary(source_root=source, output_root=output)
+
+    monkeypatch.setattr(
+        anonymize_command,
+        "create_presidio_analyzer",
+        lambda: BaseAnalyzer(),
+    )
+    monkeypatch.setattr(
+        anonymize_command,
+        "anonymize_folder",
+        fake_anonymize_folder,
+    )
+
+    result = anonymize_command._run_anonymize_command(
+        argparse.Namespace(
+            source=str(source),
+            output=str(output),
+            config=str(config),
+        )
+    )
+
+    entities = captured["analyzer"].analyze("Петров Петр")
+    assert result == 0
+    assert len(entities) == 2
+    assert any(entity.replacement == "Иванов" for entity in entities)
+
+
 def test_anonymize_parser_accepts_clear_output_option() -> None:
     """Verify safe in-place output cleanup uses the public camelCase option.
 

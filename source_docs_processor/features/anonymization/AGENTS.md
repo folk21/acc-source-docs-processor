@@ -38,6 +38,13 @@ Modules outside anonymization must not import this `_internal/` package.
 - Processing remains local; do not add network or cloud OCR calls.
 - Unsupported or opaque content fails closed.
 - Never log recognized PII values.
+- `entityDetectionMode` owns entity-source selection: `automatic`, `configured`,
+  `combined`, or `disabled`; legacy configurations without the key retain their
+  historical inferred behavior.
+- In `combined` mode, explicit `included` and `includedAndReplaced` spans take
+  priority over overlapping automatic detections; `excluded` filters only the
+  automatic side.
+- `includedParagraphs` remains independent from entity-detection mode.
 - Preserve source names and relative paths unless deterministic conversion or
   collision handling requires a new name.
 - Do not retain PDF source text layers or metadata.

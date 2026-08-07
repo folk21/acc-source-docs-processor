@@ -195,15 +195,18 @@ python -m pip install -r requirements-ui.txt
 
 ## 6. Install the Russian spaCy model
 
-The default Presidio-based anonymization mode uses the Russian spaCy model:
+The `automatic` and `combined` anonymization modes use the Russian spaCy model
+through local Presidio analysis:
 
 ```bash
 python -m spacy download ru_core_news_sm
 ```
 
-Configured-only anonymization, where `included` or `includedAndReplaced` is
-non-empty, does not load Presidio or spaCy. Installing the model is still the
-simplest setup because it keeps both anonymization modes available.
+The `configured` and `disabled` modes do not load Presidio or spaCy. Legacy
+configuration files without `entityDetectionMode` retain their previous
+behavior: non-empty `included` or `includedAndReplaced` rules imply configured
+mode; otherwise automatic mode is used. Installing the model is recommended so
+all four modes remain available.
 
 ## 7. Verify the installation
 

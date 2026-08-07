@@ -209,6 +209,7 @@ Configuration uses the `[anonymization]` section:
 
 ```ini
 [anonymization]
+entityDetectionMode = combined
 excluded =
 included =
     Учебная организация
@@ -223,17 +224,31 @@ includedParagraphs = 9. Реквизиты и подписи сторон
 
 Rules:
 
-- a non-empty `included` or `includedAndReplaced` enables configured-only mode;
-- `included` masks case-insensitive literal matches;
-- `includedAndReplaced` replaces matching source text with the configured value;
+- `entityDetectionMode` accepts `automatic`, `configured`, `combined`, or
+  `disabled`;
+- `automatic` uses local Presidio/spaCy plus the built-in project recognizers
+  and ignores `included` and `includedAndReplaced`;
+- `configured` uses only `included` and `includedAndReplaced` and does not load
+  Presidio/spaCy;
+- `combined` uses automatic detections plus configured rules; configured spans
+  take priority over overlapping automatic detections;
+- `disabled` performs no entity detection; `includedParagraphs` remains active;
+- when `entityDetectionMode` is absent, legacy behavior is preserved: a
+  non-empty `included` or `includedAndReplaced` selects `configured`, otherwise
+  `automatic` is used;
+- `included` masks case-insensitive literal matches in `configured` and
+  `combined` modes;
+- `includedAndReplaced` replaces matching source text with the configured value
+  in `configured` and `combined` modes;
 - a replacement rule takes priority over an identical mask rule;
 - `includedFuzzy = true` enables bounded OCR-only matching for configured source
   values; native TXT and DOCX text remains exact;
 - `includedFuzzyMaxErrors` accepts values from `0` to `3`;
-- `excluded` refines default Presidio detections only when both configured include
-  lists are empty;
+- `excluded` filters only automatic detections in `automatic` and `combined`
+  modes and never cancels an explicit `included` or `includedAndReplaced` rule;
 - `includedParagraphs` masks content after a matched heading and activates
-  stronger following-page handling for raster pages.
+  stronger following-page handling for raster pages independently from
+  `entityDetectionMode`.
 
 Comma-separated and multiline values are supported for ordinary lists.
 `includedAndReplaced` uses one `source -> replacement` rule per line. Multiword

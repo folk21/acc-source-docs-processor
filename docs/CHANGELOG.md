@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.27.0 — Configurable anonymization entity detection
+
+### Added
+
+- Added `entityDetectionMode` with `automatic`, `configured`, `combined`, and
+  `disabled` values.
+- Added combined analyzer behavior in which explicit `included` and
+  `includedAndReplaced` spans take priority over overlapping automatic
+  Presidio/spaCy detections.
+- Added deterministic regression coverage for all modes, invalid mode values,
+  backward-compatible legacy inference, combined replacement precedence, and
+  matching CLI/Streamlit analyzer selection.
+- Added a cross-project DRY guideline to `AGENTS.md`.
+
+### Changed
+
+- `excluded` now has an explicit mode contract: it filters automatic detections
+  in `automatic` and `combined` modes but never cancels configured rules.
+- `includedParagraphs` is documented as independent from entity-detection mode.
+- Updated the example anonymization configuration, CLI help, localized UI help,
+  installation guidance, usage documentation, architecture notes, roadmap, and
+  anonymization development guide for the new mode contract.
+- Bumped the package version to `0.27.0`.
+
+### Preserved
+
+- Configuration files without `entityDetectionMode` retain historical behavior:
+  configured rules imply configured-only detection; otherwise automatic
+  detection is used.
+- Existing output formats, recursive processing, fuzzy OCR matching, replacement
+  syntax, fail-closed format handling, and `includedParagraphs` behavior remain
+  unchanged.
+
+### Validation
+
+- `make test-anonymization` (`59 passed`)
+- `make test-ui` (`17 passed`)
+- `make test-public-api` (`18 passed`)
+- `make test-architecture` (`42 passed`)
+- `make check` (`188 passed`)
+
 ## 0.26.0 — Complete localized operations UI and documentation ownership
 
 ### Added

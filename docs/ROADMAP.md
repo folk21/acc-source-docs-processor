@@ -23,6 +23,8 @@ keeps only a compact foundation summary plus current and planned work.
   status `1` workflows.
 - [x] Provide local fail-closed anonymization for PDF, DOCX, TXT, and raster
   images with configured masking/replacement and Presidio mode.
+- [x] Provide configurable anonymization entity-detection modes for automatic,
+  configured, combined, and disabled entity sources.
 - [x] Provide a localized local Streamlit interface for anonymization and all
   registered document-processing workflows.
 - [x] Provide platform installation and centralized usage documentation.

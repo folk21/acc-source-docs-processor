@@ -122,3 +122,59 @@ def test_execute_anonymization_uses_public_api_and_skips_presidio_for_configured
     assert captured["output_layout"] == "preserve"
     assert captured["also_output_source_format"] is True
     assert captured["clear_output"] is True
+
+
+def test_execute_anonymization_loads_presidio_for_combined_mode(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify the UI uses automatic detection when combined mode requests it.
+
+    Protected risk: CLI and Streamlit must derive analyzer loading from the same
+    configuration mode instead of diverging between adapters.
+    """
+    from source_docs_processor.ui import anonymization as ui_anonymization
+
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    config_path = tmp_path / "anonymization.ini"
+    config_path.write_text(
+        "[anonymization]\n"
+        "entityDetectionMode = combined\n"
+        "included = Учебная организация\n",
+        encoding="utf-8",
+    )
+    captured = {}
+    analyzer_calls = 0
+
+    class EmptyAnalyzer:
+        """Return no automatic entities for deterministic UI wiring coverage."""
+
+        def analyze(self, text: str):
+            """Return no entities."""
+            return []
+
+    def analyzer_provider():
+        nonlocal analyzer_calls
+        analyzer_calls += 1
+        return EmptyAnalyzer()
+
+    def fake_anonymize_folder(**kwargs):
+        captured.update(kwargs)
+        return AnonymizationSummary(source_root=source, output_root=output)
+
+    monkeypatch.setattr(ui_anonymization, "anonymize_folder", fake_anonymize_folder)
+    request = ui_anonymization.AnonymizationRequest(
+        source_dir=source,
+        output_dir=output,
+        config_path=config_path,
+    )
+
+    ui_anonymization.execute_anonymization(
+        request,
+        analyzer_provider=analyzer_provider,
+    )
+
+    assert analyzer_calls == 1
+    assert captured["analyzer"].analyze("Учебная организация")

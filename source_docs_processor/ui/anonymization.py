@@ -69,7 +69,7 @@ def execute_anonymization(
 ) -> AnonymizationSummary:
     """Execute one local anonymization request through the public feature API."""
     config = load_anonymization_config(request.config_path)
-    base_analyzer = None if config.configured_only else analyzer_provider()
+    base_analyzer = analyzer_provider() if config.uses_automatic_detection else None
     analyzer = ConfiguredTextAnalyzer(base_analyzer, config)
     output_document_type, output_layout, also_output_source_format = (
         resolve_output_options(request.output_mode, request.preserve_layout)

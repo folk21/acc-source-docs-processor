@@ -37,6 +37,9 @@ Registered document types are `upd_invoices_status_1`, `npd_receipts`, and
 
 ## Architecture
 
+- When adding code, follow DRY (Don't Repeat Yourself) where practical. Reuse
+  existing logic when the behavior is genuinely shared, without introducing
+  premature abstractions for unrelated cases.
 - Keep `main.py` and `streamlit_app.py` minimal entry points.
 - Keep CLI composition in `source_docs_processor/cli.py`; each feature owns its
   parser and command handler in `command.py`.

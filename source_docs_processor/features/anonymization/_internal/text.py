@@ -33,7 +33,7 @@ def merge_entities(
     for entity in normalized:
         if entity.end <= entity.start:
             continue
-        if not merged or entity.start > merged[-1].end:
+        if not merged or entity.start >= merged[-1].end:
             merged.append(entity)
             continue
         previous = merged[-1]

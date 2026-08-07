@@ -65,20 +65,16 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
         f"included={len(config.included)}, "
         f"includedAndReplaced={len(config.included_and_replaced)}, "
         f"includedParagraphs={len(config.included_paragraphs)}, "
+        f"entityDetectionMode={config.resolved_entity_detection_mode}, "
         f"includedFuzzy={config.included_fuzzy}, "
         f"includedFuzzyMaxErrors={config.included_fuzzy_max_errors})",
         flush=True,
     )
-    if config.configured_only:
-        print(
-            "Configured-only mode enabled: default Presidio detections and "
-            "excluded rules are ignored.",
-            flush=True,
-        )
-        analyzer = ConfiguredTextAnalyzer(None, config)
-    else:
+    base_analyzer = None
+    if config.uses_automatic_detection:
         print("Loading local Presidio and spaCy models...", flush=True)
-        analyzer = ConfiguredTextAnalyzer(create_presidio_analyzer(), config)
+        base_analyzer = create_presidio_analyzer()
+    analyzer = ConfiguredTextAnalyzer(base_analyzer, config)
     output_document_type = getattr(args, "output_document_type", None)
     output_layout = getattr(args, "output_layout", None)
     also_output_source_format = getattr(
@@ -210,9 +206,9 @@ def register_anonymize_command(subparsers: Any) -> None:
         "--config",
         default=str(DEFAULT_CONFIG_PATH),
         help=(
-            "INI configuration file with included, includedAndReplaced, "
-            "excluded, and includedParagraphs rules plus optional OCR fuzzy "
-            "matching. "
+            "INI configuration file with entityDetectionMode, included, "
+            "includedAndReplaced, excluded, and includedParagraphs rules plus "
+            "optional OCR fuzzy matching. "
             "Default: config/anonymization.ini"
         ),
     )

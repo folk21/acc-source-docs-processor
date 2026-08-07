@@ -18,6 +18,9 @@ _TOKEN_PATTERN = re.compile(r"[0-9A-Za-zА-Яа-яЁё]+")
 _HEADING_FUZZY_THRESHOLD = 0.84
 _MAX_INCLUDED_FUZZY_ERRORS = 3
 _MIN_FUZZY_LITERAL_LENGTH = 5
+_ENTITY_DETECTION_MODES = frozenset(
+    {"automatic", "configured", "combined", "disabled"}
+)
 _OCR_CONFUSABLES = str.maketrans(
     {
         "a": "а",
@@ -36,6 +39,15 @@ _OCR_CONFUSABLES = str.maketrans(
 )
 
 
+def _normalize_entity_detection_mode(value: str) -> str:
+    """Normalize and validate one configured entity-detection mode."""
+    normalized = value.strip().casefold()
+    if normalized not in _ENTITY_DETECTION_MODES:
+        supported = ", ".join(sorted(_ENTITY_DETECTION_MODES))
+        raise ValueError(f"entityDetectionMode must be one of: {supported}")
+    return normalized
+
+
 @dataclass(frozen=True)
 class ReplacementRule:
     """Replace one configured literal with a privacy-safe user value."""
@@ -48,6 +60,7 @@ class ReplacementRule:
 class AnonymizationConfig:
     """User-defined literal, replacement, and section anonymization rules."""
 
+    entity_detection_mode: str | None = None
     excluded: tuple[str, ...] = ()
     included: tuple[str, ...] = ()
     included_and_replaced: tuple[ReplacementRule, ...] = ()
@@ -56,9 +69,29 @@ class AnonymizationConfig:
     included_fuzzy_max_errors: int = 1
 
     @property
+    def resolved_entity_detection_mode(self) -> str:
+        """Return the explicit mode or the backward-compatible inferred mode."""
+        if self.entity_detection_mode is None:
+            if self.included or self.included_and_replaced:
+                return "configured"
+            return "automatic"
+
+        return _normalize_entity_detection_mode(self.entity_detection_mode)
+
+    @property
+    def uses_automatic_detection(self) -> bool:
+        """Return True when Presidio-based detections participate in masking."""
+        return self.resolved_entity_detection_mode in {"automatic", "combined"}
+
+    @property
+    def uses_configured_detection(self) -> bool:
+        """Return True when configured literal rules participate in masking."""
+        return self.resolved_entity_detection_mode in {"configured", "combined"}
+
+    @property
     def configured_only(self) -> bool:
-        """Return True when explicit mask or replacement rules are enabled."""
-        return bool(self.included or self.included_and_replaced)
+        """Return True when only configured literal rules are active."""
+        return self.resolved_entity_detection_mode == "configured"
 
     @property
     def included_only(self) -> bool:
@@ -135,6 +168,11 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
         )
 
     section = parser[_SECTION_NAME]
+    entity_detection_mode: str | None = None
+    if "entitydetectionmode" in section:
+        entity_detection_mode = _normalize_entity_detection_mode(
+            section.get("entitydetectionmode", "")
+        )
     excluded = _split_values(section.get("excluded", ""))
     included = _split_values(section.get("included", ""))
     included_and_replaced = _split_replacement_rules(
@@ -159,6 +197,7 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
         )
 
     return AnonymizationConfig(
+        entity_detection_mode=entity_detection_mode,
         excluded=excluded,
         included=included,
         included_and_replaced=included_and_replaced,
@@ -317,7 +356,7 @@ def _configured_entities(
     config: AnonymizationConfig,
     fuzzy: bool,
 ) -> list[DetectedEntity]:
-    """Build explicit mask and replacement entities for configured-only mode."""
+    """Build explicit mask and replacement entities from configured rules."""
     match_function = _fuzzy_literal_matches if fuzzy else _literal_matches
     match_args = (
         (config.included_fuzzy_max_errors,)
@@ -379,7 +418,7 @@ def _configured_entities(
 
 
 class ConfiguredTextAnalyzer:
-    """Select configured-only or default-analyzer anonymization behavior."""
+    """Apply the configured entity-detection mode to one base analyzer."""
 
     def __init__(
         self,
@@ -390,30 +429,63 @@ class ConfiguredTextAnalyzer:
         self._config = config
 
     def analyze(self, text: str) -> Sequence[DetectedEntity]:
-        """Return configured rules only, or filtered default detections."""
-        if self._config.configured_only:
-            return _configured_entities(text, self._config, fuzzy=False)
-
-        if self._base_analyzer is None:
-            raise RuntimeError(
-                "A base analyzer is required when configured include lists are empty"
-            )
-
-        entities = list(self._base_analyzer.analyze(text))
-        excluded_spans = _literal_spans(text, self._config.excluded)
-        if not excluded_spans:
-            return entities
-
-        filtered: list[DetectedEntity] = []
-        for entity in entities:
-            filtered.extend(_subtract_spans(entity, excluded_spans))
-        return filtered
+        """Return exact configured and/or automatic detections for native text."""
+        return self._analyze(text, fuzzy_configured=False)
 
     def analyze_ocr(self, text: str) -> Sequence[DetectedEntity]:
         """Analyze OCR text with optional fuzzy mask and replacement matching."""
-        if not self._config.configured_only or not self._config.included_fuzzy:
-            return self.analyze(text)
-        return _configured_entities(text, self._config, fuzzy=True)
+        return self._analyze(
+            text,
+            fuzzy_configured=self._config.included_fuzzy,
+        )
+
+    def _analyze(
+        self,
+        text: str,
+        *,
+        fuzzy_configured: bool,
+    ) -> list[DetectedEntity]:
+        """Compose automatic and configured detections according to the mode."""
+        mode = self._config.resolved_entity_detection_mode
+        if mode == "disabled":
+            return []
+
+        configured_entities = (
+            _configured_entities(text, self._config, fuzzy=fuzzy_configured)
+            if mode in {"configured", "combined"}
+            else []
+        )
+        if mode == "configured":
+            return configured_entities
+
+        if self._base_analyzer is None:
+            raise RuntimeError(
+                "A base analyzer is required for automatic entity detection"
+            )
+
+        automatic_entities = list(self._base_analyzer.analyze(text))
+        excluded_spans = _literal_spans(text, self._config.excluded)
+        if excluded_spans:
+            automatic_entities = [
+                segment
+                for entity in automatic_entities
+                for segment in _subtract_spans(entity, excluded_spans)
+            ]
+
+        if configured_entities:
+            configured_spans = [
+                (entity.start, entity.end) for entity in configured_entities
+            ]
+            automatic_entities = [
+                segment
+                for entity in automatic_entities
+                for segment in _subtract_spans(entity, configured_spans)
+            ]
+
+        return sorted(
+            [*automatic_entities, *configured_entities],
+            key=lambda entity: (entity.start, entity.end, entity.entity_type),
+        )
 
 
 def _normalize_token(value: str) -> str:
