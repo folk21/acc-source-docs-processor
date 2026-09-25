@@ -137,6 +137,9 @@ _REQUIRED_TEXTS = {
         "unsafe_clear_output",
         "config_missing",
         "config_not_file",
+        "statement_missing",
+        "statement_not_file",
+        "statement_not_xlsx",
     },
 }
 
@@ -152,6 +155,7 @@ def test_localized_configs_define_the_same_supported_ui_contract() -> None:
     assert set(configs) == {"en", "ru"}
     expected_operations = (
         "anonymize",
+        "reconcile_expenses",
         "process_npd_receipts",
         "process_incoming_purchase_documents",
         "process_upd_invoices_status_1",
@@ -165,6 +169,7 @@ def test_localized_configs_define_the_same_supported_ui_contract() -> None:
         for operation_id in expected_operations[1:]:
             assert config.text(f"operation.{operation_id}", "source_path")
             assert config.text(f"operation.{operation_id}", "output_path")
+        assert config.text("operation.reconcile_expenses", "statement_path")
         for section, keys in _REQUIRED_TEXTS.items():
             for key in keys:
                 assert config.text(section, key)

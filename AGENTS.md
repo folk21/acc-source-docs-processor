@@ -12,6 +12,7 @@ provides:
 
 - `process` for registered document-processing workflows;
 - `anonymize` for local fail-closed document redaction;
+- `reconcile-expenses` for matching receipt/ticket files to an XLSX bank statement;
 - an optional local Streamlit adapter that calls public feature APIs.
 
 A processable document type combines:
@@ -53,6 +54,9 @@ Registered document types are `upd_invoices_status_1`, `npd_receipts`, and
 - Treat every feature `_internal/` and concrete document-type `_internal/` as a
   private API owned by that scope.
 - One feature must not import another feature's `_internal` package.
+- Expense reconciliation is an independent feature, not a document type: it owns
+  two-input orchestration and cross-document matching under
+  `features/expense_reconciliation/`.
 - Shared document-processing modules must not import concrete document-type
   internals. One concrete document type must not import another.
 - Use explicit document-type registration through complete definitions. Do not
@@ -166,6 +170,7 @@ registry schemas, output files, public APIs, or architecture changes.
 
 - `source_docs_processor/features/anonymization/AGENTS.md`
 - `source_docs_processor/features/document_processing/AGENTS.md`
+- `source_docs_processor/features/expense_reconciliation/AGENTS.md`
 - `source_docs_processor/features/document_processing/document_types/*/AGENTS.md`
 - `source_docs_processor/ui/AGENTS.md`
 

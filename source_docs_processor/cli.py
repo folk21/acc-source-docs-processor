@@ -8,12 +8,13 @@ import sys
 from .features.anonymization.command import register_anonymize_command
 from .features.document_processing import process_folder
 from .features.document_processing.command import register_process_command
+from .features.expense_reconciliation.command import register_reconcile_expenses_command
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Create the application parser and register available feature commands."""
     parser = argparse.ArgumentParser(
-        description="Process and anonymize accounting source documents locally.",
+        description="Process, anonymize, and reconcile accounting source documents locally.",
     )
     subparsers = parser.add_subparsers(
         dest="command",
@@ -22,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     register_process_command(subparsers)
     register_anonymize_command(subparsers)
+    register_reconcile_expenses_command(subparsers)
     return parser
 
 

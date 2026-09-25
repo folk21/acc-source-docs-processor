@@ -7,8 +7,8 @@ Streamlit UI -> public feature API -> existing workflow
 CLI          -> feature command    -> existing workflow
 ```
 
-The adapter exposes document anonymization and every registered document-
-processing workflow.
+The adapter exposes document anonymization, expense reconciliation, and every
+registered document-processing workflow.
 
 ## Responsibilities
 
@@ -23,14 +23,20 @@ live in `config/ui/ui_<language>.ini`.
 
 Configuration can enable and order known language-neutral operation identifiers.
 Executable handlers remain an explicit Python mapping. The current identifiers are
-`anonymize`, `process_upd_invoices_status_1`, `process_npd_receipts`, and
-`process_incoming_purchase_documents`.
+`anonymize`, `reconcile_expenses`, `process_upd_invoices_status_1`,
+`process_npd_receipts`, and `process_incoming_purchase_documents`.
 
 The anonymization form exposes the feature's supported entity-detection modes.
 The selected value overrides the INI `entityDetectionMode` only for the current
 run by replacing that field on an in-memory configuration value; the UI never
 modifies the selected anonymization INI. Source-format anonymization also accepts
 XLSX workbooks; XLSX-to-DOCX conversion is intentionally not supported.
+
+The expense-reconciliation form accepts a receipt/ticket folder, one XLSX bank
+statement, an output folder, and OCR languages. It calls the public
+`reconcile_expenses()` API directly. Progress and result rendering use only file
+names and aggregate counts; extracted names, dates, and amounts remain in the
+generated workbook.
 
 ## User documentation
 

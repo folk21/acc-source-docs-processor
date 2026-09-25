@@ -1,23 +1,26 @@
 # acc-source-docs-processor
 
-`acc-source-docs-processor` is a local Python application for processing and
-anonymizing accounting source documents.
+`acc-source-docs-processor` is a local Python application for processing,
+anonymizing, and reconciling accounting source documents.
 
 All processing runs on the local computer. Source files are never modified and
 are not uploaded to external services.
 
 ## Capabilities
 
-The application provides two operations:
+The application provides three operations:
 
 - `process` recognizes supported accounting documents, extracts fields, and
   creates workflow-specific files and registries;
 - `anonymize` creates privacy-safe copies of PDF, DOCX, XLSX, TXT, and raster-image
-  files according to configurable masking and replacement rules.
+  files according to configurable masking and replacement rules;
+- `reconcile-expenses` matches local receipt/ticket files to expense positions in
+  a supported XLSX bank statement and creates a reconciliation workbook.
 
 An optional local Streamlit interface is available for browser-based use on the
-same computer. It exposes anonymization plus all three registered document-
-processing workflows through the same public Python APIs used by the CLI.
+same computer. It exposes anonymization, expense reconciliation, and all three
+registered document-processing workflows through the same public Python APIs used
+by the CLI.
 
 ### Supported processing types
 
@@ -59,6 +62,16 @@ python main.py process \
   --source "/path/to/documents" \
   --output "/path/to/output" \
   --document-type npd_receipts
+```
+
+
+### Reconcile expense documents
+
+```bash
+python main.py reconcile-expenses \
+  --source "/path/to/receipts-and-tickets" \
+  --statement "/path/to/payments.xlsx" \
+  --output "/path/to/output"
 ```
 
 ### Anonymize documents
@@ -109,4 +122,5 @@ make help
 - [Development rules](AGENTS.md) — cross-project engineering rules
 - [Anonymization feature](source_docs_processor/features/anonymization/README.md)
 - [Document-processing feature](source_docs_processor/features/document_processing/README.md)
+- [Expense reconciliation feature](source_docs_processor/features/expense_reconciliation/README.md)
 - [Local Streamlit adapter](source_docs_processor/ui/README.md)

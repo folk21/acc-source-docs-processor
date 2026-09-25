@@ -3,7 +3,7 @@ PYTEST := $(PYTHON) -m pytest -q
 
 .PHONY: help compile test check test-core test-public-api test-architecture \
 	test-anonymization test-document-processing test-upd test-npd \
-	test-incoming-purchase-documents test-ui
+	test-incoming-purchase-documents test-expense-reconciliation test-ui
 
 help:
 	@printf '%s\n' \
@@ -17,7 +17,8 @@ help:
 		'make test-document-processing      Run the complete document-processing feature tests' \
 		'make test-upd                      Run scanned UPD status 1 tests' \
 		'make test-npd                      Run NPD receipt tests' \
-		'make test-incoming-purchase-documents  Run incoming purchase-document tests'
+		'make test-incoming-purchase-documents  Run incoming purchase-document tests' \
+		'make test-expense-reconciliation      Run expense reconciliation tests'
 
 compile:
 	$(PYTHON) -m compileall -q main.py streamlit_app.py source_docs_processor tests
@@ -35,7 +36,8 @@ test-public-api:
 		tests/unit/test_public_api.py \
 		tests/unit/anonymization/test_api.py \
 		tests/unit/document_processing/test_api.py \
-		tests/unit/document_processing/test_framework_api.py
+		tests/unit/document_processing/test_framework_api.py \
+		tests/unit/expense_reconciliation/test_api.py
 
 test-architecture:
 	$(PYTEST) \
@@ -44,6 +46,7 @@ test-architecture:
 		tests/unit/anonymization/test_api.py \
 		tests/unit/document_processing/test_api.py \
 		tests/unit/document_processing/test_framework_api.py \
+		tests/unit/expense_reconciliation/test_api.py \
 		tests/unit/test_package_boundaries.py
 
 test-anonymization:
@@ -73,3 +76,7 @@ test-incoming-purchase-documents:
 
 test-ui:
 	$(PYTEST) tests/unit/ui
+
+
+test-expense-reconciliation:
+	$(PYTEST) tests/unit/expense_reconciliation tests/integration/expense_reconciliation

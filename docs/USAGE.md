@@ -21,6 +21,7 @@ subprocess, or provide remote hosting and authentication.
 The localized operation selector provides:
 
 - document anonymization;
+- receipt/ticket reconciliation with an XLSX bank statement;
 - scanned UPD status 1 processing;
 - NPD receipt processing;
 - incoming PDF/DOCX UPD registration for later entry into 1C.
@@ -34,6 +35,12 @@ Its selection overrides `entityDetectionMode` from the chosen anonymization INI
 for that run only. The INI file is never rewritten by the UI. `combined` is the
 default Streamlit selection.
 
+The expense-reconciliation screen accepts a local receipt/ticket folder, one XLSX
+bank statement, an output folder, and OCR languages. It calls the public
+`reconcile_expenses()` API directly and shows only privacy-safe counts plus the
+generated workbook name; extracted names, dates, and amounts remain inside the
+local workbook.
+
 ## Command-line interface
 
 The CLI is organized by operation:
@@ -41,6 +48,7 @@ The CLI is organized by operation:
 ```text
 python main.py process ...
 python main.py anonymize ...
+python main.py reconcile-expenses ...
 ```
 
 Display command-specific help:
@@ -48,6 +56,7 @@ Display command-specific help:
 ```bash
 python main.py process --help
 python main.py anonymize --help
+python main.py reconcile-expenses --help
 ```
 
 Relative source, output, and configuration paths are resolved from the current
@@ -159,6 +168,66 @@ python main.py process --source "/path/to/documents" --dry-run
 Each workflow interprets options according to its input contract. For
 `incoming_purchase_documents`, `--deep-ocr` also OCRs PDF pages that already
 contain a usable native text layer.
+
+## Reconcile expense documents with a bank statement
+
+Expense reconciliation is a separate operation because one run combines two
+independent inputs: a folder of supporting receipt/ticket files and one XLSX bank
+statement. It is not a `process --document-type` workflow.
+
+```bash
+python main.py reconcile-expenses \
+  --source "/path/to/receipts-and-tickets" \
+  --statement "/path/to/payments.xlsx" \
+  --output "/path/to/output"
+```
+
+Supported supporting-document formats are PDF, PNG, JPG/JPEG, BMP, and TIFF. PDF
+native text is used first; raster files and PDFs without a usable two-decimal
+amount use local Tesseract OCR with `rus+eng` by default. Use `--lang` to select a
+different installed Tesseract language combination.
+
+The current statement parser targets the supported 1C-style account-card XLSX
+layout. It locates `Период`, `Документ`, `Дебет`, and `Кредит` structurally, then
+infers the credit amount subcolumn and the compact person analytics column. It
+reads workbook cells directly and does not OCR the statement.
+
+For each supporting document the operation extracts:
+
+- source filename;
+- the maximum valid two-decimal money value, with full date tokens excluded;
+- an optional labeled purchase/issue date;
+- an optional passenger name anchored to `Passenger name`, `Name of passenger`,
+  `Фамилия пассажира`, or `ФИО пассажира`;
+- a lightweight `receipt`, `ticket`, or `unknown` classification.
+
+Matching requires exact `Decimal` amounts and supports:
+
+```text
+1 document <-> 1 statement position
+1 document <-> 2 statement positions whose amounts sum to the document amount
+```
+
+The global matcher first maximizes covered statement amount, then covered
+statement positions, then matched documents. When multiple statement rows have
+the same amount, optional person/date values are used only to choose the more
+plausible duplicate; missing dates or names never block an amount match.
+
+The output is always `expense_reconciliation.xlsx` and contains:
+
+- `Reconciliation` — one row per statement position with `ФИО`, `Дата`, `Сумма`,
+  `Чек`, `Позиция`, `Имя файла-чека`, and `Сумма из чека`;
+- `Documents` — every input receipt/ticket, extracted fields, match state, covered
+  position count, and extraction warnings.
+
+For one document that covers two statement positions, the same filename and
+document amount appear on both reconciliation rows and `Позиция` contains `1`
+and `2`. The summary block counts each input document only once, so the document
+total is not doubled. It also shows statement/document totals, their difference,
+unmatched statement count and total, comma-separated unmatched amounts, unmatched
+document count and total, and the number of documents without a recognized amount.
+
+The operation preserves all source files and writes only the result workbook.
 
 ## Anonymize document folders
 
@@ -337,6 +406,7 @@ scripts/examples/
 ├── process_upd_scans.sh
 ├── process_npd_receipts.sh
 ├── process_incoming_purchase_documents.sh
+├── reconcile_expenses.sh
 └── anonymize_document.sh
 ```
 
@@ -351,6 +421,7 @@ The document-processing API, progress model, metadata catalog, and extension
 contracts are documented in:
 
 - [Document-processing feature](../source_docs_processor/features/document_processing/README.md)
+- [Expense reconciliation feature](../source_docs_processor/features/expense_reconciliation/README.md)
 
 The Streamlit adapter contract is documented in:
 

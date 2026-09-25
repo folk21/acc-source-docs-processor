@@ -101,3 +101,58 @@ def test_processing_paths_reject_same_source_and_output(tmp_path: Path) -> None:
     issues = validate_processing_paths(source, source)
 
     assert _codes(issues) == {"source_equals_output"}
+
+def test_reconciliation_paths_accept_existing_xlsx_and_new_output(tmp_path: Path) -> None:
+    """Verify reconciliation UI accepts the normal three-path workflow.
+
+    Protected risk: UI validation must not be stricter than the public feature for
+    an existing XLSX statement and an output folder created during the run.
+    """
+    from source_docs_processor.ui.path_validation import (
+        validate_expense_reconciliation_paths,
+    )
+
+    source = tmp_path / "source"
+    source.mkdir()
+    statement = tmp_path / "payments.xlsx"
+    statement.write_bytes(b"placeholder")
+
+    issues = validate_expense_reconciliation_paths(
+        source,
+        statement,
+        tmp_path / "new-output",
+    )
+
+    assert issues == ()
+
+
+def test_reconciliation_paths_reject_missing_or_non_xlsx_statement(
+    tmp_path: Path,
+) -> None:
+    """Verify bank-statement problems use stable localization codes.
+
+    Protected risk: the reconciliation form must reject missing or wrong-format
+    statement paths before starting OCR and must not embed one UI language.
+    """
+    from source_docs_processor.ui.path_validation import (
+        validate_expense_reconciliation_paths,
+    )
+
+    source = tmp_path / "source"
+    source.mkdir()
+    missing = validate_expense_reconciliation_paths(
+        source,
+        tmp_path / "missing.xlsx",
+        tmp_path / "output",
+    )
+    wrong = tmp_path / "payments.csv"
+    wrong.write_text("value", encoding="utf-8")
+    non_xlsx = validate_expense_reconciliation_paths(
+        source,
+        wrong,
+        tmp_path / "output",
+    )
+
+    assert _codes(missing) == {"statement_missing"}
+    assert _codes(non_xlsx) == {"statement_not_xlsx"}
+

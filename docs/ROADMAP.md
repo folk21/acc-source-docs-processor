@@ -29,9 +29,10 @@ keeps only a compact foundation summary plus current and planned work.
   recognition for same-line and stacked label/value layouts, explicit privacy
   recognizers, and international phone recognition
   that preserves receipt amounts and ordinary text.
-- [x] Provide a localized local Streamlit interface for anonymization and all
-  registered document-processing workflows.
+- [x] Provide a localized local Streamlit interface for anonymization, expense
+  reconciliation, and all registered document-processing workflows.
 - [x] Provide platform installation and centralized usage documentation.
+- [x] Reconcile receipt/ticket PDF and raster files with supported 1C-style XLSX bank statements, including exact one-to-one and one-to-two amount matching and an XLSX review report.
 
 ## Architecture and code quality
 
@@ -71,6 +72,13 @@ keeps only a compact foundation summary plus current and planned work.
 - [ ] Improve clean print-view and mobile screenshot recognition.
 - [ ] Add synthetic OCR image fixtures without real names or identifiers.
 - [ ] Add an optional local INN-to-organization mapping for recipient names.
+
+## Expense reconciliation
+
+- [/] Tune amount/date/passenger extraction against private receipt and ticket layouts.
+- [ ] Add additional bank-statement XLSX layouts only when real exports justify them.
+- [x] Add localized Streamlit integration through the public reconciliation API.
+- [ ] Add confidence/review reasons for ambiguous equal-amount alternatives.
 
 ## Output and review
 

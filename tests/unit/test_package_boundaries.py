@@ -12,6 +12,11 @@ _DOCUMENT_TYPE_NAMES = (
     "npd_receipts",
     "upd_invoices_status_1",
 )
+_FEATURE_NAMES = (
+    "anonymization",
+    "document_processing",
+    "expense_reconciliation",
+)
 
 
 def _imported_modules_from_file(path: Path) -> list[str]:
@@ -55,28 +60,20 @@ def test_core_does_not_import_features() -> None:
 
 
 def test_independent_features_do_not_import_each_other() -> None:
-    """Verify anonymization and document processing remain independent features.
+    """Verify independent feature packages do not import one another.
 
-    Protected risk: direct cross-feature imports would recreate the mixed package
-    boundary that the feature-oriented layout is intended to remove.
+    Protected risk: direct cross-feature imports would recreate mixed ownership
+    and make one operation depend on another feature's private implementation.
     """
-    anonymization_violations = [
-        (path, module)
-        for path, module in _imported_modules(
-            _PACKAGE_ROOT / "features" / "anonymization"
-        )
-        if "document_processing" in module
-    ]
-    processing_violations = [
-        (path, module)
-        for path, module in _imported_modules(
-            _PACKAGE_ROOT / "features" / "document_processing"
-        )
-        if "anonymization" in module
-    ]
+    features_root = _PACKAGE_ROOT / "features"
+    violations: list[tuple[Path, str]] = []
+    for feature_name in _FEATURE_NAMES:
+        other_names = set(_FEATURE_NAMES) - {feature_name}
+        for path, module in _imported_modules(features_root / feature_name):
+            if any(name in module for name in other_names):
+                violations.append((path, module))
 
-    assert anonymization_violations == []
-    assert processing_violations == []
+    assert violations == []
 
 
 def test_shared_processing_modules_do_not_import_concrete_document_types() -> None:
@@ -157,6 +154,7 @@ def test_top_level_cli_imports_only_feature_entry_points() -> None:
         ".features.anonymization.command",
         ".features.document_processing",
         ".features.document_processing.command",
+        ".features.expense_reconciliation.command",
     }
 
 
@@ -313,6 +311,7 @@ def test_feature_roots_expose_only_public_and_framework_modules() -> None:
             "workflow_base.py",
             "workflow_copy_and_register.py",
         },
+        "expense_reconciliation": {"__init__.py", "api.py", "command.py"},
     }
 
     for feature_name, expected in expected_modules.items():
@@ -361,6 +360,7 @@ def test_feature_private_unit_tests_mirror_internal_packages() -> None:
     tests_root = Path(__file__).resolve().parent
     anonymization_root = tests_root / "anonymization"
     processing_root = tests_root / "document_processing"
+    reconciliation_root = tests_root / "expense_reconciliation"
 
     assert {path.name for path in anonymization_root.glob("test_*.py")} == {
         "test_api.py",
@@ -391,6 +391,18 @@ def test_feature_private_unit_tests_mirror_internal_packages() -> None:
         path.name
         for path in (processing_root / "_internal").glob("test_*.py")
     }
+    assert {path.name for path in reconciliation_root.glob("test_*.py")} == {
+        "test_api.py",
+        "test_command.py",
+    }
+    assert {
+        "test_extraction.py",
+        "test_matching.py",
+        "test_statement.py",
+    } <= {
+        path.name
+        for path in (reconciliation_root / "_internal").glob("test_*.py")
+    }
 
 
 
@@ -404,6 +416,7 @@ def test_features_and_document_types_publish_local_agent_guides() -> None:
     required_guides = {
         features_root / "anonymization" / "AGENTS.md",
         features_root / "document_processing" / "AGENTS.md",
+        features_root / "expense_reconciliation" / "AGENTS.md",
         _PACKAGE_ROOT / "ui" / "AGENTS.md",
     }
     document_types_root = features_root / "document_processing" / "document_types"
@@ -434,6 +447,7 @@ def test_makefile_exposes_standard_focused_validation_targets() -> None:
         "test-upd",
         "test-npd",
         "test-incoming-purchase-documents",
+        "test-expense-reconciliation",
         "test-ui",
     }
 

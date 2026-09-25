@@ -38,6 +38,7 @@ def test_streamlit_adapter_imports_without_running_the_application(monkeypatch) 
     assert callable(app.run_app)
     assert set(app._OPERATION_RENDERERS) == {
         "anonymize",
+        "reconcile_expenses",
         "process_upd_invoices_status_1",
         "process_npd_receipts",
         "process_incoming_purchase_documents",
@@ -60,6 +61,7 @@ class _RenderStreamlit:
     def __init__(self) -> None:
         self.session_state: dict[str, object] = {}
         self.selectboxes: list[tuple[str, tuple[str, ...], int, str]] = []
+        self.text_inputs: list[tuple[str, str, str]] = []
 
     def selectbox(self, label, options, *, index=0, key, **_kwargs):
         normalized_options = tuple(options)
@@ -69,7 +71,8 @@ class _RenderStreamlit:
     def form(self, _key):
         return _RenderForm()
 
-    def text_input(self, _label, *, value, **_kwargs):
+    def text_input(self, label, *, value, key, **_kwargs):
+        self.text_inputs.append((label, value, key))
         return value
 
     def checkbox(self, _label, **_kwargs):
@@ -102,3 +105,26 @@ def test_anonymization_screen_renders_session_entity_detection_selector(monkeypa
     )
     assert mode_control[1] == ENTITY_DETECTION_MODES
     assert mode_control[1][mode_control[2]] == "combined"
+
+def test_expense_reconciliation_screen_renders_statement_path_control(monkeypatch) -> None:
+    """Verify Streamlit exposes the separate XLSX statement input.
+
+    Protected risk: reconciliation requires two independent input sources, so a
+    source/output-only form would be unable to invoke the public feature correctly.
+    """
+    monkeypatch.setitem(sys.modules, "streamlit", _fake_streamlit_module())
+    sys.modules.pop("source_docs_processor.ui.app", None)
+    app = importlib.import_module("source_docs_processor.ui.app")
+
+    from source_docs_processor.ui.config import discover_ui_configs
+
+    rendered = _RenderStreamlit()
+    monkeypatch.setattr(app, "st", rendered)
+
+    app._render_expense_reconciliation(discover_ui_configs()["en"])
+
+    values = {key: value for _label, value, key in rendered.text_inputs}
+    assert values["expense_reconciliation_source"] == "../acc-work/input/expense_documents"
+    assert values["expense_reconciliation_statement"] == "../acc-work/input/payments.xlsx"
+    assert values["expense_reconciliation_output"] == "../acc-work/output/expense_reconciliation"
+

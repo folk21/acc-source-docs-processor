@@ -1,6 +1,6 @@
 # Architecture
 
-`acc-source-docs-processor` is a local application with two independent
+`acc-source-docs-processor` is a local application with three independent
 operations and two outer adapters:
 
 ```text
@@ -23,6 +23,11 @@ anonymize
       -> entity-detection mode
           -> automatic / configured / combined / disabled analyzer
       -> format-specific sanitizer
+
+reconcile-expenses
+  -> receipt/ticket extraction + XLSX statement parsing
+      -> exact 1:1 / 1:2 amount matching
+          -> reconciliation workbook
 ```
 
 ## Architectural goals
@@ -59,7 +64,7 @@ source_docs_processor/
     │   ├── api.py
     │   ├── command.py
     │   └── _internal/
-    └── document_processing/
+    ├── document_processing/
         ├── api.py
         ├── command.py
         ├── models.py
@@ -74,6 +79,10 @@ source_docs_processor/
             ├── upd_invoices_status_1/
             ├── npd_receipts/
             └── incoming_purchase_documents/
+    └── expense_reconciliation/
+        ├── api.py
+        ├── command.py
+        └── _internal/
 ```
 
 ## Dependency direction
@@ -125,6 +134,7 @@ Detailed feature contracts are documented next to the code:
 
 - [Anonymization feature](../source_docs_processor/features/anonymization/README.md)
 - [Document-processing feature](../source_docs_processor/features/document_processing/README.md)
+- [Expense reconciliation feature](../source_docs_processor/features/expense_reconciliation/README.md)
 - [Local Streamlit adapter](../source_docs_processor/ui/README.md)
 
 The nearest `AGENTS.md` contains development invariants and focused validation
@@ -258,6 +268,34 @@ Operational configuration and output behavior are documented in
 [Usage](USAGE.md), while implementation invariants remain in the local feature
 guide.
 
+## Expense reconciliation
+
+Expense reconciliation is independent from document-type registration because one
+run depends on two sources: a folder of receipt/ticket files and one XLSX bank
+statement. The feature owns document extraction, statement parsing, aggregate
+matching, and the reconciliation workbook.
+
+```text
+receipt/ticket folder -> native PDF text or local OCR -> expense documents
+XLSX statement        -> direct cell parsing          -> statement positions
+                                      \               /
+                                       -> exact matching -> XLSX report
+```
+
+The document amount heuristic selects the maximum valid two-decimal money value
+while excluding full date tokens. Optional dates and passenger names improve
+duplicate-row selection but do not block exact amount matching. The matcher
+supports one document to one statement position and one document to two positions
+whose amounts sum exactly. It globally prioritizes covered statement amount, then
+covered positions and matched documents. Concrete duplicate rows are then selected
+using optional person/date hints.
+
+The operation writes a statement-centric `Reconciliation` sheet plus a `Documents`
+sheet for extraction review. Aggregate document totals count each input file once,
+even when one document covers two statement rows. The feature is exposed through
+the CLI, public Python API, and a thin Streamlit adapter that supplies the two input
+paths, output path, OCR language, privacy-safe progress, and aggregate counts.
+
 ## Local Streamlit adapter
 
 The optional UI is an outer adapter, not a feature implementation:
@@ -276,8 +314,10 @@ features.
 Localized text and enabled operation order are stored in
 `config/ui/ui_<language>.ini`. Configuration may select only known
 language-neutral operation identifiers; executable handlers remain an explicit
-Python mapping. The UI currently maps anonymization and the three registered
-processing workflows to those public APIs.
+Python mapping. The UI currently maps anonymization, expense reconciliation, and
+the three registered processing workflows to those public APIs. Reconciliation
+results expose only aggregate counts and a portable workbook name in Streamlit;
+extracted accounting values remain in the generated local workbook.
 
 The anonymization adapter may override `entityDetectionMode` for one Streamlit
 run by creating an in-memory copy of the public `AnonymizationConfig`. It does
@@ -313,6 +353,7 @@ controls without constructing OCR processors.
 | Scanned UPD behavior | `document_types/upd_invoices_status_1/` | `make test-upd` |
 | NPD receipt behavior | `document_types/npd_receipts/` | `make test-npd` |
 | Incoming PDF/DOCX behavior | `document_types/incoming_purchase_documents/` | `make test-incoming-purchase-documents` |
+| Expense reconciliation behavior | `features/expense_reconciliation/` | `make test-expense-reconciliation` |
 | Local UI, localization, or UI validation | `streamlit_app.py`, `source_docs_processor/ui/`, `config/ui/` | `make test-ui` |
 | Public APIs or framework contracts | affected public modules and API tests | `make test-public-api` |
 | CLI composition or dependency boundaries | `cli.py`, feature commands, architecture tests | `make test-architecture` |
@@ -331,6 +372,8 @@ tests/
 │   │   └── _internal/
 │   ├── document_processing/
 │   │   └── _internal/
+│   ├── expense_reconciliation/
+│   │   └── _internal/
 │   ├── ui/
 │   ├── upd_invoices_status_1/
 │   │   └── _internal/
@@ -340,6 +383,7 @@ tests/
 │       └── _internal/
 └── integration/
     ├── anonymization/
+    ├── expense_reconciliation/
     ├── upd_invoices_status_1/
     ├── npd_receipts/
     └── incoming_purchase_documents/

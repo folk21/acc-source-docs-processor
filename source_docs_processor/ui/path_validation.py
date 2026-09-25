@@ -76,3 +76,34 @@ def validate_processing_paths(
         issues.append(ValidationIssue("source_equals_output", output))
 
     return tuple(issues)
+
+def validate_expense_reconciliation_paths(
+    source_dir: Path,
+    statement_path: Path,
+    output_dir: Path,
+) -> tuple[ValidationIssue, ...]:
+    """Validate paths before invoking the expense-reconciliation public API."""
+    source = source_dir.expanduser().resolve()
+    statement = statement_path.expanduser().resolve()
+    output = output_dir.expanduser().resolve()
+    issues: list[ValidationIssue] = []
+
+    if not source.exists():
+        issues.append(ValidationIssue("source_missing", source))
+    elif not source.is_dir():
+        issues.append(ValidationIssue("source_not_directory", source))
+
+    if not statement.exists():
+        issues.append(ValidationIssue("statement_missing", statement))
+    elif not statement.is_file():
+        issues.append(ValidationIssue("statement_not_file", statement))
+    elif statement.suffix.lower() != ".xlsx":
+        issues.append(ValidationIssue("statement_not_xlsx", statement))
+
+    if output.exists() and not output.is_dir():
+        issues.append(ValidationIssue("output_not_directory", output))
+    if source == output:
+        issues.append(ValidationIssue("source_equals_output", output))
+
+    return tuple(issues)
+

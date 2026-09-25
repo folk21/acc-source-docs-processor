@@ -262,6 +262,7 @@ Display the available commands:
 python main.py --help
 python main.py process --help
 python main.py anonymize --help
+python main.py reconcile-expenses --help
 ```
 
 See [Usage](USAGE.md) for complete examples.

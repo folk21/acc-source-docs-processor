@@ -16,6 +16,9 @@ from source_docs_processor.features.anonymization import (
     AnonymizationProgress,
 )
 from source_docs_processor.features.document_processing import ProcessingProgress
+from source_docs_processor.features.expense_reconciliation import (
+    ExpenseReconciliationProgress,
+)
 
 from .anonymization import (
     AnonymizationRequest,
@@ -35,9 +38,15 @@ from .document_processing import (
     execute_processing,
     get_processing_metadata,
 )
+from .expense_reconciliation import (
+    ExpenseReconciliationRequest,
+    execute_expense_reconciliation,
+    workbook_display_path,
+)
 from .path_validation import (
     ValidationIssue,
     validate_anonymization_paths,
+    validate_expense_reconciliation_paths,
     validate_processing_paths,
 )
 
@@ -525,8 +534,189 @@ def _render_document_processing(
     _render_processing_results(config, document_type)
 
 
+
+def _reconciliation_progress_fraction(
+    progress: ExpenseReconciliationProgress,
+) -> float:
+    """Return a bounded progress fraction without exposing accounting values."""
+    if progress.event == "workbook_written":
+        return 1.0
+    if progress.event in {"statement_started", "statement_finished"}:
+        return 0.0 if progress.event == "statement_started" else 0.05
+    if progress.event == "scan_finished":
+        return 0.1
+    if progress.file_count <= 0:
+        return 0.1
+    completed = progress.file_index
+    if progress.event == "file_started":
+        completed = progress.file_index - 1
+    return min(max(0.1 + 0.85 * completed / progress.file_count, 0.0), 0.95)
+
+
+def _reconciliation_progress_message(
+    config: UiConfig,
+    progress: ExpenseReconciliationProgress,
+) -> str:
+    """Return one localized privacy-safe reconciliation progress message."""
+    values = {
+        "file_index": progress.file_index,
+        "file_count": progress.file_count,
+        "file_name": progress.source_path.name if progress.source_path else "",
+        "output_name": progress.output_path.name if progress.output_path else "",
+        "error": progress.error or "",
+    }
+    key = {
+        "statement_started": "progress_statement_started",
+        "statement_finished": "progress_statement_finished",
+        "scan_finished": "progress_scan_finished",
+        "file_started": "progress_file_started",
+        "file_finished": "progress_file_finished",
+        "file_failed": "progress_file_failed",
+        "workbook_written": "progress_workbook_written",
+    }[progress.event]
+    return config.text("reconcile", key).format(**values)
+
+
+def _render_expense_reconciliation_results(config: UiConfig) -> None:
+    """Render privacy-safe counters and the generated workbook name."""
+    summary = st.session_state.get("expense_reconciliation_summary")
+    if summary is None:
+        return
+
+    st.subheader(config.text("reconcile", "results_title"))
+    columns = st.columns(4)
+    columns[0].metric(
+        config.text("reconcile", "metric_documents"),
+        summary.document_count,
+    )
+    columns[1].metric(
+        config.text("reconcile", "metric_documents_with_amount"),
+        summary.documents_with_amount_count,
+    )
+    columns[2].metric(
+        config.text("reconcile", "metric_matched_positions"),
+        summary.matched_statement_position_count,
+    )
+    columns[3].metric(
+        config.text("reconcile", "metric_unmatched_positions"),
+        summary.unmatched_statement_position_count,
+    )
+
+    secondary = st.columns(2)
+    secondary[0].metric(
+        config.text("reconcile", "metric_statement_positions"),
+        summary.statement_position_count,
+    )
+    secondary[1].metric(
+        config.text("reconcile", "metric_unmatched_documents"),
+        summary.unmatched_document_count,
+    )
+
+    st.caption(
+        config.text("reconcile", "workbook_created").format(
+            output_name=workbook_display_path(summary)
+        )
+    )
+
+
+def _render_expense_reconciliation(config: UiConfig) -> None:
+    """Render and execute local receipt/ticket reconciliation."""
+    operation_section = "operation.reconcile_expenses"
+    key_prefix = "expense_reconciliation"
+
+    with st.form(f"{key_prefix}_form"):
+        source_value = st.text_input(
+            config.text("reconcile", "source_label"),
+            value=config.text(operation_section, "source_path"),
+            key=f"{key_prefix}_source",
+            help=config.text("reconcile", "source_help"),
+        )
+        statement_value = st.text_input(
+            config.text("reconcile", "statement_label"),
+            value=config.text(operation_section, "statement_path"),
+            key=f"{key_prefix}_statement",
+            help=config.text("reconcile", "statement_help"),
+        )
+        output_value = st.text_input(
+            config.text("reconcile", "output_label"),
+            value=config.text(operation_section, "output_path"),
+            key=f"{key_prefix}_output",
+            help=config.text("reconcile", "output_help"),
+        )
+        ocr_language = st.text_input(
+            config.text("reconcile", "ocr_language_label"),
+            value=config.text("defaults", "ocr_language"),
+            key=f"{key_prefix}_ocr_language",
+            help=config.text("reconcile", "ocr_language_help"),
+        )
+        submitted = st.form_submit_button(
+            config.text("reconcile", "run_button"),
+            type="primary",
+        )
+
+    if submitted:
+        request = ExpenseReconciliationRequest(
+            source_dir=Path(source_value),
+            statement_path=Path(statement_value),
+            output_dir=Path(output_value),
+            lang=ocr_language.strip() or "rus+eng",
+        )
+        issues = validate_expense_reconciliation_paths(
+            request.source_dir,
+            request.statement_path,
+            request.output_dir,
+        )
+        if issues:
+            for issue in issues:
+                st.error(_localized_issue(config, issue))
+        else:
+            st.session_state["expense_reconciliation_summary"] = None
+            status = st.status(
+                config.text("reconcile", "running_status"),
+                expanded=True,
+            )
+            progress_bar = st.progress(0.0)
+            progress_text = st.empty()
+
+            def update_progress(progress: ExpenseReconciliationProgress) -> None:
+                progress_bar.progress(_reconciliation_progress_fraction(progress))
+                progress_text.caption(
+                    _reconciliation_progress_message(config, progress)
+                )
+
+            try:
+                summary = execute_expense_reconciliation(
+                    request,
+                    progress_callback=update_progress,
+                )
+                st.session_state["expense_reconciliation_summary"] = summary
+                progress_bar.progress(1.0)
+                status.update(
+                    label=config.text(
+                        "reconcile",
+                        "completed_with_unmatched"
+                        if summary.unmatched_statement_position_count
+                        else "completed_status",
+                    ),
+                    state="complete",
+                    expanded=bool(summary.unmatched_statement_position_count),
+                )
+            except Exception as exc:
+                status.update(
+                    label=config.text("reconcile", "failed_status"),
+                    state="error",
+                    expanded=True,
+                )
+                st.error(
+                    config.text("reconcile", "unexpected_error").format(error=exc)
+                )
+
+    _render_expense_reconciliation_results(config)
+
+
 _OPERATION_RENDERERS: dict[str, OperationRenderer] = {
     "anonymize": _render_anonymization,
+    "reconcile_expenses": _render_expense_reconciliation,
     "process_upd_invoices_status_1": partial(
         _render_document_processing,
         operation_id="process_upd_invoices_status_1",

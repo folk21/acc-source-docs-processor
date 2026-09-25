@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.28.1 — Expense reconciliation in Streamlit
+
+### Added
+
+- Added the localized `reconcile_expenses` Streamlit operation with separate local receipt/ticket folder, XLSX bank-statement path, output folder, and OCR-language controls.
+- Added a thin UI adapter that calls the public `reconcile_expenses()` API directly, privacy-safe synchronous progress rendering, aggregate result counters, and the portable generated workbook name.
+- Added statement-specific UI path validation and deterministic UI regressions for public-API forwarding, localized configuration, the required statement field, portable workbook display, and invalid statement formats.
+
+### Changed
+
+- Added the operation to Russian and English UI configuration and operation ordering.
+- Updated root, usage, architecture, roadmap, and UI documentation for the fifth localized UI operation.
+- Bumped the package version to `0.28.1`.
+
+### Privacy
+
+- Streamlit does not display extracted names, dates, amounts, OCR text, or workbook row contents for reconciliation; those values remain in the generated local workbook.
+
+### Validation
+
+- `make test-ui`
+- `make test-architecture`
+- `make check`
+
+## 0.28.0 — Expense receipt/ticket reconciliation
+
+### Added
+
+- Added the independent `reconcile-expenses` feature and CLI command for matching a folder of local receipt/ticket files to one XLSX bank statement.
+- Added native-text PDF extraction with local OCR fallback for PDF and raster inputs, maximum two-decimal amount extraction, optional purchase/issue date extraction, labeled passenger-name extraction, and lightweight receipt/ticket classification.
+- Added a 1C-style account-card XLSX parser that locates period/document/debit/credit groups structurally, infers the credit amount subcolumn, and identifies the compact person analytics column even when its header is anonymized.
+- Added exact `Decimal` matching for one document to one statement position and one document to two positions whose amounts sum exactly. The global amount optimizer prioritizes covered statement total, covered positions, and matched documents; duplicate rows use optional date/person hints.
+- Added `expense_reconciliation.xlsx` with statement-centric `Reconciliation` and document-centric `Documents` sheets, relative local file hyperlinks, unmatched-position highlighting, totals, difference, unmatched counts, and unmatched amounts.
+- Added deterministic unit/integration regressions without real Tesseract, a focused `make test-expense-reconciliation` target, a portable example script, and a local feature development guide.
+
+### Changed
+
+- Added `openpyxl` as a runtime dependency for direct XLSX statement reading.
+- Updated CLI composition, architecture/public-boundary regressions, root/usage/installation/roadmap documentation, and package version for the third independent operation.
+- Bumped the package version to `0.28.0`.
+
+### Preserved
+
+- Preserved all existing `process` document types, OCR heuristics, anonymization behavior, Streamlit operations, public processing APIs, and existing output contracts. Expense reconciliation is currently CLI/public-API only.
+
+### Validation
+
+- `make test-expense-reconciliation`
+- `make test-public-api`
+- `make test-architecture`
+- `make check`
+
 ## 0.27.4 — Stacked boarding-pass passenger-name recognition
 
 ### Fixed
