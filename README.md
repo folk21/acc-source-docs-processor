@@ -117,6 +117,10 @@ make help
 - [Installation](docs/INSTALLATION.md) — Windows, Linux, macOS, CLI, and Streamlit setup
 - [Usage](docs/USAGE.md) — commands, options, configurations, and outputs
 - [Architecture](docs/ARCHITECTURE.md) — component boundaries and ownership
+- [Features](docs/FEATURES.md) — stable capability identifiers used across specs and tests
+- [Specifications](docs/specs/README.md) — active change specs and reconstructed archive
+- [Tests](docs/TESTS.md) — test layers and focused validation commands
+- [Quality](docs/QUALITY.md) — repository gates and planned quality tooling
 - [Roadmap](docs/ROADMAP.md) — active and planned work
 - [Changelog](docs/CHANGELOG.md) — completed changes by release
 - [Development rules](AGENTS.md) — cross-project engineering rules

@@ -47,7 +47,8 @@ test-architecture:
 		tests/unit/document_processing/test_api.py \
 		tests/unit/document_processing/test_framework_api.py \
 		tests/unit/expense_reconciliation/test_api.py \
-		tests/unit/test_package_boundaries.py
+		tests/unit/test_package_boundaries.py \
+		tests/unit/test_documentation_structure.py
 
 test-anonymization:
 	$(PYTEST) tests/unit/anonymization tests/integration/anonymization

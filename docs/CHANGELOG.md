@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — Specification-driven documentation model
+
+### Added
+
+- Added `docs/FEATURES.md` with stable capability identifiers for specifications,
+  tests, documentation, and important implementation references.
+- Added `docs/specs/` with an active umbrella, an NPD QR-assisted extraction
+  current-focus specification, and reconstructed archived feature specifications
+  derived from release history, tests, and surviving package invariants.
+- Added `docs/TESTS.md` and `docs/QUALITY.md` to centralize validation and quality
+  workflow ownership.
+- Added documentation-structure regressions for specification lifecycle and
+  feature-ID references.
+
+### Changed
+
+- Expanded `AGENTS.md`, README, architecture documentation, and roadmap navigation
+  with specification lifecycle, source-of-truth order, feature vocabulary, and
+  progressive-disclosure guidance.
+- Kept production behavior, CLI contracts, document types, OCR heuristics, output
+  files, and public APIs unchanged.
+
 ## 0.28.1 — Expense reconciliation in Streamlit
 
 ### Added

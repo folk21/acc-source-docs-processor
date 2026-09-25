@@ -24,6 +24,23 @@ processor + processing workflow + registry definition + metadata
 Registered document types are `upd_invoices_status_1`, `npd_receipts`, and
 `incoming_purchase_documents`.
 
+## Source of truth
+
+Use this ownership order when sources disagree:
+
+1. the current project tree, production code, machine-readable configuration, and
+   output schemas define implemented behavior;
+2. tests define verified behavior;
+3. active specifications under `docs/specs/active/` define intended changes for
+   current work;
+4. owning current-state documentation defines architecture, usage, installation,
+   testing, and package contracts;
+5. `docs/ROADMAP.md` defines priorities and backlog candidates;
+6. archived specifications are historical context only.
+
+When a project archive or snapshot is supplied for a task, inspect that current
+snapshot before relying on repository history or older documentation.
+
 ## Language and privacy
 
 - Write code comments, docstrings, tests, configuration comments, and software
@@ -141,11 +158,29 @@ Do not place output-action state or repeating item data into `extra_fields`.
   framework protocols, or registered identifiers.
 - Run `make test-ui` after changing Streamlit logic, localization, UI path
   validation, or UI result mapping.
-- Use the nearest local guide to select a focused target, then run:
+- Use the nearest local guide and `docs/TESTS.md` to select a focused target.
+- Run `make check` before completing a change unless the environment prevents it;
+  report any check that could not be run.
 
-```bash
-make check
-```
+## Specifications and feature vocabulary
+
+- Stable capability identifiers live in `docs/FEATURES.md`. Reuse an existing
+  feature ID when a change refines an existing capability.
+- Significant intended changes live under `docs/specs/active/`; completed specs
+  move to `docs/specs/archive/` after stable behavior is documented by its
+  current-state owner.
+- A spec is a change contract, not a permanent second copy of architecture or
+  usage documentation.
+- A specification must exist in exactly one lifecycle location. Archival is a
+  move, not a duplicated copy.
+- Keep umbrella `current_focus`, `docs/specs/README.md`, and the active spec tree
+  consistent.
+- Reverse-engineered archive specs are historical reconstructions. Do not use
+  them to override current code/tests.
+- Do not create a new feature ID for a release number, refactor, temporary task,
+  or individual bug fix.
+
+Read `docs/specs/README.md` before creating or moving specifications.
 
 ## Documentation ownership
 
@@ -157,6 +192,12 @@ and links from the others:
   launch;
 - `docs/USAGE.md` — commands, options, configuration, and output behavior;
 - `docs/ARCHITECTURE.md` — boundaries, composition, and ownership;
+- `docs/FEATURES.md` — stable feature vocabulary for specs/tests/docs;
+- `docs/specs/README.md` — specification workflow and lifecycle;
+- `docs/specs/active/` — intended significant changes currently selected for work;
+- `docs/specs/archive/` — completed historical change contracts;
+- `docs/TESTS.md` — test strategy and validation command ownership;
+- `docs/QUALITY.md` — active quality gates and planned tooling policy;
 - `docs/CHANGELOG.md` — completed release history;
 - `docs/ROADMAP.md` — active and planned work with a compact released-foundation
   summary;
@@ -173,6 +214,29 @@ registry schemas, output files, public APIs, or architecture changes.
 - `source_docs_processor/features/expense_reconciliation/AGENTS.md`
 - `source_docs_processor/features/document_processing/document_types/*/AGENTS.md`
 - `source_docs_processor/ui/AGENTS.md`
+
+## Working style
+
+1. Identify the owning feature/document type and read the nearest local
+   `AGENTS.md`.
+2. Inspect implementation, tests, and any active specification for that scope.
+3. Make the smallest coherent change and preserve unrelated behavior.
+4. Run the focused validation for the owning scope, then broader checks when
+   contracts or boundaries changed.
+5. Update only the owning current-state documentation and specification lifecycle
+   records that actually changed.
+6. Report changed files, validation performed, and anything left unverified.
+
+## Progressive disclosure
+
+Read detailed guidance only when relevant:
+
+- `docs/FEATURES.md` — stable capability IDs;
+- `docs/specs/README.md` — specification workflow;
+- `docs/ARCHITECTURE.md` — dependency direction and ownership;
+- `docs/TESTS.md` — test layers and commands;
+- `docs/QUALITY.md` — repository quality gates;
+- the nearest feature/document-type/UI `AGENTS.md` — protected local behavior.
 
 ## Archive checklist
 

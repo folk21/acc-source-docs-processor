@@ -53,8 +53,15 @@ docs/
 ├── INSTALLATION.md             # platform installation and launch
 ├── USAGE.md                    # commands, configuration, and outputs
 ├── ARCHITECTURE.md             # this document
+├── FEATURES.md                 # stable capability identifiers
+├── TESTS.md                    # test strategy and command matrix
+├── QUALITY.md                  # repository quality-gate policy
 ├── ROADMAP.md                  # active and planned work
-└── CHANGELOG.md                # release history
+├── CHANGELOG.md                # release history
+└── specs/
+    ├── README.md               # specification lifecycle and navigation
+    ├── active/                 # current intended change contracts
+    └── archive/                # completed historical change contracts
 source_docs_processor/
 ├── cli.py                      # feature command composition
 ├── ui/                         # optional Streamlit adapter
@@ -401,6 +408,12 @@ Documentation has one primary purpose per file:
 - `docs/INSTALLATION.md` — platform setup and launch;
 - `docs/USAGE.md` — user commands, configuration, and outputs;
 - `docs/ARCHITECTURE.md` — system boundaries and ownership;
+- `docs/FEATURES.md` — stable capability vocabulary;
+- `docs/specs/README.md` — specification lifecycle and navigation;
+- active specifications — bounded intended significant changes;
+- archived specifications — completed historical change contracts;
+- `docs/TESTS.md` — test strategy and validation commands;
+- `docs/QUALITY.md` — repository quality gates and tooling policy;
 - `docs/ROADMAP.md` — active and planned work;
 - `docs/CHANGELOG.md` — historical completed changes;
 - local `README.md` files — package contracts close to code;
@@ -408,3 +421,9 @@ Documentation has one primary purpose per file:
 
 A topic should be explained in its owning document and linked elsewhere instead
 of being copied into multiple files.
+
+Specifications are intentionally change-oriented. Once a specification is accepted,
+stable behavior moves into the owning current-state documentation and the completed
+specification moves to `docs/specs/archive/`. Stable cross-document capability names
+come from `docs/FEATURES.md` rather than release numbers or temporary implementation
+stages.

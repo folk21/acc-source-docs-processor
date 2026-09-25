@@ -9,6 +9,10 @@ Status legend:
 Completed release history belongs in [CHANGELOG.md](CHANGELOG.md). This file
 keeps only a compact foundation summary plus current and planned work.
 
+The selected near-term implementation contract lives in
+[active specifications](specs/README.md). Stable capability identifiers are defined
+in [FEATURES.md](FEATURES.md). The current focus is `PROCESSING.NPD_QR`.
+
 ## Released foundations
 
 - [x] Separate `process` and `anonymize` operations.
@@ -67,8 +71,9 @@ keeps only a compact foundation summary plus current and planned work.
 ## NPD receipts
 
 - [/] Integrate the existing local QR decoder and official NPD URL parser into
-  receipt processing.
-- [ ] Reconcile QR and OCR values and report conflicts explicitly.
+  receipt processing. Current contract: [NPD QR-assisted extraction](specs/active/subspecs/npd-qr-assisted-extraction.md).
+- [ ] Reconcile QR and OCR values and report conflicts explicitly as part of the
+  same `PROCESSING.NPD_QR` slice.
 - [ ] Improve clean print-view and mobile screenshot recognition.
 - [ ] Add synthetic OCR image fixtures without real names or identifiers.
 - [ ] Add an optional local INN-to-organization mapping for recipient names.
