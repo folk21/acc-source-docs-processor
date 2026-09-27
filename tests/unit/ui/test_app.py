@@ -82,11 +82,11 @@ class _RenderStreamlit:
         return False
 
 
-def test_anonymization_screen_renders_session_entity_detection_selector(monkeypatch) -> None:
-    """Verify Streamlit exposes every supported mode with combined as the default.
+def test_anonymization_screen_defaults_to_config_file_entity_detection_mode(monkeypatch) -> None:
+    """Verify Streamlit follows the selected INI mode unless explicitly overridden.
 
-    Protected risk: adding the runtime override only to the adapter model would
-    leave users unable to select it from the actual Streamlit anonymization form.
+    Protected risk: defaulting the UI to combined mode would silently enable
+    automatic NER even when the selected INI explicitly requests configured mode.
     """
     monkeypatch.setitem(sys.modules, "streamlit", _fake_streamlit_module())
     sys.modules.pop("source_docs_processor.ui.app", None)
@@ -103,8 +103,8 @@ def test_anonymization_screen_renders_session_entity_detection_selector(monkeypa
     mode_control = next(
         item for item in rendered.selectboxes if item[3] == "anonymization_entity_detection_mode"
     )
-    assert mode_control[1] == ENTITY_DETECTION_MODES
-    assert mode_control[1][mode_control[2]] == "combined"
+    assert mode_control[1] == ("config", *ENTITY_DETECTION_MODES)
+    assert mode_control[1][mode_control[2]] == "config"
 
 def test_expense_reconciliation_screen_renders_statement_path_control(monkeypatch) -> None:
     """Verify Streamlit exposes the separate XLSX statement input.

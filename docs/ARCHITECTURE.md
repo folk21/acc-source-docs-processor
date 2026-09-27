@@ -251,8 +251,9 @@ PDF rebuilding, DOCX/XLSX package sanitization, and editable DOCX reconstruction
 redaction. Automatic detection uses a deliberately narrow privacy entity set
 from local Presidio with Russian and English spaCy NER plus project pattern
 recognizers. Broad generic date/time and phone recognizers are not requested,
-and generic organization/location NER is not used while single-token PERSON
-guesses are rejected. High-confidence boarding-pass passenger layouts are handled
+and generic organization/location NER is not used. Generic PERSON NER is kept
+conservative: single-token guesses, ordinary lowercase prose, form-label fragments,
+and implausibly long spans are rejected. High-confidence boarding-pass passenger layouts are handled
 by narrow label-anchored rules: same-line labels are matched in OCR text, while
 raster/PDF OCR can also associate `Passenger name` or `Фамилия пассажира` with a
 name value on the line directly below. This preserves amounts, totals, dates,
@@ -260,8 +261,13 @@ route/airline text, and ordinary document content while retaining targeted
 identifiers, bank/card data, contacts, person names, and explicit phone patterns. Configured detection uses `included` and
 `includedAndReplaced`; combined mode composes both with configured spans taking
 precedence over overlapping automatic spans. `excluded` applies only to
-automatic detections, while `includedParagraphs` remains independent from
-entity detection.
+automatic detections, while structural `includedParagraphs`, `redactLines`, and
+`redactLineRanges` rules remain independent from entity detection. `redactLines`
+operates on top-level PDF/raster OCR geometry and uses upright line ordering
+before mapping masks back to original page pixels. `redactLineRanges` reuses the
+same ordered OCR-line geometry, selecting an inclusive range from a configured
+start-line fragment to an optional end-line fragment; omitted ends cover the
+remaining page and missing explicit anchors fail closed.
 
 The operation is fail-closed. XLSX support sanitizes visible cell text, hidden
 sheets, comments, document metadata, drawing/chart text, and supported embedded
@@ -326,9 +332,10 @@ the three registered processing workflows to those public APIs. Reconciliation
 results expose only aggregate counts and a portable workbook name in Streamlit;
 extracted accounting values remain in the generated local workbook.
 
-The anonymization adapter may override `entityDetectionMode` for one Streamlit
-run by creating an in-memory copy of the public `AnonymizationConfig`. It does
-not rewrite the user's anonymization INI. Supported mode identifiers come from
+The anonymization adapter follows the INI `entityDetectionMode` by default and
+may override it for one Streamlit run by creating an in-memory copy of the public
+`AnonymizationConfig`. It does not rewrite the user's anonymization INI. Supported
+mode identifiers come from
 the public anonymization API so the UI does not duplicate the feature contract.
 
 Streamlit remains an optional dependency. CLI-only installations use

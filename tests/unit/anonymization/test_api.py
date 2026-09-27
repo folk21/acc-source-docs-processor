@@ -17,6 +17,8 @@ _EXPECTED_PUBLIC_NAMES = (
     "DEFAULT_CONFIG_PATH",
     "ENTITY_DETECTION_MODES",
     "DetectedEntity",
+    "LineRangeRedactionRule",
+    "LineRedactionRule",
     "PresidioTextAnalyzer",
     "ReplacementRule",
     "SUPPORTED_EXTENSIONS",
@@ -127,12 +129,24 @@ def test_anonymization_public_model_fields_are_stable() -> None:
     construction, serialization, and result inspection for embedded callers.
     """
     assert _field_names(anonymization.ReplacementRule) == ("source", "replacement")
+    assert _field_names(anonymization.LineRangeRedactionRule) == (
+        "page",
+        "start",
+        "end",
+    )
+    assert _field_names(anonymization.LineRedactionRule) == (
+        "page",
+        "direction",
+        "lines",
+    )
     assert _field_names(anonymization.AnonymizationConfig) == (
         "entity_detection_mode",
         "excluded",
         "included",
         "included_and_replaced",
         "included_paragraphs",
+        "redact_lines",
+        "redact_line_ranges",
         "included_fuzzy",
         "included_fuzzy_max_errors",
     )

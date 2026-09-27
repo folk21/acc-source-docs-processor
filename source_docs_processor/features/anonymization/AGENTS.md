@@ -46,9 +46,10 @@ Modules outside anonymization must not import this `_internal/` package.
 - Keep automatic detection targeted to privacy entities. Do not enable broad
   Presidio recognizers that can mask receipt amounts, dates, or ordinary text
   without a regression demonstrating the need.
-- Keep generic organization/location NER disabled in automatic detection and
-  reject single-token PERSON guesses; use explicit configured rules for known
-  single-word proper names.
+- Keep generic organization/location NER disabled in automatic detection. Generic
+  PERSON NER must reject single-token guesses, ordinary lowercase prose, form-label
+  fragments, and implausibly long name spans; use explicit configured rules for
+  known values that fall outside the conservative automatic name shape.
 - Keep boarding-pass passenger-name recovery narrow and anchored to explicit
   passenger labels or titled slash-name layouts. OCR must support both same-line
   values and values directly below `Passenger name` / `Фамилия пассажира`; do not
@@ -57,7 +58,13 @@ Modules outside anonymization must not import this `_internal/` package.
 - In `combined` mode, explicit `included` and `includedAndReplaced` spans take
   priority over overlapping automatic detections; `excluded` filters only the
   automatic side.
-- `includedParagraphs` remains independent from entity-detection mode.
+- `includedParagraphs`, `redactLines`, and `redactLineRanges` remain independent
+  from entity-detection mode. `redactLines` and `redactLineRanges` use 1-based
+  top-level PDF/raster page numbers and upright OCR-line ordering, and must fail
+  closed on native TXT/DOCX/XLSX inputs where that page-line contract is
+  unavailable. Anchored ranges use normalized exact substring matching rather
+  than fuzzy matching; missing configured anchors must fail closed without
+  including fragment text in the error.
 - Preserve source names and relative paths unless deterministic conversion or
   collision handling requires a new name.
 - Do not retain PDF source text layers or metadata.

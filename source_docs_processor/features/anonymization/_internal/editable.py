@@ -20,7 +20,13 @@ from .config import (
     find_heading_token_range,
     mask_after_heading,
 )
-from .image import OcrPage, OcrWord, _choose_ocr_page
+from .image import (
+    OcrPage,
+    OcrWord,
+    _choose_ocr_page,
+    _line_range_redaction_entities,
+    _line_redaction_entities,
+)
 from .models import DetectedEntity, TextEntityAnalyzer, UnitProgressCallback
 from .text import merge_entities, transform_entities
 
@@ -428,6 +434,14 @@ def anonymize_pdf_to_docx(
                 config=config,
             )
             entities = _analyze_ocr_entities(ocr_page.text, analyzer)
+            entities = merge_entities(
+                [
+                    *entities,
+                    *_line_redaction_entities(ocr_page, config, page_index),
+                    *_line_range_redaction_entities(ocr_page, config, page_index),
+                ],
+                len(ocr_page.text),
+            )
             detected += len(entities)
             if layout == _PRESERVE_LAYOUT:
                 width_points, height_points = _page_dimensions_for_ocr(
@@ -516,6 +530,14 @@ def anonymize_image_to_docx(
                 config=config,
             )
             entities = _analyze_ocr_entities(ocr_page.text, analyzer)
+            entities = merge_entities(
+                [
+                    *entities,
+                    *_line_redaction_entities(ocr_page, config, frame_index),
+                    *_line_range_redaction_entities(ocr_page, config, frame_index),
+                ],
+                len(ocr_page.text),
+            )
             detected += len(entities)
             if layout == _PRESERVE_LAYOUT:
                 width_points, height_points = _image_dimensions_points(

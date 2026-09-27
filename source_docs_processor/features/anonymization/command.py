@@ -65,6 +65,8 @@ def _run_anonymize_command(args: argparse.Namespace) -> int:
         f"included={len(config.included)}, "
         f"includedAndReplaced={len(config.included_and_replaced)}, "
         f"includedParagraphs={len(config.included_paragraphs)}, "
+        f"redactLines={len(config.redact_lines)}, "
+        f"redactLineRanges={len(config.redact_line_ranges)}, "
         f"entityDetectionMode={config.resolved_entity_detection_mode}, "
         f"includedFuzzy={config.included_fuzzy}, "
         f"includedFuzzyMaxErrors={config.included_fuzzy_max_errors})",
@@ -207,8 +209,8 @@ def register_anonymize_command(subparsers: Any) -> None:
         default=str(DEFAULT_CONFIG_PATH),
         help=(
             "INI configuration file with entityDetectionMode, included, "
-            "includedAndReplaced, excluded, and includedParagraphs rules plus "
-            "optional OCR fuzzy matching. "
+            "includedAndReplaced, excluded, includedParagraphs, redactLines, and "
+            "redactLineRanges rules plus optional OCR fuzzy matching. "
             "Default: config/anonymization.ini"
         ),
     )

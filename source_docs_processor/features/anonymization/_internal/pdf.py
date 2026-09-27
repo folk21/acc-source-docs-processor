@@ -54,6 +54,7 @@ def anonymize_pdf_file(
                     lang=lang,
                     config=config,
                     paragraph_state=paragraph_state,
+                    page_number=page_index,
                 )
                 detected += page_detected
                 buffer = BytesIO()

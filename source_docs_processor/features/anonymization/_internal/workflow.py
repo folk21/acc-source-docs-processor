@@ -103,6 +103,14 @@ def _anonymize_one_file(
 ) -> int:
     """Dispatch one supported file to its format-specific anonymizer."""
     suffix = source.suffix.lower()
+    if (config.redact_lines or config.redact_line_ranges) and suffix not in {
+        *SUPPORTED_IMAGE_EXTENSIONS,
+        ".pdf",
+    }:
+        raise ValueError(
+            "redactLines is supported only for top-level PDF and raster-image inputs; "
+            "redactLineRanges has the same limitation"
+        )
     if output_document_type == "docx":
         if suffix in SUPPORTED_IMAGE_EXTENSIONS:
             return anonymize_image_to_docx(

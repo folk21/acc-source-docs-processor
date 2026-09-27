@@ -48,3 +48,32 @@ def test_pdf_anonymization_rebuilds_pages_without_text_layer(
         assert anonymized.page_count == 1
         assert anonymized[0].get_text().strip() == ""
         assert anonymized.metadata.get("author", "") == ""
+
+
+def test_pdf_anonymization_passes_one_based_page_numbers_to_structural_redaction(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify PDF page-line rules receive stable 1-based page indices.
+
+    Protected risk: configured page selectors must not shift by one when PyMuPDF
+    iterates its internally zero-based page collection.
+    """
+    source = tmp_path / "source.pdf"
+    output = tmp_path / "output.pdf"
+    document = fitz.open()
+    document.new_page(width=200, height=120)
+    document.new_page(width=200, height=120)
+    document.save(source)
+    document.close()
+    page_numbers: list[int | None] = []
+
+    def fake_redact(image: Image.Image, analyzer, lang: str, **kwargs):
+        page_numbers.append(kwargs.get("page_number"))
+        return image.copy(), 0
+
+    monkeypatch.setattr(pdf_module, "redact_pil_image", fake_redact)
+
+    pdf_module.anonymize_pdf_file(source, output, EmptyAnalyzer())
+
+    assert page_numbers == [1, 2]

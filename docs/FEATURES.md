@@ -51,7 +51,7 @@ Status values in this catalog are informational:
 | `PROCESSING.INCOMING_PURCHASE_DOCUMENTS` | released | Read incoming UPD status `1` from PDF/DOCX, extract document/item data, validate arithmetic, and create the task workbook/report. | `document_types/incoming_purchase_documents/` |
 | `PROCESSING.FIELD_CONFIDENCE` | planned | Expose field-level confidence/review information for extracted accounting values. | owning document types and shared model only when proven common |
 | `ANONYMIZATION.LOCAL_REDACTION` | released | Recursively anonymize supported local document formats with fail-closed format handling and atomic output. | `features/anonymization/` |
-| `ANONYMIZATION.CONFIGURED_RULES` | released | Support configured masks, replacements, exclusions, section redaction, and OCR-tolerant configured matching. | `features/anonymization/` |
+| `ANONYMIZATION.CONFIGURED_RULES` | released | Support configured masks, replacements, exclusions, section/page-line and anchored line-range structural redaction, and OCR-tolerant configured matching. | `features/anonymization/` |
 | `ANONYMIZATION.EDITABLE_DOCX` | released | Reconstruct editable anonymized DOCX output, optionally preserving approximate layout and emitting source-format output too. | `features/anonymization/` |
 | `ANONYMIZATION.ENTITY_DETECTION` | released | Select automatic/configured/combined/disabled entity sources with targeted Russian/English privacy recognition. | `features/anonymization/` |
 | `ANONYMIZATION.XLSX` | released | Sanitize XLSX visible/hidden content and supported embedded raster images while failing closed on unsafe opaque structures. | `features/anonymization/` |
