@@ -13,14 +13,36 @@
   workflow ownership.
 - Added documentation-structure regressions for specification lifecycle and
   feature-ID references.
+- Added `redactLines` anonymization rules for masking a configured number of OCR
+  lines from the top or bottom of 1-based PDF/raster pages, including rotated
+  scans and PDF/raster-to-DOCX output.
+- Added strict configuration validation and regressions for page selection,
+  top/bottom direction, oversized line counts, disabled entity detection, and
+  fail-closed native non-page inputs.
+- Added `redactLineRanges` structural anonymization rules for masking inclusive
+  OCR-line ranges on 1-based PDF/raster pages from a configured start fragment
+  through an optional end fragment or the rest of the page.
+- Added quoted structural-rule parsing, fail-closed missing-anchor behavior,
+  rotated-page and editable-DOCX regressions, and public API coverage for anchored
+  line-range rules.
+
+### Fixed
+
+- Changed the Streamlit anonymization mode selector to follow the selected INI
+  `entityDetectionMode` by default instead of silently forcing `combined`.
+- Hardened generic automatic PERSON NER against OCR false positives from form
+  labels, ordinary lowercase legal prose, and implausibly long name spans while
+  preserving explicit configured rules and labeled-person recognizers.
+- Added deterministic regressions for `Ф.И.О.`, certificate-label adjacency, legal
+  prose fragments, true multiword names, and the Streamlit configuration default.
 
 ### Changed
 
 - Expanded `AGENTS.md`, README, architecture documentation, and roadmap navigation
   with specification lifecycle, source-of-truth order, feature vocabulary, and
   progressive-disclosure guidance.
-- Kept production behavior, CLI contracts, document types, OCR heuristics, output
-  files, and public APIs unchanged.
+- Kept CLI commands, registered document types, and unrelated output contracts
+  unchanged while extending anonymization configuration and public models.
 
 ## 0.28.1 — Expense reconciliation in Streamlit
 

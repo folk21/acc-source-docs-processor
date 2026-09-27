@@ -41,6 +41,7 @@ _REQUIRED_TEXTS = {
         "config_help",
         "entity_detection_mode_label",
         "entity_detection_mode_help",
+        "entity_detection_mode_config",
         "entity_detection_mode_automatic",
         "entity_detection_mode_configured",
         "entity_detection_mode_combined",

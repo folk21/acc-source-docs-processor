@@ -5,6 +5,8 @@ from ._internal.config import (
     ENTITY_DETECTION_MODES,
     AnonymizationConfig,
     ConfiguredTextAnalyzer,
+    LineRangeRedactionRule,
+    LineRedactionRule,
     ReplacementRule,
     load_anonymization_config,
 )
@@ -27,6 +29,8 @@ __all__ = [
     "DEFAULT_CONFIG_PATH",
     "ENTITY_DETECTION_MODES",
     "DetectedEntity",
+    "LineRangeRedactionRule",
+    "LineRedactionRule",
     "PresidioTextAnalyzer",
     "ReplacementRule",
     "SUPPORTED_EXTENSIONS",

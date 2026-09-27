@@ -11,6 +11,7 @@ import numpy as np
 import pytesseract
 from PIL import Image, ImageDraw, ImageFont, ImageSequence
 
+from ....core.text import normalize_inline_whitespace
 from .config import (
     AnonymizationConfig,
     EMPTY_ANONYMIZATION_CONFIG,
@@ -166,6 +167,112 @@ def _ocr_lines(page: OcrPage) -> list[tuple[OcrWord, ...]]:
         else:
             selected.append(word)
     return [tuple(sorted(line, key=_layout_left)) for line in lines]
+
+
+def _line_redaction_entities(
+    page: OcrPage,
+    config: AnonymizationConfig,
+    page_number: int | None,
+) -> list[DetectedEntity]:
+    """Return structural mask spans for configured top/bottom OCR lines."""
+    if page_number is None or not config.redact_lines:
+        return []
+
+    lines = _ocr_lines(page)
+    if not lines:
+        return []
+
+    selected_spans: set[tuple[int, int]] = set()
+    for rule in config.redact_lines:
+        if rule.page != page_number:
+            continue
+        selected = lines[: rule.lines] if rule.direction == "top" else lines[-rule.lines :]
+        for line in selected:
+            selected_spans.add(
+                (
+                    min(word.start for word in line),
+                    max(word.end for word in line),
+                )
+            )
+
+    return [
+        DetectedEntity(start, end, "CONFIG_REDACT_LINE", score=1.0)
+        for start, end in sorted(selected_spans)
+    ]
+
+
+def _normalized_line_fragment(value: str) -> str:
+    """Normalize one configured or OCR line fragment for safe substring matching."""
+    return normalize_inline_whitespace(value).casefold().replace("ё", "е")
+
+
+def _normalized_ocr_line_text(line: tuple[OcrWord, ...]) -> str:
+    """Return normalized text for one visual OCR line."""
+    return _normalized_line_fragment(" ".join(word.text for word in line))
+
+
+def _find_ocr_line_fragment(
+    lines: list[tuple[OcrWord, ...]],
+    fragment: str,
+    *,
+    start_index: int = 0,
+) -> int | None:
+    """Return the first line index containing a normalized configured fragment."""
+    target = _normalized_line_fragment(fragment)
+    for index in range(start_index, len(lines)):
+        if target in _normalized_ocr_line_text(lines[index]):
+            return index
+    return None
+
+
+def _line_range_redaction_entities(
+    page: OcrPage,
+    config: AnonymizationConfig,
+    page_number: int | None,
+) -> list[DetectedEntity]:
+    """Return structural mask spans for configured OCR line ranges."""
+    if page_number is None or not config.redact_line_ranges:
+        return []
+
+    rules = [rule for rule in config.redact_line_ranges if rule.page == page_number]
+    if not rules:
+        return []
+
+    lines = _ocr_lines(page)
+    selected_spans: set[tuple[int, int]] = set()
+    for rule in rules:
+        start_index = _find_ocr_line_fragment(lines, rule.start)
+        if start_index is None:
+            raise ValueError(
+                f"redactLineRanges start fragment was not found on page {page_number}"
+            )
+
+        end_index = len(lines) - 1
+        if rule.end is not None:
+            matched_end = _find_ocr_line_fragment(
+                lines,
+                rule.end,
+                start_index=start_index,
+            )
+            if matched_end is None:
+                raise ValueError(
+                    f"redactLineRanges end fragment was not found after start "
+                    f"on page {page_number}"
+                )
+            end_index = matched_end
+
+        for line in lines[start_index : end_index + 1]:
+            selected_spans.add(
+                (
+                    min(word.start for word in line),
+                    max(word.end for word in line),
+                )
+            )
+
+    return [
+        DetectedEntity(start, end, "CONFIG_REDACT_LINE_RANGE", score=1.0)
+        for start, end in sorted(selected_spans)
+    ]
 
 
 def _line_box(words: tuple[OcrWord, ...]) -> tuple[int, int, int, int]:
@@ -536,6 +643,7 @@ def redact_pil_image(
     padding: int = 4,
     config: AnonymizationConfig = EMPTY_ANONYMIZATION_CONFIG,
     paragraph_state: ParagraphRedactionState | None = None,
+    page_number: int | None = 1,
 ) -> tuple[Image.Image, int]:
     """Redact detected PII and configured page sections on one raster image."""
     rgb = image.convert("RGB")
@@ -548,6 +656,14 @@ def redact_pil_image(
         analyzer=analyzer,
         lang=lang,
         config=config,
+    )
+    entities = merge_entities(
+        [
+            *entities,
+            *_line_redaction_entities(page, config, page_number),
+            *_line_range_redaction_entities(page, config, page_number),
+        ],
+        len(page.text),
     )
     draw = ImageDraw.Draw(rgb)
     for entity in entities:
@@ -619,6 +735,7 @@ def anonymize_image_file(
                 lang=lang,
                 config=config,
                 paragraph_state=state,
+                page_number=frame_index,
             )
             redacted_frames.append(redacted)
             detected += frame_detected
@@ -647,6 +764,7 @@ def anonymize_image_bytes(
                 lang=lang,
                 config=config,
                 paragraph_state=state,
+                page_number=None,
             )
             frames.append(redacted)
             detected += frame_detected

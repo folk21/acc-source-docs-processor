@@ -9,14 +9,19 @@ processing, and the `anonymize` CLI adapter.
 Presidio/spaCy recognition, explicit configured literals, both sources, or
 neither. Automatic recognition uses Russian and English local spaCy PERSON NER
 plus a targeted set of project/privacy recognizers. Generic organization/location
-NER is intentionally excluded, and single-token PERSON guesses are rejected so
-receipt, ticket, and boarding-pass content is preserved. High-confidence
+NER is intentionally excluded. Generic PERSON NER is limited to conservative
+name-shaped spans, rejecting single-token guesses, ordinary lowercase prose, form
+labels, and implausibly long fragments so normal document text is preserved. High-confidence
 passenger-name layouts are handled by narrow supplemental recognizers. They
 support same-line forms such as `NAME OF PASSENGER: SMITH/JOHN MR` and OCR
 layouts where `Passenger name` or `Фамилия пассажира` is printed above the
 passenger value. Explicit international `+` phone patterns
-remain supported. `includedParagraphs` remains an independent structural
-redaction rule.
+remain supported. `includedParagraphs`, `redactLines`, and `redactLineRanges`
+remain independent structural redaction rules. `redactLines` masks configured OCR
+lines from the top or bottom of 1-based PDF/raster pages. `redactLineRanges` masks
+an inclusive OCR-line range beginning at a configured line fragment and ending at
+an optional second fragment or the page end. Both remain active even when entity
+detection is disabled.
 Legacy configurations without `entityDetectionMode` retain the historical
 inference: configured literals select configured-only detection; otherwise
 automatic detection is used.
@@ -30,6 +35,8 @@ Supported entry points are exported through
 - `load_anonymization_config`;
 - `create_presidio_analyzer`;
 - `ENTITY_DETECTION_MODES` for adapters that render supported mode choices;
+- `LineRedactionRule` for parsed page-edge structural redaction settings;
+- `LineRangeRedactionRule` for parsed anchored OCR-line range settings;
 - public configuration, progress, result, and analyzer models.
 
 Callers import the package facade. Format handlers and workflow implementation

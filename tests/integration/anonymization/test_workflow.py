@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from source_docs_processor.features.anonymization.api import DetectedEntity
-from source_docs_processor.features.anonymization.api import anonymize_folder
+from source_docs_processor.features.anonymization.api import (
+    AnonymizationConfig,
+    DetectedEntity,
+    LineRangeRedactionRule,
+    LineRedactionRule,
+    anonymize_folder,
+)
 
 
 class FictionalNameAnalyzer:
@@ -49,6 +54,66 @@ def test_folder_anonymization_preserves_relative_names_and_reports_unsupported_f
     assert not (output / "raw.bin").exists()
     assert summary.succeeded_count == 1
     assert summary.failed_count == 1
+
+
+def test_page_line_redaction_fails_closed_for_non_paged_input(tmp_path: Path) -> None:
+    """Verify page-position rules are not silently ignored for native text files.
+
+    Protected risk: a user relying on redactLines must receive a failure instead
+    of a TXT/DOCX/XLSX output where the requested structural redaction was skipped.
+    """
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Visible footer", encoding="utf-8")
+    config = AnonymizationConfig(
+        entity_detection_mode="disabled",
+        redact_lines=(LineRedactionRule(page=1, direction="bottom", lines=1),),
+    )
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        config=config,
+    )
+
+    assert summary.succeeded_count == 0
+    assert summary.failed_count == 1
+    assert "redactLines is supported only" in (summary.results[0].error or "")
+    assert not (output / "note.txt").exists()
+
+
+def test_anchored_line_range_fails_closed_for_non_paged_input(tmp_path: Path) -> None:
+    """Verify anchored page ranges are not silently ignored for native text.
+
+    Protected risk: a user relying on redactLineRanges must receive a failure
+    instead of output where the configured structural redaction never ran.
+    """
+    source = tmp_path / "source"
+    output = tmp_path / "output"
+    source.mkdir()
+    (source / "note.txt").write_text("Section start\nPrivate\n", encoding="utf-8")
+    config = AnonymizationConfig(
+        entity_detection_mode="disabled",
+        redact_line_ranges=(
+            LineRangeRedactionRule(page=1, start="Section start"),
+        ),
+    )
+
+    summary = anonymize_folder(
+        source,
+        output,
+        FictionalNameAnalyzer(),
+        config=config,
+    )
+
+    assert summary.succeeded_count == 0
+    assert summary.failed_count == 1
+    assert "redactLineRanges has the same limitation" in (
+        summary.results[0].error or ""
+    )
+    assert not (output / "note.txt").exists()
 
 
 def test_folder_anonymization_emits_file_progress_events(tmp_path: Path) -> None:

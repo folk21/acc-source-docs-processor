@@ -52,6 +52,7 @@ from .path_validation import (
 
 
 OperationRenderer = Callable[[UiConfig], None]
+_ANONYMIZATION_MODE_FROM_CONFIG = "config"
 
 
 @st.cache_resource(show_spinner=False)
@@ -186,10 +187,14 @@ def _render_anonymization(config: UiConfig) -> None:
             key="anonymization_config",
             help=config.text("anonymize", "config_help"),
         )
+        entity_detection_mode_options = (
+            _ANONYMIZATION_MODE_FROM_CONFIG,
+            *ENTITY_DETECTION_MODES,
+        )
         entity_detection_mode = st.selectbox(
             config.text("anonymize", "entity_detection_mode_label"),
-            ENTITY_DETECTION_MODES,
-            index=ENTITY_DETECTION_MODES.index("combined"),
+            entity_detection_mode_options,
+            index=entity_detection_mode_options.index(_ANONYMIZATION_MODE_FROM_CONFIG),
             format_func=lambda value: config.text(
                 "anonymize", f"entity_detection_mode_{value}"
             ),
@@ -226,7 +231,11 @@ def _render_anonymization(config: UiConfig) -> None:
             output_mode=output_mode,
             preserve_layout=preserve_layout,
             clear_output=clear_output,
-            entity_detection_mode=entity_detection_mode,
+            entity_detection_mode=(
+                None
+                if entity_detection_mode == _ANONYMIZATION_MODE_FROM_CONFIG
+                else entity_detection_mode
+            ),
         )
         issues = validate_anonymization_paths(
             request.source_dir,

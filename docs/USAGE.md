@@ -30,10 +30,10 @@ Each processing screen uses the registered document-type metadata to show only
 supported controls. All screens accept local source/output paths, render
 privacy-safe progress, and show relative-path result and artifact tables.
 
-The anonymization screen also exposes the four supported entity-detection modes.
-Its selection overrides `entityDetectionMode` from the chosen anonymization INI
-for that run only. The INI file is never rewritten by the UI. `combined` is the
-default Streamlit selection.
+The anonymization screen follows `entityDetectionMode` from the chosen INI by
+default and also exposes the four supported modes as explicit per-run overrides.
+The INI file is never rewritten by the UI. This prevents Streamlit from silently
+enabling automatic NER when a configuration intentionally selects `configured`.
 
 The expense-reconciliation screen accepts a local receipt/ticket folder, one XLSX
 bank statement, an output folder, and OCR languages. It calls the public
@@ -295,6 +295,11 @@ includedAndReplaced =
 includedFuzzy = true
 includedFuzzyMaxErrors = 1
 includedParagraphs = 9. Реквизиты и подписи сторон
+redactLines =
+    page:1,direction:bottom,lines:3
+redactLineRanges =
+    page:1,start:"Section start",end:"Section end"
+    page:2,start:"Footer start"
 ```
 
 Rules:
@@ -313,15 +318,17 @@ Rules:
 - automatic detection intentionally does not request broad Presidio date/time or
   generic phone recognizers, so receipt amounts, dates, totals, and ordinary
   financial text remain available for recognition; generic organization/location
-  NER is not used and single-token PERSON guesses are ignored to reduce false
-  positives in receipts, tickets, and boarding passes;
+  NER is not used. Generic PERSON NER keeps only conservative name-shaped spans
+  and rejects single-token guesses, ordinary lowercase prose, form-label fragments,
+  and implausibly long spans to reduce false positives in scanned documents;
 - when a real single-word proper name must be hidden, add it explicitly through
   `included` or `includedAndReplaced` and use `combined` mode;
 - `configured` uses only `included` and `includedAndReplaced` and does not load
   Presidio/spaCy;
 - `combined` uses automatic detections plus configured rules; configured spans
   take priority over overlapping automatic detections;
-- `disabled` performs no entity detection; `includedParagraphs` remains active;
+- `disabled` performs no entity detection; structural `includedParagraphs`,
+  `redactLines`, and `redactLineRanges` rules remain active;
 - when `entityDetectionMode` is absent, legacy behavior is preserved: a
   non-empty `included` or `includedAndReplaced` selects `configured`, otherwise
   `automatic` is used;
@@ -338,7 +345,32 @@ Rules:
 - `includedParagraphs` masks content after a matched heading and activates
   stronger following-page handling for raster pages independently from
   `entityDetectionMode`. XLSX has no page-continuation semantics, so
-  `includedParagraphs` is not applied to workbook cells.
+  `includedParagraphs` is not applied to workbook cells;
+- `redactLines` accepts one rule per line in the form
+  `page:<N>,direction:<top|bottom>,lines:<N>`. Page numbers start at `1`. The
+  selected OCR lines are ordered by upright page coordinates, so rotated scans
+  use the visually correct top/bottom edge before masks are mapped back to source
+  pixels. A count larger than the available OCR lines redacts every available
+  line on that page;
+- `redactLines` applies to top-level PDF and raster-image inputs only; TIFF
+  frames are treated as 1-based pages. PDF/raster-to-DOCX conversion preserves
+  the same structural masks;
+- `redactLineRanges` accepts one rule per line in the form
+  `page:<N>,start:"<fragment>"[,end:"<fragment>"]`. Matching is a
+  case-insensitive normalized substring search within each complete OCR line.
+  The start line and explicit end line are both redacted. When `end` is omitted,
+  all remaining OCR lines on that page are redacted. The first matching start is
+  used, and an explicit end is searched from that line forward. Fragments may be
+  quoted; quoting is required when a fragment contains a comma and is recommended
+  for multiword values;
+- `redactLineRanges` fails closed when a configured start fragment is not found
+  on its page or when an explicit end fragment is not found at or after the start.
+  It does not use fuzzy matching, because a false anchor could remove a large
+  page section;
+- `redactLines` and `redactLineRanges` are supported only for top-level PDF and
+  raster-image inputs. Native TXT, DOCX, and XLSX inputs fail closed when either
+  rule is configured because they do not provide a stable OCR page-line coordinate
+  contract.
 
 Comma-separated and multiline values are supported for ordinary lists.
 `includedAndReplaced` uses one `source -> replacement` rule per line. Multiword
@@ -350,10 +382,10 @@ The example configuration is:
 config/examples/anonymization.ini
 ```
 
-When anonymization is started from Streamlit, the form's entity-detection mode
-selection overrides the INI `entityDetectionMode` only in memory for that run.
-Other configuration rules continue to come from the selected INI file, which is
-not modified.
+When anonymization is started from Streamlit, the form uses the INI
+`entityDetectionMode` unless the user selects an explicit override. An override
+changes the mode only in memory for that run. Other configuration rules continue
+to come from the selected INI file, which is not modified.
 
 ### Safety behavior
 

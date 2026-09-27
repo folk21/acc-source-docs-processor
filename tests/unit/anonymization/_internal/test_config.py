@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from source_docs_processor.features.anonymization._internal.config import (
     AnonymizationConfig,
     ConfiguredTextAnalyzer,
+    LineRangeRedactionRule,
+    LineRedactionRule,
     ReplacementRule,
     find_heading_text_span,
     load_anonymization_config,
@@ -63,7 +67,13 @@ def test_config_loader_reads_comma_separated_and_multiline_rules(
         "    Учебная долина -> Учебная планета\n"
         "includedFuzzy = true\n"
         "includedFuzzyMaxErrors = 1\n"
-        "includedParagraphs = 9. Реквизиты и подписи сторон\n",
+        "includedParagraphs = 9. Реквизиты и подписи сторон\n"
+        "redactLines =\n"
+        "    page:1,direction:bottom,lines:3\n"
+        "    page:2, direction:top, lines:2\n"
+        "redactLineRanges =\n"
+        '    page:2,start:"Section start",end:"Section end, signed"\n'
+        '    page:3,start:"Footer start"\n',
         encoding="utf-8",
     )
 
@@ -79,10 +89,107 @@ def test_config_loader_reads_comma_separated_and_multiline_rules(
         ReplacementRule("Учебная долина", "Учебная планета"),
     )
     assert config.included_paragraphs == ("9. Реквизиты и подписи сторон",)
+    assert config.redact_lines == (
+        LineRedactionRule(page=1, direction="bottom", lines=3),
+        LineRedactionRule(page=2, direction="top", lines=2),
+    )
+    assert config.redact_line_ranges == (
+        LineRangeRedactionRule(
+            page=2,
+            start="Section start",
+            end="Section end, signed",
+        ),
+        LineRangeRedactionRule(page=3, start="Footer start"),
+    )
     assert config.included_fuzzy is True
     assert config.included_fuzzy_max_errors == 1
     assert config.included_only is True
     assert config.resolved_entity_detection_mode == "configured"
+
+
+@pytest.mark.parametrize(
+    ("rule", "message"),
+    (
+        ("page:0,direction:bottom,lines:3", "page must be >= 1"),
+        ("page:1,direction:middle,lines:3", "direction must be 'top' or 'bottom'"),
+        ("page:1,direction:top,lines:0", "lines must be >= 1"),
+        ("page:one,direction:top,lines:2", "page and lines values must be integers"),
+        ("page:1,direction:top", "missing required key"),
+        ("page:1,direction:top,lines:2,padding:4", "unknown key"),
+    ),
+)
+def test_config_rejects_invalid_line_redaction_rules(
+    tmp_path: Path,
+    rule: str,
+    message: str,
+) -> None:
+    """Verify malformed page-line rules fail instead of weakening redaction.
+
+    Protected risk: a typo in a structural redaction rule must not be silently
+    ignored because the user may rely on it to remove a known page footer.
+    """
+    path = tmp_path / "anonymization.ini"
+    path.write_text(
+        "[anonymization]\n"
+        "redactLines =\n"
+        f"    {rule}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        load_anonymization_config(path)
+
+
+
+
+@pytest.mark.parametrize(
+    ("rule", "message"),
+    (
+        ('page:0,start:"Begin"', "page must be >= 1"),
+        ('page:1,end:"Finish"', "missing required key"),
+        ('page:one,start:"Begin"', "page must be an integer"),
+        ('page:1,start:"Begin",extra:value', "unknown key"),
+        ('page:1,start:""', "keys and values must be non-empty"),
+        ('page:1,start:"Begin",end:""', "keys and values must be non-empty"),
+        ('page:1,start:"Begin', "invalid quoting"),
+    ),
+)
+def test_config_rejects_invalid_line_range_redaction_rules(
+    tmp_path: Path,
+    rule: str,
+    message: str,
+) -> None:
+    """Verify malformed anchored line ranges fail instead of weakening redaction.
+
+    Protected risk: a typo in a structural range must not silently leave the
+    configured page section visible.
+    """
+    path = tmp_path / "anonymization.ini"
+    path.write_text(
+        "[anonymization]\n"
+        "redactLineRanges =\n"
+        f"    {rule}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        load_anonymization_config(path)
+
+
+def test_line_range_rule_normalizes_public_fragments() -> None:
+    """Verify direct public construction trims anchored line-range fragments.
+
+    Protected risk: embedded callers and INI users must receive equivalent
+    matching semantics for leading and trailing whitespace.
+    """
+    rule = LineRangeRedactionRule(
+        page=2,
+        start="  Section start  ",
+        end="  Section end  ",
+    )
+
+    assert rule.start == "Section start"
+    assert rule.end == "Section end"
 
 
 def test_config_loader_reads_explicit_entity_detection_mode(tmp_path: Path) -> None:
@@ -104,6 +211,17 @@ def test_config_loader_reads_explicit_entity_detection_mode(tmp_path: Path) -> N
 
         assert config.entity_detection_mode == mode
         assert config.resolved_entity_detection_mode == mode
+
+
+def test_line_redaction_rule_normalizes_direction_for_public_construction() -> None:
+    """Verify direct public rule construction keeps the same validated contract.
+
+    Protected risk: embedded callers must not bypass INI validation and create a
+    direction that is later misinterpreted as a different page edge.
+    """
+    rule = LineRedactionRule(page=1, direction=" Bottom ", lines=2)
+
+    assert rule.direction == "bottom"
 
 
 def test_config_rejects_unknown_entity_detection_mode(tmp_path: Path) -> None:

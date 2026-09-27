@@ -9,6 +9,11 @@ from types import ModuleType
 
 import pytest
 
+from source_docs_processor.features.anonymization._internal.config import (
+    AnonymizationConfig,
+    ConfiguredTextAnalyzer,
+    ReplacementRule,
+)
 from source_docs_processor.features.anonymization._internal.models import DetectedEntity
 from source_docs_processor.features.anonymization._internal.text import (
     _INTERNATIONAL_PHONE_PATTERN,
@@ -240,6 +245,72 @@ def test_presidio_analyzer_rejects_single_token_ner_false_positives() -> None:
 
     detected_text = [text[entity.start : entity.end] for entity in entities]
     assert detected_text == ["Иван Петров", "John Smith"]
+
+
+def test_presidio_analyzer_rejects_form_labels_and_legal_prose_as_person_names() -> None:
+    """Verify generic PERSON NER cannot mask ordinary form labels or legal prose.
+
+    Protected risk: OCR-flattened tax forms can make spaCy return broad PERSON
+    spans such as `Ф.И.О.`, `Сертификат`, or lowercase legal phrases. These
+    false positives must not become opaque raster redactions.
+    """
+    fragments = (
+        "Ф.И.О.",
+        "Сертификат Королев",
+        "(налогового) периода систематизируется и накапливается информация из "
+        "принятых к учету первичных учетных документов, и аналитические данные "
+        "налогового учета",
+        "данных налогового",
+        "Иван Петров",
+        "ПЕТРОВ ИВАН",
+        "Петров И.И.",
+    )
+    text = " | ".join(fragments)
+    results = []
+    offset = 0
+    for fragment in fragments:
+        start = text.index(fragment, offset)
+        results.append(
+            _FakePresidioResult(start, start + len(fragment), "PERSON", 0.80)
+        )
+        offset = start + len(fragment)
+    engine = _FakePresidioEngine({"ru": results, "en": []})
+
+    entities = PresidioTextAnalyzer(engine).analyze(text)
+
+    detected_text = [text[entity.start : entity.end] for entity in entities]
+    assert detected_text == ["Иван Петров", "ПЕТРОВ ИВАН", "Петров И.И."]
+
+
+def test_combined_mode_does_not_redact_certificate_label_next_to_configured_name() -> None:
+    """Verify a false PERSON span cannot consume a form label beside a pseudonym.
+
+    Protected risk: a broad NER span such as `Сертификат Королев` used to survive
+    the generic two-token filter, after which configured-name precedence could
+    leave `Сертификат` as an opaque automatic redaction.
+    """
+    text = "Сертификат Королев"
+    engine = _FakePresidioEngine(
+        {
+            "ru": [
+                _FakePresidioResult(0, len(text), "PERSON", 0.80),
+            ],
+            "en": [],
+        }
+    )
+    analyzer = ConfiguredTextAnalyzer(
+        PresidioTextAnalyzer(engine),
+        AnonymizationConfig(
+            entity_detection_mode="combined",
+            included_and_replaced=(ReplacementRule("Королев", "Князев"),),
+        ),
+    )
+
+    transformed, entities = mask_text(text, analyzer)
+
+    assert transformed == "Сертификат Князев"
+    assert len(entities) == 1
+    assert entities[0].replacement == "Князев"
 
 
 def test_international_phone_pattern_accepts_common_plus_prefixed_formats() -> None:

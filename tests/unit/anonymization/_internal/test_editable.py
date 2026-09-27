@@ -29,6 +29,18 @@ class IncludedAnalyzer:
         return self.analyze(text)
 
 
+class EmptyAnalyzer:
+    """Return no entities for structural editable-output tests."""
+
+    def analyze(self, text: str) -> list[DetectedEntity]:
+        """Return no entities."""
+        return []
+
+    def analyze_ocr(self, text: str) -> list[DetectedEntity]:
+        """Return no entities for OCR text."""
+        return []
+
+
 def test_scanned_pdf_can_be_reconstructed_as_editable_docx(
     tmp_path: Path,
     monkeypatch,
@@ -70,6 +82,186 @@ def test_scanned_pdf_can_be_reconstructed_as_editable_docx(
     assert "Квантовая" not in text
     assert "Раздел 2.2.1" in text
     assert "долина" in text
+
+
+def test_pdf_to_docx_applies_configured_page_line_redaction(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify page-line structural masks are preserved in editable DOCX output.
+
+    Protected risk: converting a redacted PDF workflow to DOCX must not restore
+    footer text that the same configuration explicitly removes by page position.
+    """
+    from source_docs_processor.features.anonymization._internal.config import LineRedactionRule
+    from source_docs_processor.features.anonymization._internal.image import OcrWord
+
+    source = tmp_path / "source.pdf"
+    destination = tmp_path / "output.docx"
+    pdf = fitz.open()
+    pdf.new_page(width=300, height=200)
+    pdf.save(source)
+    pdf.close()
+
+    text = "Visible Footer"
+    fake_page = OcrPage(
+        text=text,
+        words=(
+            OcrWord(
+                text="Visible",
+                start=0,
+                end=7,
+                left=20,
+                top=30,
+                width=60,
+                height=16,
+                confidence=90.0,
+                layout_left=20,
+                layout_top=30,
+                layout_width=60,
+                layout_height=16,
+                block_number=1,
+                paragraph_number=1,
+                line_number=1,
+            ),
+            OcrWord(
+                text="Footer",
+                start=8,
+                end=14,
+                left=20,
+                top=150,
+                width=55,
+                height=16,
+                confidence=90.0,
+                layout_left=20,
+                layout_top=150,
+                layout_width=55,
+                layout_height=16,
+                block_number=1,
+                paragraph_number=1,
+                line_number=2,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=300,
+        original_height=200,
+        layout_width=300,
+        layout_height=200,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.editable._choose_ocr_page",
+        lambda *args, **kwargs: (fake_page, []),
+    )
+
+    detected = anonymize_pdf_to_docx(
+        source,
+        destination,
+        EmptyAnalyzer(),
+        lang="rus+eng",
+        config=AnonymizationConfig(
+            entity_detection_mode="disabled",
+            redact_lines=(LineRedactionRule(page=1, direction="bottom", lines=1),),
+        ),
+    )
+
+    output_text = "\n".join(paragraph.text for paragraph in Document(destination).paragraphs)
+    assert detected == 1
+    assert "Visible" in output_text
+    assert "Footer" not in output_text
+    assert "██████" in output_text
+
+
+def test_pdf_to_docx_applies_configured_anchored_line_range(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify anchored structural ranges are preserved in editable DOCX output.
+
+    Protected risk: PDF-to-DOCX conversion must not restore text between explicit
+    start/end line anchors that source-format anonymization would remove.
+    """
+    from source_docs_processor.features.anonymization._internal.config import (
+        LineRangeRedactionRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import OcrWord
+
+    source = tmp_path / "source.pdf"
+    destination = tmp_path / "output.docx"
+    pdf = fitz.open()
+    pdf.new_page(width=300, height=220)
+    pdf.save(source)
+    pdf.close()
+
+    values = ("Visible", "Range start", "Secret middle", "Range end", "After")
+    words = []
+    text_parts = []
+    offset = 0
+    for line_number, value in enumerate(values, start=1):
+        if text_parts:
+            text_parts.append(" ")
+            offset += 1
+        start = offset
+        text_parts.append(value)
+        offset += len(value)
+        words.append(
+            OcrWord(
+                text=value,
+                start=start,
+                end=offset,
+                left=20,
+                top=20 + line_number * 30,
+                width=100,
+                height=16,
+                confidence=90.0,
+                layout_left=20,
+                layout_top=20 + line_number * 30,
+                layout_width=100,
+                layout_height=16,
+                block_number=1,
+                paragraph_number=1,
+                line_number=line_number,
+            )
+        )
+    fake_page = OcrPage(
+        text="".join(text_parts),
+        words=tuple(words),
+        rotation_degrees=0,
+        original_width=300,
+        original_height=220,
+        layout_width=300,
+        layout_height=220,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.editable._choose_ocr_page",
+        lambda *args, **kwargs: (fake_page, []),
+    )
+
+    detected = anonymize_pdf_to_docx(
+        source,
+        destination,
+        EmptyAnalyzer(),
+        lang="rus+eng",
+        config=AnonymizationConfig(
+            entity_detection_mode="disabled",
+            redact_line_ranges=(
+                LineRangeRedactionRule(
+                    page=1,
+                    start="range start",
+                    end="RANGE END",
+                ),
+            ),
+        ),
+    )
+
+    output_text = "\n".join(
+        paragraph.text for paragraph in Document(destination).paragraphs
+    )
+    assert detected == 3
+    assert "Visible" in output_text
+    assert "After" in output_text
+    assert "Range start" not in output_text
+    assert "Secret middle" not in output_text
+    assert "Range end" not in output_text
 
 
 def test_preserve_layout_reconstructs_page_geometry_and_positioned_lines(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import configparser
 import re
+import shlex
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -55,6 +56,48 @@ class ReplacementRule:
 
 
 @dataclass(frozen=True)
+class LineRedactionRule:
+    """Redact a number of OCR lines from one edge of one 1-based page."""
+
+    page: int
+    direction: str
+    lines: int
+
+    def __post_init__(self) -> None:
+        """Normalize direction and reject invalid structural redaction values."""
+        if self.page < 1:
+            raise ValueError("redactLines page must be >= 1")
+        if self.lines < 1:
+            raise ValueError("redactLines lines must be >= 1")
+        direction = self.direction.strip().casefold()
+        if direction not in {"top", "bottom"}:
+            raise ValueError("redactLines direction must be 'top' or 'bottom'")
+        object.__setattr__(self, "direction", direction)
+
+
+@dataclass(frozen=True)
+class LineRangeRedactionRule:
+    """Redact OCR lines between configured text fragments on one 1-based page."""
+
+    page: int
+    start: str
+    end: str | None = None
+
+    def __post_init__(self) -> None:
+        """Normalize fragments and reject invalid structural redaction values."""
+        if self.page < 1:
+            raise ValueError("redactLineRanges page must be >= 1")
+        start = self.start.strip()
+        if not start:
+            raise ValueError("redactLineRanges start must be non-empty")
+        end = self.end.strip() if self.end is not None else None
+        if end == "":
+            raise ValueError("redactLineRanges end must be non-empty when provided")
+        object.__setattr__(self, "start", start)
+        object.__setattr__(self, "end", end)
+
+
+@dataclass(frozen=True)
 class AnonymizationConfig:
     """User-defined literal, replacement, and section anonymization rules."""
 
@@ -63,6 +106,8 @@ class AnonymizationConfig:
     included: tuple[str, ...] = ()
     included_and_replaced: tuple[ReplacementRule, ...] = ()
     included_paragraphs: tuple[str, ...] = ()
+    redact_lines: tuple[LineRedactionRule, ...] = ()
+    redact_line_ranges: tuple[LineRangeRedactionRule, ...] = ()
     included_fuzzy: bool = False
     included_fuzzy_max_errors: int = 1
 
@@ -147,6 +192,167 @@ def _split_replacement_rules(raw_value: str) -> tuple[ReplacementRule, ...]:
     return tuple(rules)
 
 
+def _split_structural_rule_fields(
+    line: str,
+    *,
+    line_number: int,
+    setting_name: str,
+) -> dict[str, str]:
+    """Split comma-separated key:value fields while honoring quoted values."""
+    lexer = shlex.shlex(line, posix=True)
+    lexer.whitespace = ","
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    try:
+        parts = list(lexer)
+    except ValueError as exc:
+        raise ValueError(
+            f"{setting_name} contains invalid quoting: line {line_number}: {line}"
+        ) from exc
+
+    values: dict[str, str] = {}
+    for raw_part in parts:
+        part = raw_part.strip()
+        if ":" not in part:
+            raise ValueError(
+                f"{setting_name} entries must use key:value fields separated by commas: "
+                f"line {line_number}: {line}"
+            )
+        raw_key, raw_value = part.split(":", 1)
+        key = raw_key.strip().casefold()
+        value = raw_value.strip()
+        if not key or not value:
+            raise ValueError(
+                f"{setting_name} keys and values must be non-empty: "
+                f"line {line_number}: {line}"
+            )
+        if key in values:
+            raise ValueError(
+                f"{setting_name} contains duplicate key '{key}': "
+                f"line {line_number}: {line}"
+            )
+        values[key] = value
+    return values
+
+
+def _validate_structural_rule_keys(
+    values: dict[str, str],
+    *,
+    required_keys: set[str],
+    allowed_keys: set[str],
+    line_number: int,
+    line: str,
+    setting_name: str,
+) -> None:
+    """Reject missing or unknown structural-rule fields."""
+    unknown_keys = set(values) - allowed_keys
+    missing_keys = required_keys - set(values)
+    if unknown_keys:
+        unknown = ", ".join(sorted(unknown_keys))
+        raise ValueError(
+            f"{setting_name} contains unknown key(s) {unknown}: "
+            f"line {line_number}: {line}"
+        )
+    if missing_keys:
+        missing = ", ".join(sorted(missing_keys))
+        raise ValueError(
+            f"{setting_name} is missing required key(s) {missing}: "
+            f"line {line_number}: {line}"
+        )
+
+
+def _split_line_redaction_rules(raw_value: str) -> tuple[LineRedactionRule, ...]:
+    """Parse strict ``page:N,direction:top|bottom,lines:N`` rules."""
+    rules: list[LineRedactionRule] = []
+    seen: set[LineRedactionRule] = set()
+    required_keys = {"page", "direction", "lines"}
+    for line_number, raw_line in enumerate(raw_value.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        values = _split_structural_rule_fields(
+            line,
+            line_number=line_number,
+            setting_name="redactLines",
+        )
+        _validate_structural_rule_keys(
+            values,
+            required_keys=required_keys,
+            allowed_keys=required_keys,
+            line_number=line_number,
+            line=line,
+            setting_name="redactLines",
+        )
+
+        try:
+            page = int(values["page"])
+            lines = int(values["lines"])
+        except ValueError as exc:
+            raise ValueError(
+                "redactLines page and lines values must be integers: "
+                f"line {line_number}: {line}"
+            ) from exc
+        if page < 1:
+            raise ValueError("redactLines page must be >= 1")
+        if lines < 1:
+            raise ValueError("redactLines lines must be >= 1")
+
+        direction = values["direction"].casefold()
+        if direction not in {"top", "bottom"}:
+            raise ValueError("redactLines direction must be 'top' or 'bottom'")
+
+        rule = LineRedactionRule(page=page, direction=direction, lines=lines)
+        if rule not in seen:
+            rules.append(rule)
+            seen.add(rule)
+    return tuple(rules)
+
+
+def _split_line_range_redaction_rules(
+    raw_value: str,
+) -> tuple[LineRangeRedactionRule, ...]:
+    """Parse strict page/start/end OCR line-range redaction rules."""
+    rules: list[LineRangeRedactionRule] = []
+    seen: set[LineRangeRedactionRule] = set()
+    required_keys = {"page", "start"}
+    allowed_keys = {"page", "start", "end"}
+    for line_number, raw_line in enumerate(raw_value.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        values = _split_structural_rule_fields(
+            line,
+            line_number=line_number,
+            setting_name="redactLineRanges",
+        )
+        _validate_structural_rule_keys(
+            values,
+            required_keys=required_keys,
+            allowed_keys=allowed_keys,
+            line_number=line_number,
+            line=line,
+            setting_name="redactLineRanges",
+        )
+        try:
+            page = int(values["page"])
+        except ValueError as exc:
+            raise ValueError(
+                "redactLineRanges page must be an integer: "
+                f"line {line_number}: {line}"
+            ) from exc
+        rule = LineRangeRedactionRule(
+            page=page,
+            start=values["start"],
+            end=values.get("end"),
+        )
+        if rule not in seen:
+            rules.append(rule)
+            seen.add(rule)
+    return tuple(rules)
+
+
 def load_anonymization_config(path: Path) -> AnonymizationConfig:
     """Load anonymization rules from one INI file."""
     config_path = path.expanduser().resolve()
@@ -177,6 +383,10 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
         section.get("includedandreplaced", "")
     )
     included_paragraphs = _split_values(section.get("includedparagraphs", ""))
+    redact_lines = _split_line_redaction_rules(section.get("redactlines", ""))
+    redact_line_ranges = _split_line_range_redaction_rules(
+        section.get("redactlineranges", "")
+    )
     try:
         included_fuzzy = section.getboolean("includedfuzzy", fallback=False)
     except ValueError as exc:
@@ -200,6 +410,8 @@ def load_anonymization_config(path: Path) -> AnonymizationConfig:
         included=included,
         included_and_replaced=included_and_replaced,
         included_paragraphs=included_paragraphs,
+        redact_lines=redact_lines,
+        redact_line_ranges=redact_line_ranges,
         included_fuzzy=included_fuzzy,
         included_fuzzy_max_errors=included_fuzzy_max_errors,
     )

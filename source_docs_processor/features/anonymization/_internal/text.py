@@ -13,6 +13,7 @@ _INTERNATIONAL_PHONE_PATTERN = r"(?<![\w+])\+\d(?:[\s().-]*\d){7,14}(?!\d)"
 _AUTOMATIC_ENTITY_TYPES = (
     "PERSON",
     "RU_ORGANIZATION",
+    "RU_LABELED_PERSON",
     "RU_INN",
     "RU_KPP",
     "RU_OGRN",
@@ -32,6 +33,8 @@ _AUTOMATIC_ENTITY_TYPES = (
 )
 _NER_ENTITY_TYPES = frozenset({"PERSON"})
 _NAME_TOKEN_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё]+(?:[-'][A-Za-zА-Яа-яЁё]+)?")
+_MAX_GENERIC_PERSON_TOKENS = 4
+_NON_PERSON_LABEL_TOKENS = frozenset({"сертификат", "certificate", "фио"})
 _BOARDING_NAME_PART = r"[A-Z][A-Za-z'’\-]{1,30}"
 _BOARDING_TITLE = r"(?:MR|MRS|MS|MISS|MSTR|DR)"
 _LABELED_BOARDING_NAME_PATTERN = re.compile(
@@ -189,13 +192,54 @@ def mask_text(
     return transform_text(text, analyzer)
 
 
+def _looks_like_generic_person_name(fragment: str) -> bool:
+    """Return True for conservative generic NER spans shaped like person names."""
+    if any(character.isdigit() for character in fragment):
+        return False
+
+    matches = list(_NAME_TOKEN_PATTERN.finditer(fragment))
+    if not 2 <= len(matches) <= _MAX_GENERIC_PERSON_TOKENS:
+        return False
+
+    normalized_tokens = [match.group(0).casefold().replace("ё", "е") for match in matches]
+    if any(token in _NON_PERSON_LABEL_TOKENS for token in normalized_tokens):
+        return False
+    if normalized_tokens[:3] == ["ф", "и", "о"]:
+        return False
+
+    separators: list[str] = []
+    cursor = 0
+    for match in matches:
+        separators.append(fragment[cursor : match.start()])
+        cursor = match.end()
+    separators.append(fragment[cursor:])
+    if any(re.search(r"[^\s.,/'’\-]", separator) for separator in separators):
+        return False
+
+    substantial_tokens = 0
+    initial_tokens = 0
+    for match in matches:
+        token = match.group(0)
+        letters = "".join(character for character in token if character.isalpha())
+        if len(letters) == 1:
+            if not letters.isupper():
+                return False
+            initial_tokens += 1
+            continue
+        if not (token.isupper() or token.istitle()):
+            return False
+        substantial_tokens += 1
+
+    return substantial_tokens >= 2 or (substantial_tokens == 1 and initial_tokens >= 1)
+
+
 def _keep_automatic_result(text: str, result) -> bool:
     """Keep only precise automatic PII detections suitable for document sharing."""
     if result.entity_type not in _NER_ENTITY_TYPES:
         return True
 
     fragment = text[result.start : result.end]
-    return len(_NAME_TOKEN_PATTERN.findall(fragment)) >= 2
+    return _looks_like_generic_person_name(fragment)
 
 
 def _boarding_pass_name_entities(text: str) -> list[DetectedEntity]:
@@ -269,7 +313,7 @@ def _add_pattern_recognizers(engine) -> None:
             ("организация", "продавец", "покупатель", "поставщик"),
         ),
         (
-            "PERSON",
+            "RU_LABELED_PERSON",
             (
                 Pattern(
                     "Labeled Russian person",
