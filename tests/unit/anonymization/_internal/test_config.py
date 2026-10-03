@@ -384,6 +384,202 @@ def test_included_literal_matches_across_whitespace_changes() -> None:
     assert len(entities) == 1
 
 
+def test_ocr_replacement_matches_email_split_by_punctuation_without_fuzzy() -> None:
+    """Verify OCR punctuation segmentation does not break explicit email replacement.
+
+    Protected risk: Tesseract may emit spaces around `@` or `.` even when the
+    configured email is visually continuous, leaving a known private value visible.
+    """
+    source = "J.PETROVA@GM.SU"
+    recognized = "J . PETROVA @ GM . SU"
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included_and_replaced=(
+                ReplacementRule(source, "J.IVANOVA@GM.SU"),
+            ),
+            included_fuzzy=False,
+        ),
+    )
+
+    assert analyzer.analyze(recognized) == []
+    entities = analyzer.analyze_ocr(recognized)
+
+    assert len(entities) == 1
+    assert entities[0].start == 0
+    assert entities[0].end == len(recognized)
+    assert entities[0].replacement == "J.IVANOVA@GM.SU"
+
+
+def test_ocr_replacement_matches_uuid_with_spaced_unicode_dashes_without_fuzzy() -> None:
+    """Verify OCR dash normalization preserves explicit identifier replacement.
+
+    Protected risk: OCR can separate identifier groups with whitespace or Unicode
+    dashes, so literal matching alone can miss a configured pseudonym mapping.
+    """
+    source = "9bfd1944-2a25-4864-bd33"
+    recognized = "9bfd1944 – 2a25 – 4864 – bd33"
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included_and_replaced=(
+                ReplacementRule(source, "00000000-0000-0000-0000"),
+            ),
+            included_fuzzy=False,
+        ),
+    )
+
+    entities = analyzer.analyze_ocr(recognized)
+
+    assert len(entities) == 1
+    assert entities[0].start == 0
+    assert entities[0].end == len(recognized)
+    assert entities[0].replacement == "00000000-0000-0000-0000"
+
+
+def test_ocr_replacement_preserves_prefixed_number_mapping_without_masking() -> None:
+    """Verify exact and normalized OCR matching do not duplicate one mapping.
+
+    Protected risk: a configured value beginning with punctuation such as `№`
+    previously produced one literal span and one shorter token-normalized span.
+    The generic overlap merger then discarded the replacement and masked the
+    value instead of writing the configured pseudonym.
+    """
+    from source_docs_processor.features.anonymization._internal.text import (
+        merge_entities,
+        transform_entities,
+    )
+
+    source = "№40817810355860000000"
+    replacement = "№11111111111111111111"
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            entity_detection_mode="configured",
+            included_and_replaced=(ReplacementRule(source, replacement),),
+            included_fuzzy=False,
+        ),
+    )
+
+    entities = merge_entities(analyzer.analyze_ocr(source), len(source))
+
+    assert len(entities) == 1
+    assert entities[0].start == 0
+    assert entities[0].end == len(source)
+    assert entities[0].replacement == replacement
+    assert transform_entities(source, entities) == replacement
+
+
+def test_ocr_replacement_matches_number_split_inside_identifier_without_fuzzy() -> None:
+    """Verify OCR-only token boundaries inside a long number do not expose it.
+
+    Protected risk: Tesseract may split one visually continuous long identifier
+    into several words, while configured-only anonymization must still apply the
+    exact mapping without enabling character-error fuzzy matching.
+    """
+    source = "№40817810655190000001"
+    recognized = "№ 4081781065519 0000001"
+    replacement = "№22222222222222222222"
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            entity_detection_mode="configured",
+            included_and_replaced=(ReplacementRule(source, replacement),),
+            included_fuzzy=False,
+        ),
+    )
+
+    entities = analyzer.analyze_ocr(recognized)
+
+    assert len(entities) == 1
+    assert entities[0].start == 0
+    assert entities[0].end == len(recognized)
+    assert entities[0].replacement == replacement
+
+
+def test_ocr_longest_overlapping_replacement_wins_without_masking() -> None:
+    """Verify a full configured email mapping wins over an embedded mapping.
+
+    Protected risk: overlapping configured replacements previously reached the
+    generic overlap merger, which intentionally converts ambiguous overlaps to a
+    mask. A specific full-value mapping must instead remain a replacement.
+    """
+    from source_docs_processor.features.anonymization._internal.text import (
+        merge_entities,
+        transform_entities,
+    )
+
+    text = "J.PETROVA@SSSASTER.SU PETROVA"
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            entity_detection_mode="configured",
+            included_and_replaced=(
+                ReplacementRule("PETROVA", "IVANOVA"),
+                ReplacementRule("J.PETROVA@SSSASTER.SU", "XXX@MMM.SU"),
+            ),
+            included_fuzzy=False,
+        ),
+    )
+
+    entities = merge_entities(analyzer.analyze_ocr(text), len(text))
+
+    assert len(entities) == 2
+    assert all(entity.replacement is not None for entity in entities)
+    assert transform_entities(text, entities) == "XXX@MMM.SU IVANOVA"
+
+
+def test_ocr_replacement_takes_priority_over_overlapping_included_mask() -> None:
+    """Verify an explicit replacement is not downgraded by an included substring.
+
+    Protected risk: configured mode may contain both mask and replacement rules;
+    a shorter included value inside a mapped identifier must not turn the mapped
+    identifier into a black rectangle.
+    """
+    from source_docs_processor.features.anonymization._internal.text import (
+        merge_entities,
+        transform_entities,
+    )
+
+    text = "J.PETROVA@SSSASTER.SU"
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            entity_detection_mode="configured",
+            included=("PETROVA",),
+            included_and_replaced=(
+                ReplacementRule("J.PETROVA@SSSASTER.SU", "XXX@MMM.SU"),
+            ),
+            included_fuzzy=False,
+        ),
+    )
+
+    entities = merge_entities(analyzer.analyze_ocr(text), len(text))
+
+    assert len(entities) == 1
+    assert entities[0].replacement == "XXX@MMM.SU"
+    assert transform_entities(text, entities) == "XXX@MMM.SU"
+
+
+def test_ocr_normalized_replacement_does_not_accept_character_error_without_fuzzy() -> None:
+    """Verify normalized OCR matching does not become implicit fuzzy matching.
+
+    Protected risk: punctuation tolerance must not make unrelated identifiers match
+    when the user intentionally keeps `includedFuzzy` disabled.
+    """
+    analyzer = ConfiguredTextAnalyzer(
+        None,
+        AnonymizationConfig(
+            included_and_replaced=(
+                ReplacementRule("J.PETROVA@GM.SU", "J.IVANOVA@GM.SU"),
+            ),
+            included_fuzzy=False,
+        ),
+    )
+
+    assert analyzer.analyze_ocr("J . PETROWA @ GM . SU") == []
+
+
 def test_ocr_fuzzy_included_matches_one_recognition_error_only_for_ocr() -> None:
     """Verify fuzzy included matching repairs one OCR error without changing text rules.
 

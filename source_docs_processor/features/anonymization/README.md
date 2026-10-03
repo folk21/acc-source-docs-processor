@@ -22,6 +22,25 @@ lines from the top or bottom of 1-based PDF/raster pages. `redactLineRanges` mas
 an inclusive OCR-line range beginning at a configured line fragment and ending at
 an optional second fragment or the page end. Both remain active even when entity
 detection is disabled.
+Configured `included` and `includedAndReplaced` values use exact matching for
+native TXT/DOCX/XLSX text. OCR-derived PDF/raster text additionally uses safe
+normalized exact matching before optional fuzzy matching. OCR-only whitespace
+and token boundaries are ignored while significant punctuation is retained, so
+spaces around email punctuation, spaces inside long numbers, and Unicode dash
+variants do not break an explicit mapping. When replacement rules overlap, the
+longest configured source wins, and replacement spans take priority over
+overlapping `included` masks. Fragment mappings inside one OCR word are composed
+before raster rendering, so replacing `BBB -> CCC` inside
+`AAA.BBB@GMAIL.COM` preserves the rest of the email as
+`AAA.CCC@GMAIL.COM`. For source-format PDF/raster sanitization, long numeric
+configured replacements also use a targeted table-oriented band OCR retry to
+recover occurrences omitted by sparse-text OCR. Configured textual replacements
+also get one exact table-oriented OCR retry in the selected page orientation so
+an alternate segmentation can recover a word that sparse-text OCR misread or
+omitted. The retry applies only explicit normalized-exact replacement mappings;
+it does not enable automatic detection or fuzzy character edits. Character
+content must still match unless `includedFuzzy` is enabled.
+
 Legacy configurations without `entityDetectionMode` retain the historical
 inference: configured literals select configured-only detection; otherwise
 automatic detection is used.

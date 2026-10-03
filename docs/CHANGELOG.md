@@ -28,6 +28,29 @@
 
 ### Fixed
 
+- Added an exact table-oriented OCR retry for configured textual replacements in
+  source-format PDF/raster output, recovering explicit mappings when sparse-text
+  OCR misreads or omits a configured word while keeping fuzzy matching disabled.
+- Fixed raster/PDF rendering of fragment `includedAndReplaced` mappings inside a
+  single OCR word: all mapped fragments are now composed into the full transformed
+  word before drawing, preserving surrounding email/identifier text instead of
+  leaving disconnected replacement fragments.
+- Added targeted table-oriented band OCR for source-format PDF/raster long
+  numeric mappings, fixing repeated identifiers that were visually identical but
+  omitted from the primary sparse-text OCR stream.
+- Fixed configured-only OCR mappings that could turn `includedAndReplaced`
+  values into black masks when exact and normalized matches overlapped, notably
+  identifiers beginning with `№`.
+- Made OCR configured exact matching tolerate whitespace inserted inside long
+  identifiers while retaining significant punctuation, and made the longest
+  overlapping configured replacement take precedence over shorter replacements
+  or `included` masks.
+- Fixed configured OCR replacements for punctuation-heavy values such as email
+  addresses and UUID-like identifiers when Tesseract inserts spaces around
+  punctuation or emits Unicode dash variants; safe token-normalized exact OCR
+  matching now runs even when `includedFuzzy` is disabled.
+- Preserved exact native TXT/DOCX/XLSX matching and kept real OCR character-error
+  tolerance behind the explicit `includedFuzzy` setting.
 - Changed the Streamlit anonymization mode selector to follow the selected INI
   `entityDetectionMode` by default instead of silently forcing `combined`.
 - Hardened generic automatic PERSON NER against OCR false positives from form

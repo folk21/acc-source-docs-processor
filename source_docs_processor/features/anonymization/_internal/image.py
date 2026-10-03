@@ -15,12 +15,14 @@ from ....core.text import normalize_inline_whitespace
 from .config import (
     AnonymizationConfig,
     EMPTY_ANONYMIZATION_CONFIG,
+    ReplacementRule,
+    _exact_ocr_replacement_entities,
     _literal_spans,
     _subtract_spans,
     find_heading_token_range,
 )
 from .models import DetectedEntity, TextEntityAnalyzer, UnitProgressCallback
-from .text import merge_entities
+from .text import merge_entities, transform_entities
 
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"})
@@ -34,6 +36,7 @@ _NAME_VALUE_WORD_PATTERN = re.compile(
     r"^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё/'’\-]*$"
 )
 _NAME_TITLES = frozenset({"mr", "mrs", "ms", "miss", "mstr", "dr"})
+_LONG_NUMERIC_IDENTIFIER_PATTERN = re.compile(r"\d{12,}")
 
 
 @dataclass(frozen=True)
@@ -383,14 +386,19 @@ def _map_box_to_original(
     raise ValueError(f"Unsupported OCR rotation: {angle}")
 
 
-def _ocr_page(image: Image.Image, lang: str, angle: int) -> OcrPage:
-    """Run Tesseract OCR and build stable text-to-box offsets."""
+def _ocr_page_with_psm(
+    image: Image.Image,
+    lang: str,
+    angle: int,
+    psm: int,
+) -> OcrPage:
+    """Run one Tesseract page-segmentation mode and build stable OCR offsets."""
     original_width, original_height = image.size
     candidate = _rotated_image(image, angle)
     data = pytesseract.image_to_data(
         np.asarray(candidate.convert("RGB")),
         lang=lang,
-        config="--psm 11",
+        config=f"--psm {psm}",
         output_type=pytesseract.Output.DICT,
         timeout=30,
     )
@@ -459,6 +467,93 @@ def _ocr_page(image: Image.Image, lang: str, angle: int) -> OcrPage:
     )
 
 
+def _ocr_page(image: Image.Image, lang: str, angle: int) -> OcrPage:
+    """Run the default sparse-text OCR mode used for orientation selection."""
+    return _ocr_page_with_psm(image, lang=lang, angle=angle, psm=11)
+
+
+def _analyze_ocr_page(
+    page: OcrPage,
+    analyzer: TextEntityAnalyzer,
+    config: AnonymizationConfig,
+) -> list[DetectedEntity]:
+    """Analyze one OCR page and add supported structure-aware detections."""
+    analyze_ocr = getattr(analyzer, "analyze_ocr", None)
+    raw_entities = (
+        analyze_ocr(page.text)
+        if callable(analyze_ocr)
+        else analyzer.analyze(page.text)
+    )
+    entities = merge_entities(raw_entities, len(page.text))
+    if not config.uses_automatic_detection:
+        return entities
+
+    excluded_spans = _literal_spans(page.text, config.excluded)
+    configured_spans = [
+        (entity.start, entity.end)
+        for entity in entities
+        if entity.entity_type.startswith("CONFIG_")
+    ]
+    structured_entities = [
+        configured_segment
+        for entity in _stacked_passenger_name_entities(page)
+        for excluded_segment in _subtract_spans(entity, excluded_spans)
+        for configured_segment in _subtract_spans(
+            excluded_segment,
+            configured_spans,
+        )
+    ]
+    return merge_entities(
+        [*entities, *structured_entities],
+        len(page.text),
+    )
+
+
+def _ocr_candidate_key(
+    candidate: tuple[OcrPage, list[DetectedEntity]],
+    config: AnonymizationConfig,
+) -> tuple[bool, int, int, int, float]:
+    """Return the deterministic orientation-selection key for one OCR candidate."""
+    page, entities = candidate
+    return (
+        find_heading_token_range(
+            [word.text for word in page.words],
+            config.included_paragraphs,
+        )
+        is not None,
+        len(entities),
+        sum(word.confidence >= 35 for word in page.words),
+        len(page.text),
+        sum(word.confidence for word in page.words),
+    )
+
+
+def _long_numeric_replacement_targets(
+    config: AnonymizationConfig,
+) -> frozenset[str]:
+    """Return targets whose configured sources contain long numeric identifiers."""
+    if not config.uses_configured_detection:
+        return frozenset()
+    return frozenset(
+        rule.replacement
+        for rule in config.included_and_replaced
+        if _LONG_NUMERIC_IDENTIFIER_PATTERN.search(rule.source) is not None
+    )
+
+
+def _textual_replacement_rules(
+    config: AnonymizationConfig,
+) -> tuple[ReplacementRule, ...]:
+    """Return explicit configured replacement rules containing alphabetic text."""
+    if not config.uses_configured_detection:
+        return ()
+    return tuple(
+        rule
+        for rule in config.included_and_replaced
+        if any(character.isalpha() for character in rule.source)
+    )
+
+
 def _choose_ocr_page(
     image: Image.Image,
     analyzer: TextEntityAnalyzer,
@@ -472,49 +567,13 @@ def _choose_ocr_page(
             page = _ocr_page(image, lang=lang, angle=angle)
         except RuntimeError:
             continue
-        analyze_ocr = getattr(analyzer, "analyze_ocr", None)
-        raw_entities = (
-            analyze_ocr(page.text)
-            if callable(analyze_ocr)
-            else analyzer.analyze(page.text)
-        )
-        entities = merge_entities(raw_entities, len(page.text))
-        if config.uses_automatic_detection:
-            excluded_spans = _literal_spans(page.text, config.excluded)
-            configured_spans = [
-                (entity.start, entity.end)
-                for entity in entities
-                if entity.entity_type.startswith("CONFIG_")
-            ]
-            structured_entities = [
-                configured_segment
-                for entity in _stacked_passenger_name_entities(page)
-                for excluded_segment in _subtract_spans(entity, excluded_spans)
-                for configured_segment in _subtract_spans(
-                    excluded_segment,
-                    configured_spans,
-                )
-            ]
-            entities = merge_entities(
-                [*entities, *structured_entities],
-                len(page.text),
-            )
-        candidates.append((page, entities))
+        candidates.append((page, _analyze_ocr_page(page, analyzer, config)))
     if not candidates:
         raise RuntimeError("Tesseract OCR did not return a usable result")
+
     return max(
         candidates,
-        key=lambda candidate: (
-            find_heading_token_range(
-                [word.text for word in candidate[0].words],
-                config.included_paragraphs,
-            )
-            is not None,
-            len(candidate[1]),
-            sum(word.confidence >= 35 for word in candidate[0].words),
-            len(candidate[0].text),
-            sum(word.confidence for word in candidate[0].words),
-        ),
+        key=lambda candidate: _ocr_candidate_key(candidate, config),
     )
 
 
@@ -589,6 +648,109 @@ def _draw_replacement(
     image.paste(layer, (left, top))
 
 
+def _word_box(
+    word: OcrWord,
+    image: Image.Image,
+    padding: int,
+) -> tuple[int, int, int, int]:
+    """Return one padded OCR-word box in original image coordinates."""
+    return (
+        max(0, word.left - padding),
+        max(0, word.top - padding),
+        min(image.width, word.left + word.width + padding),
+        min(image.height, word.top + word.height + padding),
+    )
+
+
+def _single_word_replacement_operations(
+    page: OcrPage,
+    entities: Sequence[DetectedEntity],
+    image: Image.Image,
+    padding: int,
+) -> tuple[list[tuple[tuple[int, int, int, int], str]], set[int]]:
+    """Build full-word draw operations for contained fragment replacements.
+
+    Tesseract may return an email or other identifier as one OCR word while a
+    configured mapping targets only one fragment inside it. Redrawing the entity
+    box directly would erase the whole OCR word and leave only the replacement.
+    Reconstruct the complete word whenever all entities touching that word are
+    contained replacement spans, then redraw that word once.
+    """
+    operations: list[tuple[tuple[int, int, int, int], str]] = []
+    handled: set[int] = set()
+    for word in page.words:
+        overlapping = [entity for entity in entities if _overlaps(word, entity)]
+        if not overlapping:
+            continue
+        if any(
+            entity.replacement is None
+            or entity.start < word.start
+            or entity.end > word.end
+            for entity in overlapping
+        ):
+            continue
+
+        relative = [
+            DetectedEntity(
+                start=entity.start - word.start,
+                end=entity.end - word.start,
+                entity_type=entity.entity_type,
+                score=entity.score,
+                replacement=entity.replacement,
+            )
+            for entity in overlapping
+        ]
+        operations.append(
+            (
+                _word_box(word, image, padding),
+                transform_entities(word.text, relative),
+            )
+        )
+        handled.update(id(entity) for entity in overlapping)
+    return operations, handled
+
+
+def _draw_single_word_replacements(
+    image: Image.Image,
+    page: OcrPage,
+    entities: Sequence[DetectedEntity],
+    padding: int,
+) -> set[int]:
+    """Render contained fragment replacements and return handled entity IDs."""
+    operations, handled = _single_word_replacement_operations(
+        page,
+        entities,
+        image,
+        padding,
+    )
+    for box, value in operations:
+        _draw_replacement(image, box, value, page.rotation_degrees)
+    return handled
+
+
+def _replacement_draw_operations(
+    page: OcrPage,
+    entities: Sequence[DetectedEntity],
+    image: Image.Image,
+    padding: int,
+) -> list[tuple[tuple[int, int, int, int], str]]:
+    """Build safe draw operations for replacement entities on one OCR page."""
+    operations, handled = _single_word_replacement_operations(
+        page,
+        entities,
+        image,
+        padding,
+    )
+
+    for entity in entities:
+        if id(entity) in handled or entity.replacement is None:
+            continue
+        box = _entity_box(page.words, entity, image, padding)
+        if box is not None:
+            operations.append((box, entity.replacement))
+    return operations
+
+
 def _entity_box(
     words: tuple[OcrWord, ...],
     entity: DetectedEntity,
@@ -605,6 +767,204 @@ def _entity_box(
         min(image.width, max(word.left + word.width for word in matched) + padding),
         min(image.height, max(word.top + word.height for word in matched) + padding),
     )
+
+
+def _box_overlap_ratio(
+    left_box: tuple[int, int, int, int],
+    right_box: tuple[int, int, int, int],
+) -> float:
+    """Return intersection area divided by the smaller box area."""
+    left = max(left_box[0], right_box[0])
+    top = max(left_box[1], right_box[1])
+    right = min(left_box[2], right_box[2])
+    bottom = min(left_box[3], right_box[3])
+    if right <= left or bottom <= top:
+        return 0.0
+    intersection = (right - left) * (bottom - top)
+    left_area = max(1, (left_box[2] - left_box[0]) * (left_box[3] - left_box[1]))
+    right_area = max(1, (right_box[2] - right_box[0]) * (right_box[3] - right_box[1]))
+    return intersection / min(left_area, right_area)
+
+
+def _ocr_upright_band(
+    image: Image.Image,
+    lang: str,
+    angle: int,
+    top: int,
+    bottom: int,
+) -> OcrPage:
+    """OCR one horizontal band and map its word boxes back to the source image."""
+    upright = _rotated_image(image, angle)
+    crop = upright.crop((0, top, upright.width, bottom))
+    local_page = _ocr_page_with_psm(crop, lang=lang, angle=0, psm=4)
+    original_width, original_height = image.size
+    words: list[OcrWord] = []
+    for word in local_page.words:
+        layout_left = word.left
+        layout_top = word.top + top
+        layout_width = word.width
+        layout_height = word.height
+        mapped = _map_box_to_original(
+            layout_left,
+            layout_top,
+            layout_width,
+            layout_height,
+            angle,
+            original_width,
+            original_height,
+        )
+        words.append(
+            OcrWord(
+                text=word.text,
+                start=word.start,
+                end=word.end,
+                left=mapped[0],
+                top=mapped[1],
+                width=mapped[2],
+                height=mapped[3],
+                confidence=word.confidence,
+                layout_left=layout_left,
+                layout_top=layout_top,
+                layout_width=layout_width,
+                layout_height=layout_height,
+                block_number=word.block_number,
+                paragraph_number=word.paragraph_number,
+                line_number=word.line_number,
+            )
+        )
+    return OcrPage(
+        text=local_page.text,
+        words=tuple(words),
+        rotation_degrees=angle,
+        original_width=original_width,
+        original_height=original_height,
+        layout_width=upright.width,
+        layout_height=upright.height,
+    )
+
+
+def _recover_long_numeric_replacements(
+    image: Image.Image,
+    page: OcrPage,
+    entities: Sequence[DetectedEntity],
+    analyzer: TextEntityAnalyzer,
+    lang: str,
+    config: AnonymizationConfig,
+    padding: int,
+) -> list[tuple[tuple[int, int, int, int], str]]:
+    """Recover configured long-number mappings missed by sparse full-page OCR.
+
+    Tesseract PSM 11 can omit a short table row even when the same identifier is
+    recognized elsewhere. For explicitly configured long numeric replacements,
+    retry three overlapping horizontal page bands with table-oriented PSM 4 and
+    add only previously unseen replacement boxes.
+    """
+    targets = _long_numeric_replacement_targets(config)
+    if not targets:
+        return []
+
+    known_boxes = [
+        box
+        for entity in entities
+        if entity.replacement in targets
+        if (box := _entity_box(page.words, entity, image, padding)) is not None
+    ]
+    upright_height = page.layout_height or (
+        image.width if page.rotation_degrees in {90, 270} else image.height
+    )
+    half = max(1, upright_height // 2)
+    quarter = max(1, upright_height // 4)
+    bands = (
+        (0, min(upright_height, half)),
+        (quarter, min(upright_height, quarter + half)),
+        (max(0, upright_height - half), upright_height),
+    )
+
+    recovered: list[tuple[tuple[int, int, int, int], str]] = []
+    for top, bottom in bands:
+        if bottom <= top:
+            continue
+        try:
+            band_page = _ocr_upright_band(
+                image,
+                lang=lang,
+                angle=page.rotation_degrees,
+                top=top,
+                bottom=bottom,
+            )
+        except RuntimeError:
+            continue
+        for entity in _analyze_ocr_page(band_page, analyzer, config):
+            if entity.replacement not in targets:
+                continue
+            box = _entity_box(band_page.words, entity, image, padding)
+            if box is None:
+                continue
+            if any(_box_overlap_ratio(box, known) >= 0.6 for known in known_boxes):
+                continue
+            if any(
+                replacement == entity.replacement
+                and _box_overlap_ratio(box, recovered_box) >= 0.6
+                for recovered_box, replacement in recovered
+            ):
+                continue
+            recovered.append((box, entity.replacement))
+    return recovered
+
+
+def _recover_textual_replacements(
+    image: Image.Image,
+    page: OcrPage,
+    entities: Sequence[DetectedEntity],
+    lang: str,
+    config: AnonymizationConfig,
+    padding: int,
+) -> list[tuple[tuple[int, int, int, int], str]]:
+    """Recover exact configured text mappings with one table-oriented OCR retry.
+
+    Sparse-text OCR can misread or omit a configured word even when a different
+    page-segmentation mode reads it exactly. Retry the already selected page
+    orientation once with PSM 4 and accept only exact normalized configured
+    replacement matches, without automatic detection or fuzzy character edits.
+    """
+    rules = _textual_replacement_rules(config)
+    if not rules:
+        return []
+
+    known_boxes = [
+        box
+        for entity in entities
+        if entity.replacement is not None
+        if (box := _entity_box(page.words, entity, image, padding)) is not None
+    ]
+    try:
+        retry_page = _ocr_page_with_psm(
+            image,
+            lang=lang,
+            angle=page.rotation_degrees,
+            psm=4,
+        )
+    except RuntimeError:
+        return []
+
+    retry_entities = _exact_ocr_replacement_entities(retry_page.text, rules)
+    recovered: list[tuple[tuple[int, int, int, int], str]] = []
+    for box, replacement in _replacement_draw_operations(
+        retry_page,
+        retry_entities,
+        image,
+        padding,
+    ):
+        if any(_box_overlap_ratio(box, known) >= 0.6 for known in known_boxes):
+            continue
+        if any(
+            replacement == recovered_replacement
+            and _box_overlap_ratio(box, recovered_box) >= 0.6
+            for recovered_box, recovered_replacement in recovered
+        ):
+            continue
+        recovered.append((box, replacement))
+    return recovered
 
 
 def _redact_configured_section(
@@ -666,7 +1026,34 @@ def redact_pil_image(
         len(page.text),
     )
     draw = ImageDraw.Draw(rgb)
+    recovered_replacements = _recover_long_numeric_replacements(
+        rgb,
+        page,
+        entities,
+        analyzer,
+        lang,
+        config,
+        padding,
+    )
+    recovered_replacements.extend(
+        _recover_textual_replacements(
+            rgb,
+            page,
+            entities,
+            lang,
+            config,
+            padding,
+        )
+    )
+    handled_replacements = _draw_single_word_replacements(
+        rgb,
+        page,
+        entities,
+        padding,
+    )
     for entity in entities:
+        if id(entity) in handled_replacements:
+            continue
         box = _entity_box(page.words, entity, rgb, padding)
         if box is None:
             continue
@@ -680,6 +1067,14 @@ def redact_pil_image(
                 page.rotation_degrees,
             )
 
+    for box, replacement in recovered_replacements:
+        _draw_replacement(
+            rgb,
+            box,
+            replacement,
+            page.rotation_degrees,
+        )
+
     section_redacted = _redact_configured_section(
         rgb,
         draw,
@@ -688,7 +1083,7 @@ def redact_pil_image(
         state,
         padding,
     )
-    return rgb, len(entities) + int(section_redacted)
+    return rgb, len(entities) + len(recovered_replacements) + int(section_redacted)
 
 
 def _save_frames(frames: list[Image.Image], destination: Path, suffix: str) -> None:

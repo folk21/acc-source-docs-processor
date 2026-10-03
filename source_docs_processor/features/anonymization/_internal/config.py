@@ -20,6 +20,7 @@ _HEADING_FUZZY_THRESHOLD = 0.84
 _MAX_INCLUDED_FUZZY_ERRORS = 3
 _MIN_FUZZY_LITERAL_LENGTH = 5
 ENTITY_DETECTION_MODES = ("automatic", "configured", "combined", "disabled")
+_OCR_DASHES = frozenset({"‐", "‑", "‒", "–", "—", "−"})
 _OCR_CONFUSABLES = str.maketrans(
     {
         "a": "а",
@@ -450,6 +451,31 @@ def _normalize_ocr_token(value: str) -> str:
     return _normalize_token(value).translate(_OCR_CONFUSABLES)
 
 
+def _normalize_ocr_stream(value: str) -> tuple[str, tuple[int, ...]]:
+    """Normalize OCR text while retaining source offsets for exact matching.
+
+    OCR can introduce whitespace between characters or punctuation that belong to
+    one configured identifier. Whitespace is therefore ignored, common dash
+    variants are canonicalized, and visual Latin/Cyrillic confusables are mapped
+    consistently. Other punctuation is preserved so an email or prefixed number
+    still has to contain the configured punctuation structure.
+    """
+    normalized: list[str] = []
+    offsets: list[int] = []
+    for index, character in enumerate(value):
+        folded = character.casefold().replace("ё", "е")
+        for folded_character in folded:
+            if folded_character.isspace():
+                continue
+            if folded_character in _OCR_DASHES:
+                folded_character = "-"
+            if folded_character.isalnum():
+                folded_character = folded_character.translate(_OCR_CONFUSABLES)
+            normalized.append(folded_character)
+            offsets.append(index)
+    return "".join(normalized), tuple(offsets)
+
+
 def _bounded_edit_distance(left: str, right: str, maximum: int) -> int | None:
     """Return Levenshtein distance when it does not exceed the bound."""
     if abs(len(left) - len(right)) > maximum:
@@ -477,6 +503,37 @@ def _bounded_edit_distance(left: str, right: str, maximum: int) -> int | None:
     return distance if distance <= maximum else None
 
 
+def _ocr_literal_matches(
+    text: str,
+    values: Sequence[str],
+) -> list[tuple[int, int, str]]:
+    """Return exact normalized OCR matches without dropping significant punctuation."""
+    normalized_text, offsets = _normalize_ocr_stream(text)
+    matches: set[tuple[int, int, str]] = set()
+    if not normalized_text or not offsets:
+        return []
+
+    for value in values:
+        normalized_value, _value_offsets = _normalize_ocr_stream(value)
+        if not normalized_value:
+            continue
+        search_from = 0
+        while True:
+            normalized_start = normalized_text.find(normalized_value, search_from)
+            if normalized_start < 0:
+                break
+            normalized_end = normalized_start + len(normalized_value)
+            matches.add(
+                (
+                    offsets[normalized_start],
+                    offsets[normalized_end - 1] + 1,
+                    value,
+                )
+            )
+            search_from = normalized_start + 1
+    return sorted(matches, key=lambda item: (item[0], item[1], item[2].casefold()))
+
+
 def _fuzzy_literal_matches(
     text: str,
     values: Sequence[str],
@@ -488,7 +545,8 @@ def _fuzzy_literal_matches(
         for match in _TOKEN_PATTERN.finditer(text)
         if (normalized := _normalize_ocr_token(match.group(0)))
     ]
-    matches = set(_literal_matches(text, values))
+    exact_matches = set(_ocr_literal_matches(text, values))
+    matches = set(exact_matches)
     if maximum_errors <= 0 or not tokens:
         return sorted(matches, key=lambda item: (item[0], item[1], item[2].casefold()))
 
@@ -509,8 +567,64 @@ def _fuzzy_literal_matches(
             candidate = "".join(normalized for _match, normalized in window)
             if _bounded_edit_distance(candidate, target, maximum_errors) is None:
                 continue
-            matches.add((window[0][0].start(), window[-1][0].end(), value))
+            candidate_match = (window[0][0].start(), window[-1][0].end(), value)
+            if any(
+                source.casefold() == value.casefold()
+                and exact_start < candidate_match[1]
+                and exact_end > candidate_match[0]
+                for exact_start, exact_end, source in exact_matches
+            ):
+                continue
+            matches.add(candidate_match)
     return sorted(matches, key=lambda item: (item[0], item[1], item[2].casefold()))
+
+
+def _prefer_specific_replacement_matches(
+    matches: Sequence[tuple[int, int, str]],
+) -> list[tuple[int, int, str]]:
+    """Keep the longest explicit replacement when configured matches overlap."""
+    preferred: list[tuple[int, int, str]] = []
+    for candidate in sorted(
+        set(matches),
+        key=lambda item: (
+            -(item[1] - item[0]),
+            item[0],
+            item[1],
+            item[2].casefold(),
+        ),
+    ):
+        start, end, _source = candidate
+        if any(start < selected_end and end > selected_start for selected_start, selected_end, _ in preferred):
+            continue
+        preferred.append(candidate)
+    return sorted(preferred, key=lambda item: (item[0], item[1], item[2].casefold()))
+
+
+def _exact_ocr_replacement_entities(
+    text: str,
+    rules: Sequence[ReplacementRule],
+) -> list[DetectedEntity]:
+    """Return exact normalized OCR replacement entities for explicit rules."""
+    if not rules:
+        return []
+
+    replacements_by_source = {
+        rule.source.casefold(): rule.replacement
+        for rule in rules
+    }
+    replacement_matches = _prefer_specific_replacement_matches(
+        _ocr_literal_matches(text, tuple(rule.source for rule in rules))
+    )
+    return [
+        DetectedEntity(
+            start=start,
+            end=end,
+            entity_type="CONFIG_REPLACED",
+            score=1.1,
+            replacement=replacements_by_source[source.casefold()],
+        )
+        for start, end, source in replacement_matches
+    ]
 
 
 def _fuzzy_literal_spans(
@@ -564,64 +678,74 @@ def _subtract_spans(
 def _configured_entities(
     text: str,
     config: AnonymizationConfig,
+    *,
+    ocr: bool,
     fuzzy: bool,
 ) -> list[DetectedEntity]:
     """Build explicit mask and replacement entities from configured rules."""
-    match_function = _fuzzy_literal_matches if fuzzy else _literal_matches
-    match_args = (
-        (config.included_fuzzy_max_errors,)
-        if fuzzy
-        else ()
-    )
+    if fuzzy:
+        match_function = _fuzzy_literal_matches
+        match_args = (config.included_fuzzy_max_errors,)
+    elif ocr:
+        match_function = _ocr_literal_matches
+        match_args = ()
+    else:
+        match_function = _literal_matches
+        match_args = ()
 
-    replacements_by_source = {
-        rule.source.casefold(): rule.replacement
-        for rule in config.included_and_replaced
-    }
-    replacement_sources = tuple(rule.source for rule in config.included_and_replaced)
-    replacement_matches = match_function(
-        text,
-        replacement_sources,
-        *match_args,
-    )
-    replacement_entities = [
-        DetectedEntity(
-            start=start,
-            end=end,
-            entity_type=(
-                "CONFIG_REPLACED_FUZZY" if fuzzy else "CONFIG_REPLACED"
-            ),
-            score=1.1,
-            replacement=replacements_by_source[source.casefold()],
+    if ocr and not fuzzy:
+        replacement_entities = _exact_ocr_replacement_entities(
+            text,
+            config.included_and_replaced,
         )
-        for start, end, source in replacement_matches
-    ]
+    else:
+        replacements_by_source = {
+            rule.source.casefold(): rule.replacement
+            for rule in config.included_and_replaced
+        }
+        replacement_sources = tuple(
+            rule.source for rule in config.included_and_replaced
+        )
+        replacement_matches = match_function(
+            text,
+            replacement_sources,
+            *match_args,
+        )
+        replacement_matches = _prefer_specific_replacement_matches(
+            replacement_matches
+        )
+        replacement_entities = [
+            DetectedEntity(
+                start=start,
+                end=end,
+                entity_type=(
+                    "CONFIG_REPLACED_FUZZY" if fuzzy else "CONFIG_REPLACED"
+                ),
+                score=1.1,
+                replacement=replacements_by_source[source.casefold()],
+            )
+            for start, end, source in replacement_matches
+        ]
 
     included_matches = match_function(
         text,
         config.included,
         *match_args,
     )
+    replacement_spans = [(entity.start, entity.end) for entity in replacement_entities]
     mask_entities: list[DetectedEntity] = []
     for start, end, _source in included_matches:
-        exact_replacement = next(
-            (
-                entity
-                for entity in replacement_entities
-                if entity.start == start and entity.end == end
-            ),
-            None,
-        )
-        if exact_replacement is not None:
-            continue
-        mask_entities.append(
-            DetectedEntity(
-                start=start,
-                end=end,
-                entity_type=(
-                    "CONFIG_INCLUDED_FUZZY" if fuzzy else "CONFIG_INCLUDED"
+        mask_entities.extend(
+            _subtract_spans(
+                DetectedEntity(
+                    start=start,
+                    end=end,
+                    entity_type=(
+                        "CONFIG_INCLUDED_FUZZY" if fuzzy else "CONFIG_INCLUDED"
+                    ),
+                    score=1.0,
                 ),
-                score=1.0,
+                replacement_spans,
             )
         )
     return [*replacement_entities, *mask_entities]
@@ -640,12 +764,13 @@ class ConfiguredTextAnalyzer:
 
     def analyze(self, text: str) -> Sequence[DetectedEntity]:
         """Return exact configured and/or automatic detections for native text."""
-        return self._analyze(text, fuzzy_configured=False)
+        return self._analyze(text, ocr_configured=False, fuzzy_configured=False)
 
     def analyze_ocr(self, text: str) -> Sequence[DetectedEntity]:
-        """Analyze OCR text with optional fuzzy mask and replacement matching."""
+        """Analyze OCR text with normalized exact and optional fuzzy matching."""
         return self._analyze(
             text,
+            ocr_configured=True,
             fuzzy_configured=self._config.included_fuzzy,
         )
 
@@ -653,6 +778,7 @@ class ConfiguredTextAnalyzer:
         self,
         text: str,
         *,
+        ocr_configured: bool,
         fuzzy_configured: bool,
     ) -> list[DetectedEntity]:
         """Compose automatic and configured detections according to the mode."""
@@ -661,7 +787,12 @@ class ConfiguredTextAnalyzer:
             return []
 
         configured_entities = (
-            _configured_entities(text, self._config, fuzzy=fuzzy_configured)
+            _configured_entities(
+                text,
+                self._config,
+                ocr=ocr_configured,
+                fuzzy=fuzzy_configured,
+            )
             if mode in {"configured", "combined"}
             else []
         )

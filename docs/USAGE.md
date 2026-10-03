@@ -336,9 +336,29 @@ Rules:
   `combined` modes;
 - `includedAndReplaced` replaces matching source text with the configured value
   in `configured` and `combined` modes;
-- a replacement rule takes priority over an identical mask rule;
-- `includedFuzzy = true` enables bounded OCR-only matching for configured source
-  values; native TXT, DOCX, and XLSX text remains exact;
+- configured OCR matching first performs safe normalized exact matching that
+  ignores OCR-only whitespace/token boundaries while preserving significant
+  punctuation, so `J . PETROVA @ GM . SU`, spaced long numbers, and Unicode dash
+  variants can still match explicitly configured continuous values; native TXT,
+  DOCX, and XLSX text remains exact, and OCR character content is not allowed to
+  change at this stage;
+- when configured replacements overlap, the longest matching source value wins;
+  configured replacements also take priority over overlapping `included` masks;
+- when one OCR word contains only fragment replacements, the complete transformed
+  word is redrawn once, so a mapping such as `BBB -> CCC` inside
+  `AAA.BBB@GMAIL.COM` produces `AAA.CCC@GMAIL.COM` instead of erasing the
+  surrounding email text;
+- for source-format PDF/raster sanitization, configured replacements containing
+  long numeric identifiers use targeted table-oriented OCR on overlapping page
+  bands to recover occurrences omitted by the default sparse-text pass; only
+  newly located matches for those explicitly configured identifiers are added;
+- configured textual replacements in source-format PDF/raster output also get
+  one table-oriented OCR retry in the already selected page orientation; only
+  normalized-exact configured replacement matches are recovered, so this retry
+  does not implicitly enable fuzzy character matching or automatic detection;
+- `includedFuzzy = true` additionally enables bounded OCR-only edit-distance
+  matching for configured source values; native TXT, DOCX, and XLSX text remains
+  exact;
 - `includedFuzzyMaxErrors` accepts values from `0` to `3`;
 - `excluded` filters only automatic detections in `automatic` and `combined`
   modes and never cancels an explicit `included` or `includedAndReplaced` rule;

@@ -485,3 +485,87 @@ def test_preserve_layout_writes_replacement_text_instead_of_mask(
     assert detected == 1
     assert source_value not in document_text
     assert "цифровая" in document_text
+
+
+def test_preserve_layout_replaces_email_split_across_ocr_words_without_fuzzy(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Verify punctuation-split OCR email mappings survive editable reconstruction.
+
+    Protected risk: a configured email pseudonym must replace the complete visual
+    value even when Tesseract emits `@` as a separate OCR word.
+    """
+    from source_docs_processor.features.anonymization._internal.config import (
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import OcrWord
+
+    source = tmp_path / "source.pdf"
+    destination = tmp_path / "output.docx"
+    pdf = fitz.open()
+    pdf.new_page(width=420, height=280)
+    pdf.save(source)
+    pdf.close()
+
+    recognized = "J.PETROVA @ GM.SU"
+    values = ("J.PETROVA", "@", "GM.SU")
+    starts = (0, 10, 12)
+    lefts = (40, 140, 165)
+    widths = (90, 14, 55)
+    words = tuple(
+        OcrWord(
+            text=value,
+            start=start,
+            end=start + len(value),
+            left=left,
+            top=70,
+            width=width,
+            height=20,
+            confidence=90.0,
+            layout_left=left,
+            layout_top=70,
+            layout_width=width,
+            layout_height=20,
+            block_number=1,
+            paragraph_number=1,
+            line_number=1,
+        )
+        for value, start, left, width in zip(values, starts, lefts, widths, strict=True)
+    )
+    fake_page = OcrPage(
+        text=recognized,
+        words=words,
+        rotation_degrees=0,
+        original_width=420,
+        original_height=280,
+        layout_width=420,
+        layout_height=280,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.editable._choose_ocr_page",
+        lambda *args, **kwargs: (fake_page, []),
+    )
+    config = AnonymizationConfig(
+        included_and_replaced=(
+            ReplacementRule("J.PETROVA@GM.SU", "J.IVANOVA@GM.SU"),
+        ),
+        included_fuzzy=False,
+    )
+
+    detected = anonymize_pdf_to_docx(
+        source,
+        destination,
+        ConfiguredTextAnalyzer(None, config),
+        lang="rus+eng",
+        config=config,
+        output_layout="preserve",
+    )
+
+    output = Document(destination)
+    document_text = "\n".join(paragraph.text for paragraph in output.paragraphs)
+    assert detected == 1
+    assert "PETROVA" not in document_text
+    assert "J.IVANOVA@GM.SU" in document_text
+

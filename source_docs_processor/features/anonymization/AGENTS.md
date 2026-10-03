@@ -58,6 +58,21 @@ Modules outside anonymization must not import this `_internal/` package.
 - In `combined` mode, explicit `included` and `includedAndReplaced` spans take
   priority over overlapping automatic detections; `excluded` filters only the
   automatic side.
+- Keep native configured literal matching exact. OCR configured matching may
+  normalize OCR-only whitespace/token boundaries, common dash variants, and
+  visual Latin/Cyrillic confusables while preserving significant punctuation
+  before optional bounded fuzzy matching. It must not accept real character
+  edits when `includedFuzzy` is disabled. Overlapping configured replacements
+  use the longest matching source, and replacement spans take priority over
+  overlapping `included` masks so an explicit mapping is never downgraded to a
+  black mask by configured overlap resolution. When a replacement changes only
+  part of one OCR word, reconstruct and redraw the complete transformed word so
+  unmapped email/identifier fragments remain visible. Source-format PDF/raster
+  sanitization may use a table-oriented OCR retry for long numeric replacements
+  when sparse-text OCR misses an occurrence. It may also retry configured textual
+  replacements once with table-oriented OCR in the already selected page
+  orientation, but recovery must accept only exact normalized configured matches:
+  do not turn the retry into implicit fuzzy matching or automatic detection.
 - `includedParagraphs`, `redactLines`, and `redactLineRanges` remain independent
   from entity-detection mode. `redactLines` and `redactLineRanges` use 1-based
   top-level PDF/raster page numbers and upright OCR-line ordering, and must fail

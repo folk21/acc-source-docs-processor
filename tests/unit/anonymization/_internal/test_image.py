@@ -625,6 +625,626 @@ def test_raster_replacement_covers_source_and_draws_target(monkeypatch) -> None:
     assert maximum > 240
 
 
+def test_raster_replacement_matches_email_split_into_ocr_tokens_without_fuzzy(
+    monkeypatch,
+) -> None:
+    """Verify split OCR punctuation still produces a visible configured replacement.
+
+    Protected risk: email addresses are commonly segmented around `@` and `.`,
+    which must not leave a configured private value unchanged in raster output.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    recognized = "J.PETROVA @ GM.SU"
+    values = ("J.PETROVA", "@", "GM.SU")
+    starts = (0, 10, 12)
+    lefts = (20, 112, 132)
+    widths = (84, 12, 52)
+    words = tuple(
+        OcrWord(
+            text=value,
+            start=start,
+            end=start + len(value),
+            left=left,
+            top=30,
+            width=width,
+            height=24,
+            confidence=90.0,
+            layout_left=left,
+            layout_top=30,
+            layout_width=width,
+            layout_height=24,
+            block_number=1,
+            paragraph_number=1,
+            line_number=1,
+        )
+        for value, start, left, width in zip(values, starts, lefts, widths, strict=True)
+    )
+    page = OcrPage(
+        text=recognized,
+        words=words,
+        rotation_degrees=0,
+        original_width=220,
+        original_height=100,
+        layout_width=220,
+        layout_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+    config = AnonymizationConfig(
+        included_and_replaced=(
+            ReplacementRule("J.PETROVA@GM.SU", "J.IVANOVA@GM.SU"),
+        ),
+        included_fuzzy=False,
+    )
+
+    transformed, detected = redact_pil_image(
+        Image.new("RGB", (220, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    crop = transformed.crop((16, 26, 190, 58)).convert("L")
+    minimum, maximum = crop.getextrema()
+    assert detected == 1
+    assert minimum < 80
+    assert maximum > 240
+
+
+
+def test_raster_fragment_replacement_preserves_unmapped_email_text(monkeypatch) -> None:
+    """Verify a mapping inside one OCR word redraws the complete transformed word.
+
+    Protected risk: Tesseract often returns an email as one OCR word. Replacing a
+    fragment such as `BBB -> CCC` must preserve the surrounding local/domain text
+    instead of erasing the complete email bounding box and drawing only `CCC`.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    recognized = "AAA.BBB@GMAIL.COM"
+    page = OcrPage(
+        text=recognized,
+        words=(
+            OcrWord(
+                text=recognized,
+                start=0,
+                end=len(recognized),
+                left=20,
+                top=30,
+                width=180,
+                height=24,
+                confidence=95.0,
+                layout_left=20,
+                layout_top=30,
+                layout_width=180,
+                layout_height=24,
+                block_number=1,
+                paragraph_number=1,
+                line_number=1,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=240,
+        original_height=100,
+        layout_width=240,
+        layout_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+    drawn_values: list[str] = []
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._draw_replacement",
+        lambda image, box, value, rotation_degrees: drawn_values.append(value),
+    )
+    config = AnonymizationConfig(
+        entity_detection_mode="configured",
+        included_and_replaced=(ReplacementRule("BBB", "CCC"),),
+    )
+
+    _transformed, detected = redact_pil_image(
+        Image.new("RGB", (240, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    assert detected == 1
+    assert drawn_values == ["AAA.CCC@GMAIL.COM"]
+
+
+def test_raster_multiple_fragment_replacements_rebuild_one_email_once(monkeypatch) -> None:
+    """Verify several mappings inside one OCR email are composed before drawing.
+
+    Protected risk: independently repainting overlapping OCR-word boxes can leave
+    only fragments such as `J.     MMM`; all configured fragments must instead be
+    applied to the original OCR word and rendered once.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    recognized = "AAA.BBB@GMAIL.COM"
+    page = OcrPage(
+        text=recognized,
+        words=(
+            OcrWord(
+                text=recognized,
+                start=0,
+                end=len(recognized),
+                left=20,
+                top=30,
+                width=180,
+                height=24,
+                confidence=95.0,
+                layout_left=20,
+                layout_top=30,
+                layout_width=180,
+                layout_height=24,
+                block_number=1,
+                paragraph_number=1,
+                line_number=1,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=240,
+        original_height=100,
+        layout_width=240,
+        layout_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+    drawn_values: list[str] = []
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._draw_replacement",
+        lambda image, box, value, rotation_degrees: drawn_values.append(value),
+    )
+    config = AnonymizationConfig(
+        entity_detection_mode="configured",
+        included_and_replaced=(
+            ReplacementRule("AAA", "J"),
+            ReplacementRule("BBB", "CCC"),
+            ReplacementRule("GMAIL", "MMM"),
+        ),
+    )
+
+    _transformed, detected = redact_pil_image(
+        Image.new("RGB", (240, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    assert detected == 3
+    assert drawn_values == ["J.CCC@MMM.COM"]
+
+
+def test_textual_mapping_recovers_exact_psm4_variant_without_fuzzy(
+    monkeypatch,
+) -> None:
+    """Verify exact supplemental OCR recovers a configured word missed by PSM 11.
+
+    Protected risk: sparse-text OCR can misread one Cyrillic character in an
+    explicitly configured address fragment while table-oriented OCR reads the
+    same pixels correctly. Recovery must use the exact configured spelling
+    without enabling global fuzzy matching.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    configured_source = "КОМЕНДАНТСКИЙ"
+    replacement = "ЛЕНИНГРАДСКИЙ"
+    primary_text = "КОМЕНДАНТСКИИ"
+    retry_text = configured_source
+    primary_page = OcrPage(
+        text=primary_text,
+        words=(
+            OcrWord(
+                text=primary_text,
+                start=0,
+                end=len(primary_text),
+                left=20,
+                top=30,
+                width=150,
+                height=22,
+                confidence=80.0,
+                layout_left=20,
+                layout_top=30,
+                layout_width=150,
+                layout_height=22,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=220,
+        original_height=100,
+        layout_width=220,
+        layout_height=100,
+    )
+    retry_page = OcrPage(
+        text=retry_text,
+        words=(
+            OcrWord(
+                text=retry_text,
+                start=0,
+                end=len(retry_text),
+                left=20,
+                top=30,
+                width=150,
+                height=22,
+                confidence=95.0,
+                layout_left=20,
+                layout_top=30,
+                layout_width=150,
+                layout_height=22,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=220,
+        original_height=100,
+        layout_width=220,
+        layout_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: primary_page,
+    )
+
+    def fake_ocr_page_with_psm(image, lang, angle, psm):
+        assert psm == 4
+        return retry_page
+
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page_with_psm",
+        fake_ocr_page_with_psm,
+    )
+    drawn_values: list[str] = []
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._draw_replacement",
+        lambda image, box, value, rotation_degrees: drawn_values.append(value),
+    )
+    config = AnonymizationConfig(
+        entity_detection_mode="configured",
+        included_and_replaced=(
+            ReplacementRule(configured_source, replacement),
+        ),
+        included_fuzzy=False,
+    )
+
+    _transformed, detected = redact_pil_image(
+        Image.new("RGB", (220, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    assert detected == 1
+    assert drawn_values == [replacement]
+
+
+def test_textual_mapping_retry_does_not_accept_character_error(monkeypatch) -> None:
+    """Verify supplemental OCR remains exact when configured fuzzy mode is off.
+
+    Protected risk: the recovery pass must not turn one-character OCR errors into
+    implicit fuzzy matches for arbitrary configured textual replacements.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    misread = "КОМЕНДАНТСКИИ"
+    page = OcrPage(
+        text=misread,
+        words=(
+            OcrWord(
+                text=misread,
+                start=0,
+                end=len(misread),
+                left=20,
+                top=30,
+                width=150,
+                height=22,
+                confidence=85.0,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=220,
+        original_height=100,
+        layout_width=220,
+        layout_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: page,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page_with_psm",
+        lambda image, lang, angle, psm: page,
+    )
+    drawn_values: list[str] = []
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._draw_replacement",
+        lambda image, box, value, rotation_degrees: drawn_values.append(value),
+    )
+    config = AnonymizationConfig(
+        entity_detection_mode="configured",
+        included_and_replaced=(
+            ReplacementRule("КОМЕНДАНТСКИЙ", "ЛЕНИНГРАДСКИЙ"),
+        ),
+        included_fuzzy=False,
+    )
+
+    _transformed, detected = redact_pil_image(
+        Image.new("RGB", (220, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    assert detected == 0
+    assert drawn_values == []
+
+
+def test_textual_retry_preserves_unmapped_fragments_inside_one_ocr_word(
+    monkeypatch,
+) -> None:
+    """Verify recovered fragment mappings redraw the complete transformed word.
+
+    Protected risk: a supplemental OCR pass may be the first pass that sees an
+    email. Recovering only the configured fragment must not erase the rest of the
+    OCR word when the replacement is rendered back into the raster page.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    primary_page = OcrPage(
+        text="Contact",
+        words=(
+            OcrWord(
+                text="Contact",
+                start=0,
+                end=7,
+                left=20,
+                top=30,
+                width=60,
+                height=22,
+                confidence=90.0,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=240,
+        original_height=100,
+        layout_width=240,
+        layout_height=100,
+    )
+    email = "AAA.BBB@GMAIL.COM"
+    retry_page = OcrPage(
+        text=email,
+        words=(
+            OcrWord(
+                text=email,
+                start=0,
+                end=len(email),
+                left=20,
+                top=30,
+                width=180,
+                height=22,
+                confidence=95.0,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=240,
+        original_height=100,
+        layout_width=240,
+        layout_height=100,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: primary_page,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page_with_psm",
+        lambda image, lang, angle, psm: retry_page,
+    )
+    drawn_values: list[str] = []
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._draw_replacement",
+        lambda image, box, value, rotation_degrees: drawn_values.append(value),
+    )
+    config = AnonymizationConfig(
+        entity_detection_mode="configured",
+        included_and_replaced=(ReplacementRule("BBB", "CCC"),),
+        included_fuzzy=False,
+    )
+
+    _transformed, detected = redact_pil_image(
+        Image.new("RGB", (240, 100), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+    )
+
+    assert detected == 1
+    assert drawn_values == ["AAA.CCC@GMAIL.COM"]
+
+
+def test_long_numeric_mapping_recovers_table_row_missed_by_sparse_ocr(
+    monkeypatch,
+) -> None:
+    """Verify band OCR recovers a repeated long configured identifier.
+
+    Protected risk: sparse-text PSM 11 can omit an entire short table row even
+    when an identical number is recognized elsewhere on the page. The raster
+    sanitizer must add a table-oriented band match without redrawing the already
+    recognized occurrence.
+    """
+    from PIL import Image
+
+    from source_docs_processor.features.anonymization._internal.config import (
+        AnonymizationConfig,
+        ConfiguredTextAnalyzer,
+        ReplacementRule,
+    )
+    from source_docs_processor.features.anonymization._internal.image import (
+        OcrPage,
+        OcrWord,
+        redact_pil_image,
+    )
+
+    source = "№40817810355862591920"
+    replacement = "№11111111111111111111"
+    sparse_page = OcrPage(
+        text=source,
+        words=(
+            OcrWord(
+                text=source,
+                start=0,
+                end=len(source),
+                left=20,
+                top=80,
+                width=180,
+                height=22,
+                confidence=95.0,
+                layout_left=20,
+                layout_top=80,
+                layout_width=180,
+                layout_height=22,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=240,
+        original_height=140,
+        layout_width=240,
+        layout_height=140,
+    )
+    band_text = f"{source} {source}"
+    band_page = OcrPage(
+        text=band_text,
+        words=(
+            OcrWord(
+                text=source,
+                start=0,
+                end=len(source),
+                left=20,
+                top=35,
+                width=180,
+                height=22,
+                confidence=95.0,
+                layout_left=20,
+                layout_top=35,
+                layout_width=180,
+                layout_height=22,
+            ),
+            OcrWord(
+                text=source,
+                start=len(source) + 1,
+                end=len(band_text),
+                left=20,
+                top=80,
+                width=180,
+                height=22,
+                confidence=95.0,
+                layout_left=20,
+                layout_top=80,
+                layout_width=180,
+                layout_height=22,
+            ),
+        ),
+        rotation_degrees=0,
+        original_width=240,
+        original_height=140,
+        layout_width=240,
+        layout_height=140,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_page",
+        lambda image, lang, angle: sparse_page,
+    )
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._ocr_upright_band",
+        lambda image, lang, angle, top, bottom: band_page,
+    )
+    drawn: list[tuple[tuple[int, int, int, int], str]] = []
+    monkeypatch.setattr(
+        "source_docs_processor.features.anonymization._internal.image._draw_replacement",
+        lambda image, box, value, rotation_degrees: drawn.append((box, value)),
+    )
+    config = AnonymizationConfig(
+        entity_detection_mode="configured",
+        included_and_replaced=(ReplacementRule(source, replacement),),
+    )
+
+    _result, detected = redact_pil_image(
+        Image.new("RGB", (240, 140), "white"),
+        ConfiguredTextAnalyzer(None, config),
+        config=config,
+        padding=0,
+    )
+
+    assert detected == 2
+    assert [value for _box, value in drawn] == [replacement, replacement]
+    assert {box[1] for box, _value in drawn} == {35, 80}
+
+
 def _make_stacked_passenger_page(label_words: tuple[str, ...], name_words: tuple[str, ...]):
     """Build synthetic OCR lines with a passenger label above its value."""
     from source_docs_processor.features.anonymization._internal.image import OcrPage, OcrWord
